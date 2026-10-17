@@ -14,6 +14,11 @@ jobs:
     name: Lint, typecheck and build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # No Supabase in CI: placeholder values so the client builds. The app
+      # cannot reach them, so the e2e run exercises the offline path.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54331
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
     steps:
       - uses: actions/checkout@v7
 
@@ -44,6 +49,11 @@ jobs:
     name: E2E
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # No Supabase in CI: placeholder values so the client builds. The app
+      # cannot reach them, so the e2e run exercises the offline path.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54331
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
     steps:
       - uses: actions/checkout@v7
 

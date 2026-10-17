@@ -93,6 +93,42 @@ La configuración local (auth anónima, email con enlace y código OTP, URLs de
 redirección) está en `supabase/config.toml` y las plantillas de correo en
 `supabase/templates/`.
 
+## Autenticación
+
+Sin registro previo ([ADR 0004](docs/decisions/0004-auth-magic-link.md)):
+
+- **Primer uso.** `SessionProvider` (`src/components/session-provider.tsx`,
+  montado en `src/app/(app)/layout.tsx`) restaura la sesión guardada o crea
+  un usuario anónimo de Supabase. Si Supabase no responde, la app se muestra
+  igual con el aviso "Sin conexión" y reintenta sola con backoff.
+- **Guardar la lista con un correo.** Desde el menú (Cuenta): se ingresa el
+  correo y llega un email con un enlace y un código de seis dígitos; sirve
+  cualquiera de los dos. El usuario anónimo se convierte sin cambiar de id,
+  así que conserva sus datos. Si el correo ya tiene cuenta, se entra a esa
+  cuenta con el código o el enlace.
+- **Enlace del correo.** Lo procesa `src/app/auth/callback/route.ts` y vuelve
+  a `/` con `?account=...` para que el menú muestre el resultado.
+- **Cerrar sesión** cierra solo este dispositivo y crea un usuario anónimo
+  nuevo.
+
+La sesión vive en cookies (`@supabase/ssr`) y se lee en el navegador: los
+layouts no llaman a `cookies()` y siguen siendo estáticos. No hay `proxy.ts`:
+el cliente del navegador renueva su propio token.
+
+En cada entorno de Supabase, Auth tiene que aceptar `<origen>/auth/callback`
+como URL de redirección (en local ya está en `supabase/config.toml`; en
+staging y producción se agrega en el dashboard, junto con el dominio de las
+previews de Vercel).
+
+Tests e2e contra el stack local (los que dependen de Supabase se saltean si
+no está `E2E_SUPABASE=1`, como en CI):
+
+```bash
+npm run db:start
+npm run build            # con .env.local apuntando al stack local
+E2E_SUPABASE=1 npm run test:e2e
+```
+
 ## Estructura
 
 ```

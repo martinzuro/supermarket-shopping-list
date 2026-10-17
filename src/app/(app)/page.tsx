@@ -1,7 +1,8 @@
-import { Menu, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
+import { ConnectionBanner } from "@/components/connection-banner";
 import { AddItemBar } from "@/components/list/add-item-bar";
 import { ListSection } from "@/components/list/list-section";
-import { Button } from "@/components/ui/button";
+import { AppMenu } from "@/components/menu/app-menu";
 import { texts } from "@/lib/texts";
 
 export default function ListPage() {
@@ -12,16 +13,9 @@ export default function ListPage() {
           <h1 className="text-xl font-semibold tracking-tight">
             {texts.app.name}
           </h1>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-touch"
-            aria-label={texts.header.menu}
-            className="-mr-2.5"
-          >
-            <Menu aria-hidden />
-          </Button>
+          <AppMenu />
         </div>
+        <ConnectionBanner />
       </header>
 
       <main className="px-safe pb-add-bar mx-auto w-full max-w-xl flex-1 pt-1">
