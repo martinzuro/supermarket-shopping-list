@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { texts } from "@/lib/texts";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Supermarket Shopping List",
-  description: "Web app para gestionar listas de compras de supermercado.",
+  title: texts.app.name,
+  description: texts.app.description,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

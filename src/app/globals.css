@@ -1,25 +1,152 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/*
+ * Modo oscuro según la preferencia del sistema. Las variantes `dark:` de
+ * Tailwind y de las primitivas de shadcn siguen la misma media query.
+ */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/*
+ * Tokens de color. Los pares de texto cumplen WCAG AA (>= 4.5:1) sobre su
+ * fondo en ambos modos; `input` y `ring` cumplen 3:1 como borde de control.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light dark;
+
+  --background: #f5f7fa;
+  --foreground: #14181f;
+  --card: #ffffff;
+  --card-foreground: #14181f;
+  --popover: #ffffff;
+  --popover-foreground: #14181f;
+  --primary: #1c6b3c;
+  --primary-foreground: #ffffff;
+  --secondary: #e9edf2;
+  --secondary-foreground: #14181f;
+  --muted: #e9edf2;
+  --muted-foreground: #566070;
+  --accent: #e2f0e6;
+  --accent-foreground: #134d2b;
+  --destructive: #b83227;
+  --border: #d9dee6;
+  --input: #8a93a1;
+  --ring: #1c6b3c;
+  --radius: 0.75rem;
+
+  /* Alto de la barra inferior para añadir, sin contar el safe area. */
+  --add-bar-height: 4.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f1318;
+    --foreground: #e8ecf1;
+    --card: #171c23;
+    --card-foreground: #e8ecf1;
+    --popover: #171c23;
+    --popover-foreground: #e8ecf1;
+    --primary: #5fc987;
+    --primary-foreground: #07210f;
+    --secondary: #232a34;
+    --secondary-foreground: #e8ecf1;
+    --muted: #1f252e;
+    --muted-foreground: #9ba5b3;
+    --accent: #183524;
+    --accent-foreground: #b9ebc9;
+    --destructive: #f07167;
+    --border: #29313c;
+    --input: #5f6978;
+    --ring: #5fc987;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2.5);
+  --radius-4xl: calc(var(--radius) * 3);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@theme {
+  /* Escala tipográfica: base de 16 px (evita el zoom de iOS en inputs). */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+
+  /* Objetivo táctil mínimo: h-touch, size-touch, min-h-touch, min-w-touch. */
+  --spacing-touch: 2.75rem;
+  /* Objetivo táctil de la acción principal (barra de añadir). */
+  --spacing-touch-lg: 3.25rem;
+}
+
+/* Safe areas (viewport-fit=cover): notch arriba, indicador de inicio abajo. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: max(--spacing(3), env(safe-area-inset-bottom, 0px));
+}
+
+@utility px-safe {
+  padding-left: max(--spacing(4), env(safe-area-inset-left, 0px));
+  padding-right: max(--spacing(4), env(safe-area-inset-right, 0px));
+}
+
+/* Reserva espacio para que la barra fija no tape el final del contenido. */
+@utility pb-add-bar {
+  padding-bottom: calc(
+    var(--add-bar-height) + env(safe-area-inset-bottom, 0px) + --spacing(6)
+  );
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
