@@ -73,8 +73,11 @@ Reglas que se derivan de esos documentos y se aplican siempre:
   anima `transform` y `opacity` en interacciones frecuentes y respeta
   `prefers-reduced-motion`.
 - El sistema de diseño (tokens y componentes base) se construye antes que
-  cualquier pantalla. No se implementa interfaz hasta que el usuario
-  apruebe la dirección de diseño.
+  cualquier pantalla. La dirección está **aprobada** (ADR 0008, con las
+  diez decisiones de la sección 10 de `docs/DESIGN_DIRECTION.md`). Los
+  tokens y primitivas provisionales de `src/app/globals.css` y
+  `src/components/ui/` tienen la apariencia por defecto de shadcn y se
+  reemplazan, no se extienden.
 
 ## Stack
 
