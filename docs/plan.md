@@ -309,27 +309,24 @@ Hecho el 2026-10-17:
       día con `main`. Sin revisores obligatorios (una sola persona).
       Las ramas se borran al mergear.
 
-Pendiente, requiere acción del usuario:
+Cuentas, hecho el 2026-10-17:
 
-- [ ] **Cuenta de Vercel** en https://vercel.com/signup con la cuenta de
-      GitHub. Importar el repo. Vercel detecta Next.js solo; no hace falta
-      configurar nada hasta la Fase 1. Después, `npm i -g vercel` y
-      `vercel login` para enlazar el proyecto desde local.
-- [ ] **Cuenta de Supabase** en https://supabase.com/dashboard con la
-      cuenta de GitHub. Crear una organización y dos proyectos:
-      `supermarket-shopping-list-staging` y
-      `supermarket-shopping-list-prod`, región `South America (São Paulo)`
-      por cercanía a Uruguay. Guardar la contraseña de la base de cada uno
-      en un gestor de contraseñas. Después, `brew install supabase/tap/supabase`
-      y `supabase login`.
-- [ ] **Cuenta de Sentry** en https://sentry.io/signup con la cuenta de
-      GitHub. Crear un proyecto de tipo Next.js. Se integra en la Fase 4,
-      pero tener el DSN desde la Fase 1 evita rehacer configuración.
+- [x] **Vercel**: proyecto importado desde GitHub, preview por PR y
+      producción desde `main`. Variables `NEXT_PUBLIC_SUPABASE_*` cargadas
+      para preview y producción (ambas apuntan a staging hasta que exista el
+      proyecto de producción). Pendiente: desactivar Vercel Authentication
+      para producción en Deployment Protection, o nadie fuera de la cuenta
+      podrá abrir la app.
+- [x] **Supabase**: proyecto `supermarket-shopping-list-staging` en
+      São Paulo con Postgres 17 (requerido: `normalize_name` usa la
+      collation `pg_c_utf8`). El CLI va como devDependency de npm
+      (`npx supabase`), porque Homebrew no lo instala con el Xcode de la
+      máquina. Pendiente: proyecto de producción antes de la beta (Fase 4) y
+      `npx supabase db push` para aplicar la migración a staging.
+- [ ] **Sentry**: pospuesto por decisión del 2026-10-17 para ahorrar
+      tiempo. Se retoma en la Fase 4 junto con la observabilidad.
 - [ ] **Resend** puede esperar a la Fase 4; requiere dominio propio para
       verificar.
-
-Cuando las cuentas existan, avisar en la sesión para enlazar el repo con
-Vercel y crear la configuración local de Supabase.
 
 **Salida:** repo remoto con CI en verde y cuentas creadas.
 
@@ -348,6 +345,12 @@ Vercel y crear la configuración local de Supabase.
 - Sistema de diseño mínimo: tokens, tipografía, tamaños táctiles, modo
   oscuro, primitivas de shadcn necesarias.
 - Deploy continuo a Vercel: preview por PR y producción desde `main`.
+
+Estado al 2026-10-17: tooling, sistema de diseño con layout vacío, PWA
+(`@serwist/turbopack`), esquema completo con RLS y triggers verificado
+contra el stack local, tipos generados, helpers de dominio con tests y
+deploy continuo en Vercel están en `main`. En curso: auth y capa de
+queries.
 
 **Salida:** la app se instala como PWA, crea un usuario anónimo y su
 lista, muestra el layout final vacío y se despliega sola en cada merge.

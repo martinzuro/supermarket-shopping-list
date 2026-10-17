@@ -8,10 +8,12 @@ Desarrollar una web app para gestionar listas de compras de supermercado.
 
 ## Estado actual
 
-Fase 0 del plan. Solo existe una página inicial mínima en
-`src/app/page.tsx`. No hay funcionalidades de negocio, esquema de base de
-datos, autenticación ni dependencias más allá del scaffold. La siguiente
-fase es la 1 (fundaciones), descrita en `docs/plan.md`.
+Fase 1 (fundaciones) en curso, ver el estado fechado en `docs/plan.md`.
+En `main`: tooling (Prettier, Vitest, Playwright, CI), tokens de diseño y
+layout vacío de la lista en `src/app/(app)/`, PWA, esquema de Supabase con
+RLS y triggers en `supabase/migrations/`, tipos generados en
+`src/lib/supabase/database.types.ts`, helpers puros en `src/lib/domain/`.
+Sin funcionalidades de negocio todavía.
 
 ## Decisiones tomadas
 
@@ -31,7 +33,10 @@ Resumen de lo decidido (2026-10-17):
   Supabase Realtime. Sin base local ni cola offline. Offline es fase futura.
 - Auth: usuario anónimo al primer uso, conversión solo por magic link con
   código OTP. Sin OAuth.
-- Sentry para errores, Vercel Web Analytics para visitas.
+- Sentry para errores (pospuesto hasta la Fase 4), Vercel Web Analytics
+  para visitas.
+- PWA con Serwist vía `@serwist/turbopack` (`@serwist/next` no funciona
+  con el build de Turbopack de Next 16).
 - Moneda por ítem, UYU por defecto, totales agrupados por moneda.
 - Solo español, textos centralizados en `src/lib/texts.ts`.
 - Nombre provisional del producto: "Lista".
@@ -48,7 +53,11 @@ una fase posterior.
   regenera automáticamente).
 - React 19, TypeScript en modo `strict`, Tailwind CSS 4 (configuración por
   CSS en `src/app/globals.css`, sin `tailwind.config`).
-- ESLint con `eslint-config-next`.
+- ESLint con `eslint-config-next`, Prettier con plugin de Tailwind.
+- Vitest + Testing Library para unitarios, Playwright para e2e (proyecto
+  móvil, Pixel 7).
+- Supabase: CLI como devDependency (`npx supabase`), stack local con
+  Docker. La API local escucha en el puerto 54331, no en el 54321.
 - npm. No usar otros package managers.
 
 ## Estructura
@@ -57,8 +66,11 @@ una fase posterior.
 src/app/         Rutas, layouts y páginas
 src/components/  Componentes reutilizables
 src/lib/         Utilidades y lógica compartida
+src/lib/domain/  Funciones puras (normalización, totales, orden), con tests
+src/lib/supabase/ Clientes y tipos generados (`database.types.ts`)
 src/types/       Tipos de TypeScript compartidos
 public/          Archivos estáticos
+supabase/        config.toml, migraciones, seed y plantillas de email
 docs/            Documentación del proyecto
 ```
 
@@ -71,10 +83,17 @@ npm run dev        # desarrollo en http://localhost:3000
 npm run build      # build de producción
 npm run lint       # ESLint
 npm run typecheck  # next typegen + tsc --noEmit
+npm run format     # Prettier (format:check solo comprueba)
+npm test           # Vitest
+npm run test:e2e   # Playwright (requiere build previo)
+npm run db:start   # Supabase local (db:stop, db:reset, db:types)
 ```
 
 Antes de dar por terminado un cambio, ejecutar `npm run lint`,
-`npm run typecheck` y `npm run build`.
+`npm run typecheck`, `npm run format:check`, `npm test` y `npm run build`.
+Si cambia el esquema: migración nueva con `npx supabase migration new`,
+`npm run db:reset` y `npm run db:types`; las migraciones mergeadas no se
+editan.
 
 ## Flujo de trabajo
 
@@ -92,3 +111,14 @@ Antes de dar por terminado un cambio, ejecutar `npm run lint`,
 - Mantener la estructura simple. No crear capas, abstracciones o carpetas
   nuevas hasta que haya código que las justifique.
 - Mobile first: la app se usará principalmente desde el móvil.
+- Textos de la interfaz en español rioplatense con voseo (ADR 0007), todos
+  en `src/lib/texts.ts`.
+
+## Modelos y esfuerzo
+
+Elegir modelo y esfuerzo por tarea, no uno para todo: Fable para patrones
+fundacionales y revisión de seguridad (RLS, auth); Opus en high/xhigh para
+auth, Realtime, compartir y lógica con casos límite; Sonnet en medium/high
+para UI, funciones de dominio, configuración y docs; Haiku en low para
+explorar, resumir y triar. Revisar cada PR con un modelo distinto al que
+lo escribió.
