@@ -70,7 +70,7 @@ Alias de importación: `@/*` apunta a `src/*`.
 npm run dev        # desarrollo en http://localhost:3000
 npm run build      # build de producción
 npm run lint       # ESLint
-npm run typecheck  # tsc --noEmit
+npm run typecheck  # next typegen + tsc --noEmit
 ```
 
 Antes de dar por terminado un cambio, ejecutar `npm run lint`,

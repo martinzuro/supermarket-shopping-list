@@ -295,12 +295,43 @@ con ayuda de Claude Code y sirven para ordenar, no para comprometer fechas.
 
 ### Fase 0. Preparación — medio día
 
-- [x] Decisiones tomadas y registradas como ADR.
-- [ ] Repositorio en GitHub, `main` protegida, CI obligatoria.
-- [ ] Cuentas y proyectos: Vercel, Supabase staging y producción, Sentry.
-- [ ] Primer commit.
+Hecho el 2026-10-17:
 
-**Salida:** repo remoto con CI vacía en verde.
+- [x] Decisiones tomadas y registradas como ADR.
+- [x] Primer commit.
+- [x] Repositorio privado en GitHub:
+      https://github.com/martinzuro/supermarket-shopping-list
+- [x] Workflow de CI (lint, typecheck, build) en `.github/workflows/ci.yml`.
+
+Pendiente, requiere acción del usuario:
+
+- [ ] **Protección de `main`.** GitHub Free no permite rulesets ni branch
+      protection en repos privados. Opciones: hacer el repo público (la
+      app no tiene nada secreto; las claves van en variables de entorno),
+      pasar a GitHub Pro (4 USD/mes), o trabajar con disciplina de PR sin
+      protección técnica. Mientras tanto, la convención es: nunca push
+      directo a `main`, todo por PR con CI en verde.
+- [ ] **Cuenta de Vercel** en https://vercel.com/signup con la cuenta de
+      GitHub. Importar el repo. Vercel detecta Next.js solo; no hace falta
+      configurar nada hasta la Fase 1. Después, `npm i -g vercel` y
+      `vercel login` para enlazar el proyecto desde local.
+- [ ] **Cuenta de Supabase** en https://supabase.com/dashboard con la
+      cuenta de GitHub. Crear una organización y dos proyectos:
+      `supermarket-shopping-list-staging` y
+      `supermarket-shopping-list-prod`, región `South America (São Paulo)`
+      por cercanía a Uruguay. Guardar la contraseña de la base de cada uno
+      en un gestor de contraseñas. Después, `brew install supabase/tap/supabase`
+      y `supabase login`.
+- [ ] **Cuenta de Sentry** en https://sentry.io/signup con la cuenta de
+      GitHub. Crear un proyecto de tipo Next.js. Se integra en la Fase 4,
+      pero tener el DSN desde la Fase 1 evita rehacer configuración.
+- [ ] **Resend** puede esperar a la Fase 4; requiere dominio propio para
+      verificar.
+
+Cuando las cuentas existan, avisar en la sesión para enlazar el repo con
+Vercel y crear la configuración local de Supabase.
+
+**Salida:** repo remoto con CI en verde y cuentas creadas.
 
 ### Fase 1. Fundaciones — 3 días
 

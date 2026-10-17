@@ -35,7 +35,7 @@ Abrir http://localhost:3000 en el navegador.
 | `npm run build`     | Build de producción                           |
 | `npm run start`     | Sirve el build de producción                  |
 | `npm run lint`      | Ejecuta ESLint                                |
-| `npm run typecheck` | Comprueba tipos con TypeScript sin emitir     |
+| `npm run typecheck` | Genera tipos de rutas y comprueba con tsc     |
 
 ## Estructura
 
