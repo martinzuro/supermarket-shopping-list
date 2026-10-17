@@ -10,8 +10,8 @@ export const viewport: Viewport = {
   // encima de él. iOS lo maneja AddItemBar con visualViewport.
   interactiveWidget: "resizes-content",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f7fa" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1318" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f3ec" },
+    { media: "(prefers-color-scheme: dark)", color: "#121814" },
   ],
 };
 
