@@ -299,18 +299,16 @@ Hecho el 2026-10-17:
 
 - [x] Decisiones tomadas y registradas como ADR.
 - [x] Primer commit.
-- [x] Repositorio privado en GitHub:
+- [x] Repositorio público en GitHub:
       https://github.com/martinzuro/supermarket-shopping-list
 - [x] Workflow de CI (lint, typecheck, build) en `.github/workflows/ci.yml`.
+- [x] Ruleset "Protect main": sin borrado ni force push, cambios solo por
+      pull request, check "Lint, typecheck and build" obligatorio y rama al
+      día con `main`. Sin revisores obligatorios (una sola persona).
+      Las ramas se borran al mergear.
 
 Pendiente, requiere acción del usuario:
 
-- [ ] **Protección de `main`.** GitHub Free no permite rulesets ni branch
-      protection en repos privados. Opciones: hacer el repo público (la
-      app no tiene nada secreto; las claves van en variables de entorno),
-      pasar a GitHub Pro (4 USD/mes), o trabajar con disciplina de PR sin
-      protección técnica. Mientras tanto, la convención es: nunca push
-      directo a `main`, todo por PR con CI en verde.
 - [ ] **Cuenta de Vercel** en https://vercel.com/signup con la cuenta de
       GitHub. Importar el repo. Vercel detecta Next.js solo; no hace falta
       configurar nada hasta la Fase 1. Después, `npm i -g vercel` y
