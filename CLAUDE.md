@@ -76,6 +76,13 @@ npm run typecheck  # next typegen + tsc --noEmit
 Antes de dar por terminado un cambio, ejecutar `npm run lint`,
 `npm run typecheck` y `npm run build`.
 
+## Flujo de trabajo
+
+- `main` está protegida: todo cambio entra por pull request con el check
+  de CI en verde. No intentar push directo.
+- Ramas cortas con prefijo: `feat/`, `fix/`, `docs/`, `chore/`.
+- Merge por squash; la rama se borra sola al mergear.
+
 ## Convenciones
 
 - Idioma de la interfaz y de la documentación: español. Código,
