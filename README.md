@@ -54,17 +54,16 @@ docs/          Documentación del proyecto
 La app es instalable. El manifest está en `src/app/manifest.ts`, los iconos en
 `public/icons/` y la página sin conexión en `src/app/offline/page.tsx`.
 
-**Estado del service worker:** `src/app/sw.ts` (Serwist) está escrito pero
-todavía **no está conectado al build**. `@serwist/next` solo funciona con
-webpack y Next 16 compila con Turbopack. Hasta resolverlo no se genera
-`public/sw.js`, por lo que la app no se instala en todos los navegadores
-(Chrome en Android exige service worker; iOS no). Ver la descripción del PR
-para las opciones.
+El service worker (`src/app/sw.ts`, Serwist) se compila con
+`@serwist/turbopack` y se sirve desde `/serwist/sw.js` (route handler en
+`src/app/serwist/[path]/route.ts`). Se registra desde el layout raíz con
+`SerwistProvider`, solo en producción. Precachea el app shell, los assets y
+`/offline`; las peticiones a Supabase y a `/api/` nunca se cachean.
 
 Instalar:
 
 - **iOS (Safari):** Compartir, "Añadir a pantalla de inicio".
-- **Android (Chrome):** menú, "Instalar app" (requiere el service worker).
+- **Android (Chrome):** menú, "Instalar app".
 
 Verificar el manifest en un build de producción:
 
@@ -72,11 +71,10 @@ Verificar el manifest en un build de producción:
 npm run build && npm run start
 ```
 
-Abrir http://localhost:3000, DevTools, pestaña Application, sección Manifest.
-Cuando el service worker esté conectado, comprobar en Application, Service
-Workers, que `/sw.js` está activado, y en Cache Storage que el precache incluye
-`/offline`. Para probar el fallback: marcar Offline en Network y navegar a una
-ruta no visitada.
+Abrir http://localhost:3000, DevTools, pestaña Application: en Manifest se ve
+el manifest; en Service Workers, `/serwist/sw.js` activado; en Cache Storage,
+el precache incluye `/offline`. Para probar el fallback: marcar Offline en
+Network y navegar a una ruta no visitada.
 
 ## Documentación
 
