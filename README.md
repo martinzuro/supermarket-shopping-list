@@ -54,6 +54,33 @@ public/        Archivos estáticos
 docs/          Documentación del proyecto
 ```
 
+## PWA
+
+La app es instalable. El manifest está en `src/app/manifest.ts`, los iconos en
+`public/icons/` y la página sin conexión en `src/app/offline/page.tsx`.
+
+El service worker (`src/app/sw.ts`, Serwist) se compila con
+`@serwist/turbopack` y se sirve desde `/serwist/sw.js` (route handler en
+`src/app/serwist/[path]/route.ts`). Se registra desde el layout raíz con
+`SerwistProvider`, solo en producción. Precachea el app shell, los assets y
+`/offline`; las peticiones a Supabase y a `/api/` nunca se cachean.
+
+Instalar:
+
+- **iOS (Safari):** Compartir, "Añadir a pantalla de inicio".
+- **Android (Chrome):** menú, "Instalar app".
+
+Verificar el manifest en un build de producción:
+
+```bash
+npm run build && npm run start
+```
+
+Abrir http://localhost:3000, DevTools, pestaña Application: en Manifest se ve
+el manifest; en Service Workers, `/serwist/sw.js` activado; en Cache Storage,
+el precache incluye `/offline`. Para probar el fallback: marcar Offline en
+Network y navegar a una ruta no visitada.
+
 ## Documentación
 
 - [docs/plan.md](docs/plan.md): plan completo del proyecto (decisiones, arquitectura, fases, despliegue).
