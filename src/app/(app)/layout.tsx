@@ -1,5 +1,6 @@
 import type { Viewport } from "next";
 import { SessionProvider } from "@/components/session-provider";
+import { QueryProvider } from "@/lib/queries";
 
 export const viewport: Viewport = {
   // Dibuja bajo el notch y el indicador de inicio; los insets se compensan
@@ -19,7 +20,9 @@ export const viewport: Viewport = {
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <SessionProvider>
-      <div className="flex flex-1 flex-col">{children}</div>
+      <QueryProvider>
+        <div className="flex flex-1 flex-col">{children}</div>
+      </QueryProvider>
     </SessionProvider>
   );
 }
