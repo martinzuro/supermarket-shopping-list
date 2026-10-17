@@ -2,66 +2,249 @@
 @import "tw-animate-css";
 
 /*
- * Modo oscuro según la preferencia del sistema. Las variantes `dark:` de
- * Tailwind y de las primitivas de shadcn siguen la misma media query.
+ * Sistema de diseño "Fresh Editorial" (docs/DESIGN_DIRECTION.md, ADR 0008).
+ *
+ * Capas:
+ *   1. Paleta: valores crudos por modo (claro y oscuro).
+ *   2. Roles semánticos: qué hace cada color en la interfaz.
+ *   3. Alias de shadcn: mantienen funcionando las primitivas existentes
+ *      hasta que se reemplacen; no usar en código nuevo.
+ *   4. Tipografía, espaciado, radios, sombra y motion.
+ *
+ * Los pares de color se validan en src/lib/design/tokens.test.ts: los hex
+ * de aquí deben coincidir con src/lib/design/tokens.ts.
  */
+
+/* Modo oscuro según la preferencia del sistema. */
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
-/*
- * Tokens de color. Los pares de texto cumplen WCAG AA (>= 4.5:1) sobre su
- * fondo en ambos modos; `input` y `ring` cumplen 3:1 como borde de control.
- */
+/* ---------------------------------------------------------------------- */
+/* 1. Paleta, modo claro                                                   */
+/* ---------------------------------------------------------------------- */
 :root {
   color-scheme: light dark;
 
-  --background: #f5f7fa;
-  --foreground: #14181f;
-  --card: #ffffff;
-  --card-foreground: #14181f;
-  --popover: #ffffff;
-  --popover-foreground: #14181f;
-  --primary: #1c6b3c;
-  --primary-foreground: #ffffff;
-  --secondary: #e9edf2;
-  --secondary-foreground: #14181f;
-  --muted: #e9edf2;
-  --muted-foreground: #566070;
-  --accent: #e2f0e6;
-  --accent-foreground: #134d2b;
-  --destructive: #b83227;
-  --border: #d9dee6;
-  --input: #8a93a1;
-  --ring: #1c6b3c;
-  --radius: 0.75rem;
+  /* Papel y tinta */
+  --paper: #f6f3ec;
+  --paper-2: #dce9c8;
+  --ink: #1b2a1f;
+  --ink-2: #56655a;
+  --ink-3: #7f8c82;
+
+  /* Marca y acentos */
+  --forest: #2f4a3a;
+  --lime: #c9f04a;
+  --on-lime: #1b2a1f;
+  --citrus: #f26b1d;
+  --citrus-text: #b8480a;
+  --tomato: #d9432b;
+  --tomato-text: #b5341f;
+
+  /* Superficie inversa (momentos editoriales) */
+  --inverse-bg: #1b2a1f;
+  --inverse-fg: #eeebe2;
+  --inverse-fg-2: #afb8b0;
+
+  /* Acción primaria: lima sobre tinta */
+  --action-bg: var(--ink);
+  --action-fg: var(--lime);
+
+  /* Foco: bosque sobre papel (>= 3:1) */
+  --focus: var(--forest);
+
+  /* Categorías: etiqueta (fondo) e hilo (línea de 2px) */
+  --cat-verduras: oklch(90% 0.06 140);
+  --cat-verduras-thread: oklch(55% 0.13 140);
+  --cat-carnes: oklch(90% 0.06 25);
+  --cat-carnes-thread: oklch(55% 0.13 25);
+  --cat-lacteos: oklch(90% 0.06 85);
+  --cat-lacteos-thread: oklch(55% 0.13 85);
+  --cat-panaderia: oklch(90% 0.06 65);
+  --cat-panaderia-thread: oklch(55% 0.13 65);
+  --cat-almacen: oklch(90% 0.06 50);
+  --cat-almacen-thread: oklch(55% 0.13 50);
+  --cat-bebidas: oklch(90% 0.06 240);
+  --cat-bebidas-thread: oklch(55% 0.13 240);
+  --cat-congelados: oklch(90% 0.06 205);
+  --cat-congelados-thread: oklch(55% 0.13 205);
+  --cat-limpieza: oklch(90% 0.06 290);
+  --cat-limpieza-thread: oklch(55% 0.13 290);
+  --cat-higiene: oklch(90% 0.06 340);
+  --cat-higiene-thread: oklch(55% 0.13 340);
+  --cat-otros: oklch(90% 0 0);
+  --cat-otros-thread: oklch(55% 0 0);
 
   /* Alto de la barra inferior para añadir, sin contar el safe area. */
   --add-bar-height: 4.75rem;
 }
 
+/* ---------------------------------------------------------------------- */
+/* 1b. Paleta, modo oscuro                                                 */
+/* ---------------------------------------------------------------------- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0f1318;
-    --foreground: #e8ecf1;
-    --card: #171c23;
-    --card-foreground: #e8ecf1;
-    --popover: #171c23;
-    --popover-foreground: #e8ecf1;
-    --primary: #5fc987;
-    --primary-foreground: #07210f;
-    --secondary: #232a34;
-    --secondary-foreground: #e8ecf1;
-    --muted: #1f252e;
-    --muted-foreground: #9ba5b3;
-    --accent: #183524;
-    --accent-foreground: #b9ebc9;
-    --destructive: #f07167;
-    --border: #29313c;
-    --input: #5f6978;
-    --ring: #5fc987;
+    --paper: #121814;
+    --paper-2: #1f2b22;
+    --ink: #eeebe2;
+    --ink-2: #9ba69c;
+    --ink-3: #6b776e;
+
+    --forest: #8fb89b;
+    --lime: #c9f04a;
+    --on-lime: #1b2a1f;
+    --citrus: #ff8a47;
+    --citrus-text: #ff9a62;
+    --tomato: #f06a52;
+    --tomato-text: #f57f6a;
+
+    --inverse-bg: #eeebe2;
+    --inverse-fg: #121814;
+    --inverse-fg-2: #56655a;
+
+    /* Acción primaria: tinta sobre lima (el papel ya es tinta) */
+    --action-bg: var(--lime);
+    --action-fg: #121814;
+
+    --focus: var(--lime);
+
+    --cat-verduras: oklch(33% 0.05 140);
+    --cat-verduras-thread: oklch(72% 0.13 140);
+    --cat-carnes: oklch(33% 0.05 25);
+    --cat-carnes-thread: oklch(72% 0.13 25);
+    --cat-lacteos: oklch(33% 0.05 85);
+    --cat-lacteos-thread: oklch(72% 0.13 85);
+    --cat-panaderia: oklch(33% 0.05 65);
+    --cat-panaderia-thread: oklch(72% 0.13 65);
+    --cat-almacen: oklch(33% 0.05 50);
+    --cat-almacen-thread: oklch(72% 0.13 50);
+    --cat-bebidas: oklch(33% 0.05 240);
+    --cat-bebidas-thread: oklch(72% 0.13 240);
+    --cat-congelados: oklch(33% 0.05 205);
+    --cat-congelados-thread: oklch(72% 0.13 205);
+    --cat-limpieza: oklch(33% 0.05 290);
+    --cat-limpieza-thread: oklch(72% 0.13 290);
+    --cat-higiene: oklch(33% 0.05 340);
+    --cat-higiene-thread: oklch(72% 0.13 340);
+    --cat-otros: oklch(33% 0 0);
+    --cat-otros-thread: oklch(72% 0 0);
   }
 }
 
+/* ---------------------------------------------------------------------- */
+/* 2. Roles semánticos (iguales en ambos modos, derivan de la paleta)      */
+/* ---------------------------------------------------------------------- */
+:root {
+  /* Reglas: líneas de 1px, en lugar de sombras */
+  --rule: color-mix(in oklab, var(--ink) 12%, transparent);
+  --rule-strong: color-mix(in oklab, var(--ink) 24%, transparent);
+
+  /* Superficie de hover/pressed sobre papel */
+  --paper-hover: color-mix(in oklab, var(--ink) 6%, var(--paper));
+  --paper-pressed: color-mix(in oklab, var(--ink) 10%, var(--paper));
+
+  /* Borde de campo: necesita 3:1 sobre papel */
+  --field-border: var(--ink-2);
+
+  /* Resaltado de cambios remotos (pulso que se apaga) */
+  --remote-pulse: color-mix(in oklab, var(--citrus) 22%, transparent);
+
+  /* La única sombra del sistema: hojas y diálogos que flotan de verdad */
+  --shadow-sheet: 0 12px 32px -8px
+    color-mix(in oklab, var(--ink) 18%, transparent);
+
+  /* Motion */
+  --motion-ease-out: cubic-bezier(0.19, 1, 0.22, 1);
+  --motion-ease-in-out: cubic-bezier(0.65, 0.05, 0, 1);
+  --motion-dur-instant: 120ms;
+  --motion-dur-fast: 200ms;
+  --motion-dur-base: 320ms;
+  --motion-dur-slow: 600ms;
+  --motion-dur-cinematic: 900ms;
+  --motion-stagger: 35ms;
+  /* Desplazamiento de las entradas; 0 con movimiento reducido */
+  --motion-shift: 8px;
+
+  /* Alias de shadcn (solo para las primitivas existentes) */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--action-bg);
+  --primary-foreground: var(--action-fg);
+  --secondary: var(--paper-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-hover);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--paper-2);
+  --accent-foreground: var(--ink);
+  --destructive: var(--tomato-text);
+  --border: var(--rule);
+  --input: var(--field-border);
+  --ring: var(--focus);
+  --radius: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-shift: 0px;
+    --motion-stagger: 0ms;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* 3. Tema de Tailwind                                                     */
+/* ---------------------------------------------------------------------- */
 @theme inline {
+  /* Colores propios */
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-hover: var(--paper-hover);
+  --color-paper-pressed: var(--paper-pressed);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-field-border: var(--field-border);
+  --color-forest: var(--forest);
+  --color-lime: var(--lime);
+  --color-on-lime: var(--on-lime);
+  --color-citrus: var(--citrus);
+  --color-citrus-text: var(--citrus-text);
+  --color-tomato: var(--tomato);
+  --color-tomato-text: var(--tomato-text);
+  --color-inverse-bg: var(--inverse-bg);
+  --color-inverse-fg: var(--inverse-fg);
+  --color-inverse-fg-2: var(--inverse-fg-2);
+  --color-action-bg: var(--action-bg);
+  --color-action-fg: var(--action-fg);
+  --color-focus: var(--focus);
+  --color-remote-pulse: var(--remote-pulse);
+
+  --color-cat-verduras: var(--cat-verduras);
+  --color-cat-verduras-thread: var(--cat-verduras-thread);
+  --color-cat-carnes: var(--cat-carnes);
+  --color-cat-carnes-thread: var(--cat-carnes-thread);
+  --color-cat-lacteos: var(--cat-lacteos);
+  --color-cat-lacteos-thread: var(--cat-lacteos-thread);
+  --color-cat-panaderia: var(--cat-panaderia);
+  --color-cat-panaderia-thread: var(--cat-panaderia-thread);
+  --color-cat-almacen: var(--cat-almacen);
+  --color-cat-almacen-thread: var(--cat-almacen-thread);
+  --color-cat-bebidas: var(--cat-bebidas);
+  --color-cat-bebidas-thread: var(--cat-bebidas-thread);
+  --color-cat-congelados: var(--cat-congelados);
+  --color-cat-congelados-thread: var(--cat-congelados-thread);
+  --color-cat-limpieza: var(--cat-limpieza);
+  --color-cat-limpieza-thread: var(--cat-limpieza-thread);
+  --color-cat-higiene: var(--cat-higiene);
+  --color-cat-higiene-thread: var(--cat-higiene-thread);
+  --color-cat-otros: var(--cat-otros);
+  --color-cat-otros-thread: var(--cat-otros-thread);
+
+  /* Alias de shadcn */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -81,21 +264,73 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* Fuentes: tres roles (ADR 0008) */
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-instrument-serif);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
 
-  --radius-sm: calc(var(--radius) * 0.5);
-  --radius-md: calc(var(--radius) * 0.75);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.5);
-  --radius-2xl: calc(var(--radius) * 2);
-  --radius-3xl: calc(var(--radius) * 2.5);
-  --radius-4xl: calc(var(--radius) * 3);
+  /* Radios: 0, campo, hoja, píldora. Nada intermedio. */
+  --radius-field: 0.375rem;
+  --radius-sheet: 0.75rem;
+  --radius-sm: var(--radius-field);
+  --radius-md: var(--radius-field);
+  --radius-lg: var(--radius-sheet);
+  --radius-xl: var(--radius-sheet);
+  --radius-2xl: var(--radius-sheet);
+  --radius-3xl: var(--radius-sheet);
+  --radius-4xl: var(--radius-sheet);
+
+  /* La única sombra */
+  --shadow-sheet: var(--shadow-sheet);
+
+  /* Curvas de motion */
+  --ease-out: var(--motion-ease-out);
+  --ease-in-out: var(--motion-ease-in-out);
+  --ease-cinematic: var(--motion-ease-in-out);
 }
 
 @theme {
-  /* Escala tipográfica: base de 16 px (evita el zoom de iOS en inputs). */
+  /*
+   * Roles tipográficos, fluidos entre 375px y 1440px. El tracking crece en
+   * negativo con el tamaño; los eyebrows van en mayúsculas con tracking
+   * positivo. Los inputs no bajan de 16px para evitar el zoom de iOS.
+   */
+  --text-display: clamp(2.5rem, 1.75rem + 3.2vw, 4.5rem);
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -0.04em;
+  --text-display--font-weight: 400;
+
+  --text-title: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.025em;
+  --text-title--font-weight: 400;
+
+  --text-heading: clamp(1.25rem, 1.15rem + 0.4vw, 1.5rem);
+  --text-heading--line-height: 1.25;
+  --text-heading--letter-spacing: -0.01em;
+  --text-heading--font-weight: 500;
+
+  --text-row: clamp(1.0625rem, 1.03rem + 0.15vw, 1.125rem);
+  --text-row--line-height: 1.4;
+  --text-row--letter-spacing: 0em;
+  --text-row--font-weight: 400;
+
+  --text-body: clamp(0.9375rem, 0.92rem + 0.1vw, 1rem);
+  --text-body--line-height: 1.5;
+  --text-body--letter-spacing: 0em;
+  --text-body--font-weight: 400;
+
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.4;
+  --text-label--letter-spacing: 0em;
+  --text-label--font-weight: 500;
+
+  --text-eyebrow: clamp(0.6875rem, 0.67rem + 0.1vw, 0.75rem);
+  --text-eyebrow--line-height: 1.2;
+  --text-eyebrow--letter-spacing: 0.06em;
+  --text-eyebrow--font-weight: 500;
+
+  /* Escala de utilidades genéricas (text-sm, etc.) para código existente */
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.25rem;
   --text-sm: 0.875rem;
@@ -109,11 +344,23 @@
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
 
+  /*
+   * Espaciado. Dos variables fluidas gobiernan el layout; el interior de
+   * los componentes usa la escala de 4px de Tailwind.
+   */
+  --spacing-margin: clamp(1rem, 4vw, 2.5rem);
+  --spacing-gap: clamp(0.75rem, 1.5vw, 1.5rem);
   /* Objetivo táctil mínimo: h-touch, size-touch, min-h-touch, min-w-touch. */
   --spacing-touch: 2.75rem;
   /* Objetivo táctil de la acción principal (barra de añadir). */
   --spacing-touch-lg: 3.25rem;
+  /* Alto de una fila de la lista (densidad aireada). */
+  --spacing-row: 3.5rem;
 }
+
+/* ---------------------------------------------------------------------- */
+/* 4. Utilidades                                                           */
+/* ---------------------------------------------------------------------- */
 
 /* Safe areas (viewport-fit=cover): notch arriba, indicador de inicio abajo. */
 @utility pt-safe {
@@ -125,8 +372,8 @@
 }
 
 @utility px-safe {
-  padding-left: max(--spacing(4), env(safe-area-inset-left, 0px));
-  padding-right: max(--spacing(4), env(safe-area-inset-right, 0px));
+  padding-left: max(var(--spacing-margin), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--spacing-margin), env(safe-area-inset-right, 0px));
 }
 
 /* Reserva espacio para que la barra fija no tape el final del contenido. */
@@ -136,9 +383,60 @@
   );
 }
 
+/* Duraciones de motion */
+@utility duration-instant {
+  transition-duration: var(--motion-dur-instant);
+  animation-duration: var(--motion-dur-instant);
+}
+@utility duration-fast {
+  transition-duration: var(--motion-dur-fast);
+  animation-duration: var(--motion-dur-fast);
+}
+@utility duration-base {
+  transition-duration: var(--motion-dur-base);
+  animation-duration: var(--motion-dur-base);
+}
+@utility duration-slow {
+  transition-duration: var(--motion-dur-slow);
+  animation-duration: var(--motion-dur-slow);
+}
+@utility duration-cinematic {
+  transition-duration: var(--motion-dur-cinematic);
+  animation-duration: var(--motion-dur-cinematic);
+}
+
+/* Eyebrow: metadatos en mayúsculas (categoría, fecha, quién añadió). */
+@utility eyebrow {
+  font-size: var(--text-eyebrow);
+  line-height: var(--text-eyebrow--line-height);
+  letter-spacing: var(--text-eyebrow--letter-spacing);
+  font-weight: var(--text-eyebrow--font-weight);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* Entrada estándar: fundido más desplazamiento, 0 con movimiento reducido. */
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility animate-enter {
+  animation: enter-up var(--motion-dur-base) var(--motion-ease-out) both;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 5. Base                                                                 */
+/* ---------------------------------------------------------------------- */
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-rule outline-focus;
   }
   html {
     @apply font-sans;
@@ -146,6 +444,22 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-paper text-ink;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+  ::selection {
+    background: var(--lime);
+    color: var(--on-lime);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  /* Las cifras de la interfaz son tabulares por defecto. */
+  input,
+  td,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
   }
 }
