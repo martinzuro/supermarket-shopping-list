@@ -4,8 +4,10 @@ Visión creativa, principios visuales y direcciones posibles para la app.
 Este documento se consulta antes de cualquier trabajo de interfaz, junto
 con [DESIGN_REFERENCES.md](DESIGN_REFERENCES.md).
 
-Estado: **propuesta pendiente de aprobación**. No define pantallas,
-componentes ni código. Las decisiones abiertas están en la sección 10.
+Estado: **aprobado el 2026-10-17**, incluidas las diez decisiones de la
+sección 10 ([ADR 0008](decisions/0008-design-direction.md)). No define
+pantallas, componentes ni código: el siguiente paso es el sistema de
+diseño (sección 12).
 
 ---
 
@@ -285,33 +287,23 @@ y lima como firma cromática usada en superficies pequeñas, e ilustración
 monolínea de alimentos en estados vacíos, categorías y momentos
 editoriales.
 
-## 10. Decisiones a tomar antes de diseñar
+## 10. Decisiones tomadas
 
-Ordenadas por impacto. Las cinco primeras bloquean el sistema de diseño.
+Resueltas con el usuario el 2026-10-17. Cambiar cualquiera requiere un ADR
+nuevo que reemplace al 0008.
 
-1. **Paleta**: confirmar "A con la disciplina de B" y los tokens
-   candidatos como punto de partida, o elegir otro camino.
-2. **Tipografía**: confirmar Geist + Instrument Serif con las reglas de
-   uso, y decidir si Geist Mono entra para precios y totales.
-3. **Dirección**: confirmar la mezcla recomendada (II + III + I) o pedir
-   bocetos de las tres por separado antes de decidir.
-4. **Ilustración**: quién la produce. Opciones: SVG monolínea hecho en el
-   proyecto (más control, más tiempo), encargo a un ilustrador (más
-   calidad, coste), o ninguna ilustración en la primera versión y solo
-   tipografía.
-5. **Modo oscuro**: tokens desde el inicio con pulido posterior
-   (recomendado), o solo claro hasta la Fase 4.
-6. **Nombre y logotipo**: el nombre provisional "Lista" condiciona el
-   wordmark. Si va a cambiar, conviene saberlo antes de dibujar la marca.
-7. **Nivel cinematográfico del primer uso**: una pantalla de bienvenida
-   coreografiada (recomendado, una sola vez) o entrar directo a la lista.
-8. **Densidad de la lista**: compacta (más ítems por pantalla) o aireada
-   (más editorial). Recomendación: aireada por defecto con opción
-   compacta más adelante si la beta la pide.
-9. **Color de categorías**: tintes por categoría (recomendado) o
-   monocromo con solo el icono.
-10. **Tono de voz**: voseo rioplatense ("Agregá"), tuteo neutro ("Agrega")
-    o impersonal ("Agregar"). Afecta a cada texto de la interfaz.
+| # | Decisión | Resolución |
+| - | -------- | ---------- |
+| 1 | Paleta | "A con la disciplina de B": papel crema, tinta verde casi negra, pistacho solo como superficie secundaria, lima y naranja solo en acción primaria y estado hecho. Los tokens candidatos de la sección 4 son el punto de partida y se validan por contraste al implementarlos |
+| 2 | Tipografía | Geist para interfaz, Instrument Serif solo en display por encima de 28px, Geist Mono para precios y totales (rol de dato). Reglas de tracking y escala de la sección 5 |
+| 3 | Dirección | Directo a la mezcla: estructura de "Papel y tinta", paleta de "Frescura cítrica", ilustración de "Mercado de barrio" con moderación. Sin bocetos separados |
+| 4 | Ilustración | SVG monolínea producido en el proyecto. Primero los diez iconos de categoría, después estados vacíos y momentos editoriales |
+| 5 | Modo oscuro | Tokens para ambos modos desde el inicio. Pulido fino y pruebas en dispositivo primero en claro |
+| 6 | Nombre y logotipo | "Lista" se mantiene como provisional, con un wordmark tipográfico en Instrument Serif pensado para reemplazarse sin tocar el sistema |
+| 7 | Primer uso | Bienvenida coreografiada de una sola pantalla, vista una vez, que lleva a la lista en menos de tres segundos o con un toque |
+| 8 | Densidad | Aireada por defecto (filas de unos 56px). Compacta solo si la beta la pide |
+| 9 | Color de categorías | Diez tintes de la misma saturación y luminosidad, solo en la etiqueta y en un hilo de 2px junto a la agrupación. Nunca como fondo de fila |
+| 10 | Tono de voz | Voseo rioplatense, ya fijado en ADR 0007 y en `src/lib/texts.ts` |
 
 ## 11. Lo que se evita
 
