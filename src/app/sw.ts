@@ -1,7 +1,4 @@
-// NOT WIRED YET. `@serwist/next` only works with webpack and Next 16 builds
-// with Turbopack, so next.config.ts does not compile this file. See the PR
-// description and README for the options. Nothing here runs until it is wired.
-import { defaultCache } from "@serwist/next/worker";
+import { defaultCache } from "@serwist/turbopack/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { NetworkOnly, Serwist } from "serwist";
 
