@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
-import { Check, Menu, WifiOff } from "lucide-react";
+import { Check, CircleAlert, Menu, Plus, Users, WifiOff } from "lucide-react";
+import { Banner } from "@/components/ui/banner";
+import { Button } from "@/components/ui/button";
+import { CategoryChip, Chip } from "@/components/ui/chip";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { ListRow } from "@/components/ui/list-row";
+import { Section as UiSection, SectionEmpty } from "@/components/ui/section";
 import { contrastRatio, formatRatio } from "@/lib/design/contrast";
 import {
   categoryIds,
@@ -10,6 +18,7 @@ import {
 } from "@/lib/design/tokens";
 import { texts } from "@/lib/texts";
 import { MotionDemo } from "./motion-demo";
+import { ChipPickerDemo, RowsDemo, SheetDemo } from "./states-demo";
 
 const t = texts.design;
 
@@ -345,7 +354,7 @@ export default function DesignPage() {
           <p className="text-heading">{t.surfaces.sheetTitle}</p>
           <p className="text-ink-2 mt-2">{t.surfaces.sheetBody}</p>
           <span className="bg-action-bg text-action-fg text-label h-touch mt-6 inline-flex items-center rounded-full px-5">
-            {t.states.secondary}
+            {t.states.buttonVariants.secondary}
           </span>
         </div>
         <Meta>{t.surfaces.sheet}</Meta>
@@ -384,128 +393,165 @@ export default function DesignPage() {
       >
         <p className="eyebrow">{t.states.buttons}</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button
+          <Button type="button">{t.states.buttonVariants.default}</Button>
+          <Button type="button" variant="secondary">
+            {t.states.buttonVariants.secondary}
+          </Button>
+          <Button type="button" variant="outline">
+            {t.states.buttonVariants.outline}
+          </Button>
+          <Button type="button" variant="ghost">
+            {t.states.buttonVariants.ghost}
+          </Button>
+          <Button type="button" variant="danger">
+            {t.states.buttonVariants.danger}
+          </Button>
+          <Button type="button" variant="link">
+            {t.states.buttonVariants.link}
+          </Button>
+          <Button type="button" disabled>
+            {t.states.buttonVariants.disabled}
+          </Button>
+          <Button
             type="button"
-            className="bg-action-bg text-action-fg text-label hover:bg-forest dark:hover:bg-lime/85 duration-instant h-touch inline-flex items-center rounded-full px-5 transition-[background-color,transform] ease-out active:scale-[0.98]"
+            variant="ghost"
+            size="icon-touch"
+            aria-label={t.states.buttonVariants.icon}
           >
-            {t.states.primary}
-          </button>
-          <button
+            <Plus aria-hidden strokeWidth={1.5} />
+          </Button>
+          <Button
             type="button"
-            className="bg-paper-2 text-ink text-label hover:bg-paper-pressed duration-instant h-touch inline-flex items-center rounded-full px-5 transition-[background-color,transform] ease-out active:scale-[0.98]"
+            size="icon-touch-lg"
+            aria-label={t.states.buttonVariants.iconLarge}
           >
-            {t.states.secondary}
-          </button>
-          <button
-            type="button"
-            className="text-ink text-label hover:bg-paper-hover duration-instant h-touch inline-flex items-center rounded-full px-4 transition-[background-color,transform] ease-out active:scale-[0.98]"
-          >
-            {t.states.ghost}
-          </button>
-          <button
-            type="button"
-            disabled
-            className="bg-paper-hover text-ink-3 text-label h-touch inline-flex cursor-not-allowed items-center rounded-full px-5"
-          >
-            {t.states.disabled}
-          </button>
-          <button
-            type="button"
-            className="text-tomato-text text-label hover:bg-paper-hover duration-instant h-touch inline-flex items-center rounded-full px-4 transition-[background-color,transform] ease-out active:scale-[0.98]"
-          >
-            {t.states.danger}
-          </button>
+            <Plus aria-hidden strokeWidth={2.5} />
+          </Button>
+        </div>
+
+        <p className="eyebrow mt-8">{t.states.sizes}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button type="button" variant="secondary" size="sm">
+            {t.states.sizeLabels.sm}
+          </Button>
+          <Button type="button" variant="secondary" size="touch">
+            {t.states.sizeLabels.touch}
+          </Button>
+          <Button type="button" variant="secondary" size="touch-lg">
+            {t.states.sizeLabels.touchLg}
+          </Button>
         </div>
 
         <p className="eyebrow mt-10">{t.states.fields}</p>
         <div className="mt-3 grid max-w-md gap-6">
-          <div>
-            <label htmlFor="design-field" className="text-label block">
-              {t.states.fieldLabel}
-            </label>
-            <input
-              id="design-field"
+          <Field label={t.states.field.label} help={t.states.field.help}>
+            <Input type="text" placeholder={t.states.field.placeholder} />
+          </Field>
+          <Field
+            label={t.states.field.invalidLabel}
+            error={t.states.field.invalidHelp}
+          >
+            <Input type="email" defaultValue={t.states.field.invalidValue} />
+          </Field>
+          <Field label={t.states.field.disabledLabel}>
+            <Input
               type="text"
-              placeholder={t.states.fieldPlaceholder}
-              className="border-field-border bg-paper text-ink placeholder:text-ink-2 duration-fast h-touch rounded-field mt-2 w-full border px-3 text-base transition-colors ease-out"
+              disabled
+              defaultValue={t.states.field.disabledValue}
             />
-          </div>
-          <div>
-            <label htmlFor="design-field-invalid" className="text-label block">
-              {t.states.fieldInvalidLabel}
-            </label>
-            <input
-              id="design-field-invalid"
-              type="email"
-              defaultValue={t.states.fieldInvalidValue}
-              aria-invalid
-              aria-describedby="design-field-invalid-help"
-              className="border-tomato-text bg-paper text-ink h-touch rounded-field mt-2 w-full border px-3 text-base"
-            />
-            <p
-              id="design-field-invalid-help"
-              className="text-tomato-text text-label mt-2"
-            >
-              {t.states.fieldInvalidHelp}
-            </p>
-          </div>
+          </Field>
+        </div>
+
+        <p className="eyebrow mt-10">{t.states.chips}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {categoryIds.map((id) => (
+            <CategoryChip key={id} category={id}>
+              {t.categories.names[id]}
+            </CategoryChip>
+          ))}
+          <Chip>{t.states.eyebrowSamples[2]}</Chip>
+        </div>
+        <p className="eyebrow mt-6">{t.states.chipsInteractive}</p>
+        <div className="mt-3">
+          <ChipPickerDemo />
+        </div>
+
+        <p className="eyebrow mt-10">{t.states.eyebrows}</p>
+        <div className="mt-3 grid gap-2">
+          <Eyebrow>{t.states.eyebrowSamples[0]}</Eyebrow>
+          <Eyebrow tone="ink">{t.states.eyebrowSamples[1]}</Eyebrow>
         </div>
 
         <p className="eyebrow mt-10">{t.states.rows}</p>
-        <ul className="border-rule mt-3 border-t">
-          {t.states.rowItems.map((row) => (
-            <li
-              key={row.name}
-              className="border-rule text-row h-row flex items-center gap-4 border-b"
-            >
-              <span
-                aria-hidden
-                className={[
-                  "flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-                  row.checked ? "bg-lime border-lime" : "border-field-border",
-                ].join(" ")}
-              >
-                {row.checked ? (
-                  <Check className="text-on-lime size-4" strokeWidth={2.5} />
-                ) : null}
-              </span>
-              <span className={row.checked ? "text-ink-2 line-through" : ""}>
-                {row.name}
-              </span>
-              {row.qty ? (
-                <span
-                  className="text-ink-2 text-label ml-auto font-mono"
-                  data-numeric
-                >
-                  {row.qty}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3">
+          <RowsDemo />
+        </div>
 
-        <p className="eyebrow mt-10">{t.states.banner}</p>
-        <div
-          role="status"
-          className="bg-paper-2 rounded-sheet mt-3 flex items-center gap-3 px-4 py-3"
-        >
-          <WifiOff
-            aria-hidden
-            className="text-ink-2 size-5 shrink-0"
-            strokeWidth={1.5}
-          />
-          <p className="text-label min-w-0 flex-1">
-            <span className="block font-medium">{t.states.bannerTitle}</span>
-            <span className="text-ink-2 block font-normal">
-              {t.states.bannerBody}
-            </span>
-          </p>
-          <button
-            type="button"
-            className="text-ink text-label hover:bg-paper-pressed duration-instant h-touch shrink-0 rounded-full px-3 transition-colors ease-out"
+        <p className="eyebrow mt-10">{t.states.sections}</p>
+        <div className="mt-3 grid gap-6">
+          <UiSection
+            id="design-section"
+            title={t.states.section.title}
+            count={t.states.section.count}
+            eyebrow={t.states.section.eyebrow}
+            thread="verduras"
           >
-            {t.states.bannerAction}
-          </button>
+            <ul className="border-rule border-t">
+              {t.states.rowItems.map((item) => (
+                <ListRow
+                  key={item.name}
+                  name={item.name}
+                  quantity={item.quantity || undefined}
+                  checked={item.checked}
+                  toggleLabel={t.states.rowToggle(item.name)}
+                />
+              ))}
+            </ul>
+          </UiSection>
+          <UiSection
+            id="design-section-empty"
+            title={t.states.section.emptyTitle}
+            thread="congelados"
+          >
+            <SectionEmpty>{t.states.section.empty}</SectionEmpty>
+          </UiSection>
+        </div>
+
+        <p className="eyebrow mt-10">{t.states.sheets}</p>
+        <div className="mt-3">
+          <SheetDemo />
+        </div>
+
+        <p className="eyebrow mt-10">{t.states.banners}</p>
+        <div className="mt-3 grid gap-3">
+          <Banner
+            tone="info"
+            icon={WifiOff}
+            title={t.states.banner.info.title}
+            body={t.states.banner.info.body}
+            action={
+              <Button type="button" variant="outline" size="sm">
+                {t.states.banner.info.action}
+              </Button>
+            }
+          />
+          <Banner
+            tone="attention"
+            icon={Users}
+            title={t.states.banner.attention.title}
+            body={t.states.banner.attention.body}
+          />
+          <Banner
+            tone="error"
+            icon={CircleAlert}
+            title={t.states.banner.error.title}
+            body={t.states.banner.error.body}
+            action={
+              <Button type="button" variant="outline" size="sm">
+                {t.states.banner.error.action}
+              </Button>
+            }
+          />
         </div>
       </Section>
     </main>

@@ -1,13 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "cn";
+import { XIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
-
 import { Button } from "@/components/ui/button";
 import { texts } from "@/lib/texts";
-import { XIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
+/**
+ * Hoja: panel que flota sobre la lista con la única sombra del sistema.
+ * En móvil entra desde abajo o desde la derecha; en escritorio se limita a
+ * 24rem. Con movimiento reducido solo se funde.
+ */
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 }
@@ -38,13 +42,22 @@ function SheetOverlay({
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        "data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs",
+        "bg-scrim data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 duration-base fixed inset-0 z-50 ease-out",
         className,
       )}
       {...props}
     />
   );
 }
+
+const sides = {
+  right:
+    "inset-y-0 right-0 h-full w-[88vw] max-w-sm rounded-l-sheet data-open:slide-in-from-right-10 data-closed:slide-out-to-right-10 motion-reduce:data-open:slide-in-from-right-0 motion-reduce:data-closed:slide-out-to-right-0",
+  left: "inset-y-0 left-0 h-full w-[88vw] max-w-sm rounded-r-sheet data-open:slide-in-from-left-10 data-closed:slide-out-to-left-10 motion-reduce:data-open:slide-in-from-left-0 motion-reduce:data-closed:slide-out-to-left-0",
+  bottom:
+    "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet data-open:slide-in-from-bottom-10 data-closed:slide-out-to-bottom-10 motion-reduce:data-open:slide-in-from-bottom-0 motion-reduce:data-closed:slide-out-to-bottom-0",
+  top: "inset-x-0 top-0 max-h-[92dvh] rounded-b-sheet data-open:slide-in-from-top-10 data-closed:slide-out-to-top-10 motion-reduce:data-open:slide-in-from-top-0 motion-reduce:data-closed:slide-out-to-top-0",
+} as const;
 
 function SheetContent({
   className,
@@ -53,7 +66,7 @@ function SheetContent({
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
-  side?: "top" | "right" | "bottom" | "left";
+  side?: keyof typeof sides;
   showCloseButton?: boolean;
 }) {
   return (
@@ -63,7 +76,8 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "bg-popover text-popover-foreground data-open:animate-in data-open:fade-in-0 data-[side=bottom]:data-open:slide-in-from-bottom-10 data-[side=left]:data-open:slide-in-from-left-10 data-[side=right]:data-open:slide-in-from-right-10 data-[side=top]:data-open:slide-in-from-top-10 data-closed:animate-out data-closed:fade-out-0 data-[side=bottom]:data-closed:slide-out-to-bottom-10 data-[side=left]:data-closed:slide-out-to-left-10 data-[side=right]:data-closed:slide-out-to-right-10 data-[side=top]:data-closed:slide-out-to-top-10 fixed z-50 flex flex-col gap-4 bg-clip-padding text-sm shadow-lg transition duration-200 ease-in-out data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
+          "bg-paper text-ink shadow-sheet data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 duration-base fixed z-50 flex flex-col overflow-y-auto ease-out outline-none",
+          sides[side],
           className,
         )}
         {...props}
@@ -73,10 +87,10 @@ function SheetContent({
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-[calc(env(safe-area-inset-top,0px)_+_0.375rem)] right-1.5"
               size="icon-touch"
+              className="absolute top-[calc(env(safe-area-inset-top,0px)_+_0.5rem)] right-2"
             >
-              <XIcon aria-hidden />
+              <XIcon aria-hidden strokeWidth={1.5} />
               <span className="sr-only">{texts.sheet.close}</span>
             </Button>
           </SheetPrimitive.Close>
@@ -90,7 +104,17 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn("flex flex-col gap-0.5 p-4", className)}
+      className={cn("flex flex-col gap-1 px-6 pt-6 pb-4", className)}
+      {...props}
+    />
+  );
+}
+
+function SheetBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sheet-body"
+      className={cn("flex flex-col gap-4 px-6", className)}
       {...props}
     />
   );
@@ -100,7 +124,7 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-footer"
-      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+      className={cn("pb-safe mt-auto flex flex-col gap-2 px-6 pt-6", className)}
       {...props}
     />
   );
@@ -113,7 +137,7 @@ function SheetTitle({
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("text-foreground text-base font-medium", className)}
+      className={cn("text-heading text-ink pr-12", className)}
       {...props}
     />
   );
@@ -126,7 +150,7 @@ function SheetDescription({
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-ink-2 text-pretty", className)}
       {...props}
     />
   );
@@ -138,6 +162,7 @@ export {
   SheetClose,
   SheetContent,
   SheetHeader,
+  SheetBody,
   SheetFooter,
   SheetTitle,
   SheetDescription,
