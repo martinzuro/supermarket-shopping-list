@@ -7,8 +7,8 @@ import { texts } from "@/lib/texts";
 export default function ListPage() {
   return (
     <>
-      <header className="sticky top-0 z-10 border-b bg-background/95 pt-safe backdrop-blur-md">
-        <div className="mx-auto flex h-14 w-full max-w-xl items-center justify-between px-safe">
+      <header className="bg-background/95 pt-safe sticky top-0 z-10 border-b backdrop-blur-md">
+        <div className="px-safe mx-auto flex h-14 w-full max-w-xl items-center justify-between">
           <h1 className="text-xl font-semibold tracking-tight">
             {texts.app.name}
           </h1>
@@ -24,7 +24,7 @@ export default function ListPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-xl flex-1 px-safe pt-1 pb-add-bar">
+      <main className="px-safe pb-add-bar mx-auto w-full max-w-xl flex-1 pt-1">
         <ListSection
           id="pending"
           title={texts.list.pending.title}

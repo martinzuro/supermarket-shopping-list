@@ -22,14 +22,14 @@ export function ListSection({
     <section aria-labelledby={headingId} className={cn("py-5", className)}>
       <h2
         id={headingId}
-        className="flex items-center gap-2 text-sm font-semibold text-foreground"
+        className="text-foreground flex items-center gap-2 text-sm font-semibold"
       >
         {Icon ? (
-          <Icon aria-hidden className="size-4 text-muted-foreground" />
+          <Icon aria-hidden className="text-muted-foreground size-4" />
         ) : null}
         {title}
       </h2>
-      <p className="mt-3 text-sm text-pretty text-muted-foreground">
+      <p className="text-muted-foreground mt-3 text-sm text-pretty">
         {emptyText}
       </p>
     </section>

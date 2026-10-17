@@ -53,11 +53,11 @@ export function AddItemBar() {
     <div
       data-keyboard-open={keyboardOpen}
       style={{ bottom: keyboardInset }}
-      className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 backdrop-blur-md"
+      className="bg-background/95 fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-md"
     >
       <form
         onSubmit={handleSubmit}
-        className="mx-auto flex w-full max-w-xl items-center gap-2 px-safe pt-3 pb-safe in-data-[keyboard-open=true]:pb-3"
+        className="px-safe pb-safe mx-auto flex w-full max-w-xl items-center gap-2 pt-3 in-data-[keyboard-open=true]:pb-3"
       >
         <label htmlFor={INPUT_ID} className="sr-only">
           {texts.addItem.label}
@@ -71,7 +71,7 @@ export function AddItemBar() {
           autoCapitalize="sentences"
           enterKeyHint="enter"
           placeholder={texts.addItem.placeholder}
-          className="h-touch-lg rounded-xl bg-card px-4 text-base md:text-base dark:bg-card"
+          className="h-touch-lg bg-card dark:bg-card rounded-xl px-4 text-base md:text-base"
         />
         <Button
           type="submit"

@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 /*
  * Modo oscuro según la preferencia del sistema. Las variantes `dark:` de
