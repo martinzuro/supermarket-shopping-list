@@ -42,6 +42,57 @@ Abrir http://localhost:3000 en el navegador.
 | `npm run test:watch`   | Vitest en modo watch                                                                           |
 | `npm run test:e2e`     | Tests end-to-end con Playwright (requiere `npm run build` y `npx playwright install chromium`) |
 
+## Base de datos local
+
+El backend es Supabase ([ADR 0002](docs/decisions/0002-backend-supabase.md)).
+En local corre con Docker mediante la CLI de Supabase, que está instalada
+como dependencia de desarrollo: no hace falta instalarla aparte, se usa con
+`npx supabase` o con los scripts de abajo.
+
+Requisitos: Docker Desktop en marcha y unos 10 GB libres en disco la
+primera vez, para descargar las imágenes.
+
+| Comando            | Descripción                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| `npm run db:start` | Levanta Supabase en local (base, auth, realtime, API, Studio, Mailpit) |
+| `npm run db:stop`  | Detiene los contenedores                                               |
+| `npm run db:reset` | Recrea la base aplicando `supabase/migrations/` y `supabase/seed.sql`  |
+| `npm run db:types` | Regenera `src/lib/supabase/database.types.ts` desde la base local      |
+
+Primera vez:
+
+1. `npm run db:start`.
+2. `npx supabase status` muestra las URLs y las claves del entorno local.
+3. Crear `.env.local` en la raíz del proyecto con estos valores:
+
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL=<Project URL, normalmente http://127.0.0.1:54331>
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<clave Publishable, empieza por sb_publishable_>
+   ```
+
+   `.env.local` está en `.gitignore` y no se versiona. La clave secreta
+   (`sb_secret_...` o `service_role`) nunca va en variables `NEXT_PUBLIC_`
+   ni en el cliente.
+
+Con el entorno levantado:
+
+- Studio: http://127.0.0.1:54323
+- Mailpit, donde llegan los correos de acceso (enlace y código de seis
+  dígitos): http://127.0.0.1:54324
+
+La API local escucha en el puerto 54331 en vez del 54321 habitual porque
+CleanMyMac ocupa el 54321 en la máquina de desarrollo. El resto de los
+puertos son los de Supabase por defecto.
+
+Para cambiar el esquema se crea una migración nueva con
+`npx supabase migration new <nombre>`, se aplica con `npm run db:reset` y se
+regeneran los tipos con `npm run db:types`. Las migraciones ya mergeadas no
+se editan.
+
+La configuración local (auth anónima, email con enlace y código OTP, URLs de
+redirección) está en `supabase/config.toml` y las plantillas de correo en
+`supabase/templates/`.
+
 ## Estructura
 
 ```
@@ -51,6 +102,7 @@ src/
   lib/         Utilidades y lógica compartida
   types/       Tipos de TypeScript compartidos
 public/        Archivos estáticos
+supabase/      Configuración local, migraciones, seed y plantillas de correo
 docs/          Documentación del proyecto
 ```
 

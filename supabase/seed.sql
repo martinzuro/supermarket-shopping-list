@@ -1,0 +1,6 @@
+-- Local seed, run by `supabase db reset` after the migrations.
+--
+-- Intentionally empty. The default categories are not global rows: the
+-- `lists_after_insert` trigger seeds the ten default categories for every new
+-- list, together with the owner's membership. Users and lists are created by
+-- the app itself (anonymous sign-in on first use), so there is nothing to seed.
