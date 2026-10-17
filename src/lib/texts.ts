@@ -11,6 +11,7 @@ export const texts = {
     menu: "Abrir menú",
   },
   list: {
+    defaultName: "Mi lista",
     pending: {
       title: "Pendientes",
       empty: "Nada pendiente. Lo que agregues aparece acá.",

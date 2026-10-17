@@ -352,11 +352,17 @@ Cuentas, hecho el 2026-10-17:
   oscuro, primitivas de shadcn necesarias.
 - Deploy continuo a Vercel: preview por PR y producción desde `main`.
 
-Estado al 2026-10-17: tooling, sistema de diseño con layout vacío, PWA
-(`@serwist/turbopack`), esquema completo con RLS y triggers verificado
-contra el stack local, tipos generados, helpers de dominio con tests y
-deploy continuo en Vercel están en `main`. En curso: auth y capa de
-queries.
+Estado al 2026-10-17: todo lo anterior está en `main`: tooling, sistema de
+diseño provisional con layout vacío, PWA (`@serwist/turbopack`), esquema
+con RLS y triggers verificado contra el stack local, tipos generados,
+helpers de dominio, auth (usuario anónimo, conversión por código o enlace,
+cierre de sesión), capa de queries con TanStack Query y el patrón de
+mutación optimista testeado, y deploy continuo en Vercel con variables
+hacia Supabase staging. Pendiente de la Fase 1: instalación probada en
+iOS y Android (dispositivo real) y el pase visual según
+`docs/DESIGN_DIRECTION.md` cuando se apruebe la dirección. Limitación
+conocida: en staging los correos solo traen el enlace, no el código,
+hasta configurar Resend (plan gratuito de Supabase).
 
 **Salida:** la app se instala como PWA, crea un usuario anónimo y su
 lista, muestra el layout final vacío y se despliega sola en cada merge.
