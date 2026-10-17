@@ -1,6 +1,7 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SerwistProvider } from "@serwist/turbopack/react";
+import { texts } from "@/lib/texts";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,22 +15,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Supermarket Shopping List",
-  description: "Web app para gestionar listas de compras de supermercado.",
+  title: texts.app.name,
+  description: texts.app.description,
   // The web app manifest link is added automatically by src/app/manifest.ts.
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Lista",
+    title: texts.app.name,
   },
   icons: {
     icon: "/icons/icon.svg",
     apple: "/icons/apple-touch-icon.png",
   },
-};
-
-export const viewport: Viewport = {
-  themeColor: "#f5f7fa",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

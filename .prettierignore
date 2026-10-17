@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+coverage
+package-lock.json
+playwright-report
+test-results
+public/sw.js
+docs/**/*.md
+.claude/worktrees
+supabase/templates
+src/lib/supabase/database.types.ts
