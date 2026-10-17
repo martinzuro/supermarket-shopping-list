@@ -44,3 +44,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# worktrees created by the Claude desktop app
+/.claude/worktrees/

@@ -7,3 +7,5 @@ playwright-report
 test-results
 public/sw.js
 docs/**/*.md
+.claude/worktrees
+supabase/templates
