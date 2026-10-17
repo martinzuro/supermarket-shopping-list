@@ -106,10 +106,16 @@ Next 16; `@serwist/turbopack` es el paquete oficial de Serwist para ese caso
 
 ### 2.6 Interfaz
 
+La dirección visual está en `DESIGN_DIRECTION.md` y es un requisito
+fundamental del proyecto (nivel Awwwards). Las herramientas de abajo se
+subordinan a ella.
+
 - **Tailwind CSS 4** (ya instalado) con tokens de diseño en `globals.css`.
-- **shadcn/ui** para primitivas accesibles (diálogos, sheets, menús,
-  toasts). Se copian al repo. Añadir componentes solo cuando se necesiten.
-- **lucide-react** para iconos.
+- **Primitivas accesibles sin estilo** (shadcn/ui o Base UI) solo por su
+  comportamiento: diálogos, hojas, menús. La apariencia es siempre propia;
+  nunca se entrega el estilo por defecto.
+- **lucide-react** para iconos de interfaz con stroke ajustado, hasta que
+  exista un set propio. Iconos de categoría propios.
 - **TanStack Query** como única capa de estado de servidor. Estado de UI
   efímero en React. Sin store global.
 - Sin librería de formularios. Validación con **zod** en los límites
