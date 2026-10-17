@@ -29,13 +29,18 @@ Abrir http://localhost:3000 en el navegador.
 
 ## Scripts
 
-| Comando             | Descripción                                    |
-| ------------------- | ---------------------------------------------- |
-| `npm run dev`       | Servidor de desarrollo con recarga en caliente |
-| `npm run build`     | Build de producción                            |
-| `npm run start`     | Sirve el build de producción                   |
-| `npm run lint`      | Ejecuta ESLint                                 |
-| `npm run typecheck` | Genera tipos de rutas y comprueba con tsc      |
+| Comando                | Descripción                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run dev`          | Servidor de desarrollo con recarga en caliente                                                 |
+| `npm run build`        | Build de producción                                                                            |
+| `npm run start`        | Sirve el build de producción                                                                   |
+| `npm run lint`         | Ejecuta ESLint                                                                                 |
+| `npm run typecheck`    | Genera tipos de rutas y comprueba con tsc                                                      |
+| `npm run format`       | Formatea el código con Prettier                                                                |
+| `npm run format:check` | Comprueba el formato sin modificar archivos                                                    |
+| `npm test`             | Tests unitarios con Vitest                                                                     |
+| `npm run test:watch`   | Vitest en modo watch                                                                           |
+| `npm run test:e2e`     | Tests end-to-end con Playwright (requiere `npm run build` y `npx playwright install chromium`) |
 
 ## Base de datos local
 
@@ -100,6 +105,33 @@ public/        Archivos estáticos
 supabase/      Configuración local, migraciones, seed y plantillas de correo
 docs/          Documentación del proyecto
 ```
+
+## PWA
+
+La app es instalable. El manifest está en `src/app/manifest.ts`, los iconos en
+`public/icons/` y la página sin conexión en `src/app/offline/page.tsx`.
+
+El service worker (`src/app/sw.ts`, Serwist) se compila con
+`@serwist/turbopack` y se sirve desde `/serwist/sw.js` (route handler en
+`src/app/serwist/[path]/route.ts`). Se registra desde el layout raíz con
+`SerwistProvider`, solo en producción. Precachea el app shell, los assets y
+`/offline`; las peticiones a Supabase y a `/api/` nunca se cachean.
+
+Instalar:
+
+- **iOS (Safari):** Compartir, "Añadir a pantalla de inicio".
+- **Android (Chrome):** menú, "Instalar app".
+
+Verificar el manifest en un build de producción:
+
+```bash
+npm run build && npm run start
+```
+
+Abrir http://localhost:3000, DevTools, pestaña Application: en Manifest se ve
+el manifest; en Service Workers, `/serwist/sw.js` activado; en Cache Storage,
+el precache incluye `/offline`. Para probar el fallback: marcar Offline en
+Network y navegar a una ruta no visitada.
 
 ## Documentación
 

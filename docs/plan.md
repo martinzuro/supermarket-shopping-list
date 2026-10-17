@@ -95,8 +95,10 @@ link.** [ADR 0004](decisions/0004-auth-magic-link.md)
 
 ### 2.5 PWA
 
-**Decisión: Serwist** (`@serwist/next`) para instalación y carga rápida,
-no para offline.
+**Decisión: Serwist** (`@serwist/turbopack`) para instalación y carga rápida,
+no para offline. `@serwist/next` no funciona con el build de Turbopack de
+Next 16; `@serwist/turbopack` es el paquete oficial de Serwist para ese caso
+(marcado como experimental) y se verificó de punta a punta el 2026-10-17.
 
 - Manifest, iconos, precache del app shell y assets. Página de "sin
   conexión" estática como fallback de navegación.
