@@ -148,6 +148,13 @@
   /* Resaltado de cambios remotos (pulso que se apaga) */
   --remote-pulse: color-mix(in oklab, var(--citrus) 22%, transparent);
 
+  /* Fondos de aviso: casi papel, el color va en el icono y el hilo */
+  --attention-bg: color-mix(in oklab, var(--citrus) 10%, var(--paper));
+  --danger-bg: color-mix(in oklab, var(--tomato) 10%, var(--paper));
+
+  /* Velo detrás de hojas y diálogos, oscuro en ambos modos */
+  --scrim: rgb(27 42 31 / 0.4);
+
   /* La única sombra del sistema: hojas y diálogos que flotan de verdad */
   --shadow-sheet: 0 12px 32px -8px
     color-mix(in oklab, var(--ink) 18%, transparent);
@@ -222,6 +229,9 @@
   --color-action-fg: var(--action-fg);
   --color-focus: var(--focus);
   --color-remote-pulse: var(--remote-pulse);
+  --color-attention-bg: var(--attention-bg);
+  --color-danger-bg: var(--danger-bg);
+  --color-scrim: var(--scrim);
 
   --color-cat-verduras: var(--cat-verduras);
   --color-cat-verduras-thread: var(--cat-verduras-thread);
