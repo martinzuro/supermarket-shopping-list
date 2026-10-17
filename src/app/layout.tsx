@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Supermarket Shopping List",
   description: "Web app para gestionar listas de compras de supermercado.",
+  // The web app manifest link is added automatically by src/app/manifest.ts.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Lista",
+  },
+  icons: {
+    icon: "/icons/icon.svg",
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#16a34a",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
