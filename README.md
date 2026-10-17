@@ -29,13 +29,18 @@ Abrir http://localhost:3000 en el navegador.
 
 ## Scripts
 
-| Comando             | Descripción                                   |
-| ------------------- | --------------------------------------------- |
-| `npm run dev`       | Servidor de desarrollo con recarga en caliente |
-| `npm run build`     | Build de producción                           |
-| `npm run start`     | Sirve el build de producción                  |
-| `npm run lint`      | Ejecuta ESLint                                |
-| `npm run typecheck` | Genera tipos de rutas y comprueba con tsc     |
+| Comando                | Descripción                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run dev`          | Servidor de desarrollo con recarga en caliente                                                 |
+| `npm run build`        | Build de producción                                                                            |
+| `npm run start`        | Sirve el build de producción                                                                   |
+| `npm run lint`         | Ejecuta ESLint                                                                                 |
+| `npm run typecheck`    | Genera tipos de rutas y comprueba con tsc                                                      |
+| `npm run format`       | Formatea el código con Prettier                                                                |
+| `npm run format:check` | Comprueba el formato sin modificar archivos                                                    |
+| `npm test`             | Tests unitarios con Vitest                                                                     |
+| `npm run test:watch`   | Vitest en modo watch                                                                           |
+| `npm run test:e2e`     | Tests end-to-end con Playwright (requiere `npm run build` y `npx playwright install chromium`) |
 
 ## Estructura
 
