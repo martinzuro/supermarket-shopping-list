@@ -29,13 +29,13 @@ Abrir http://localhost:3000 en el navegador.
 
 ## Scripts
 
-| Comando             | Descripción                                   |
-| ------------------- | --------------------------------------------- |
+| Comando             | Descripción                                    |
+| ------------------- | ---------------------------------------------- |
 | `npm run dev`       | Servidor de desarrollo con recarga en caliente |
-| `npm run build`     | Build de producción                           |
-| `npm run start`     | Sirve el build de producción                  |
-| `npm run lint`      | Ejecuta ESLint                                |
-| `npm run typecheck` | Genera tipos de rutas y comprueba con tsc     |
+| `npm run build`     | Build de producción                            |
+| `npm run start`     | Sirve el build de producción                   |
+| `npm run lint`      | Ejecuta ESLint                                 |
+| `npm run typecheck` | Genera tipos de rutas y comprueba con tsc      |
 
 ## Base de datos local
 
@@ -47,12 +47,12 @@ como dependencia de desarrollo: no hace falta instalarla aparte, se usa con
 Requisitos: Docker Desktop en marcha y unos 10 GB libres en disco la
 primera vez, para descargar las imágenes.
 
-| Comando            | Descripción                                                                 |
-| ------------------ | --------------------------------------------------------------------------- |
-| `npm run db:start` | Levanta Supabase en local (base, auth, realtime, API, Studio, Mailpit)       |
-| `npm run db:stop`  | Detiene los contenedores                                                    |
-| `npm run db:reset` | Recrea la base aplicando `supabase/migrations/` y `supabase/seed.sql`       |
-| `npm run db:types` | Regenera `src/lib/supabase/database.types.ts` desde la base local           |
+| Comando            | Descripción                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| `npm run db:start` | Levanta Supabase en local (base, auth, realtime, API, Studio, Mailpit) |
+| `npm run db:stop`  | Detiene los contenedores                                               |
+| `npm run db:reset` | Recrea la base aplicando `supabase/migrations/` y `supabase/seed.sql`  |
+| `npm run db:types` | Regenera `src/lib/supabase/database.types.ts` desde la base local      |
 
 Primera vez:
 
@@ -74,6 +74,12 @@ Con el entorno levantado:
 - Studio: http://127.0.0.1:54323
 - Mailpit, donde llegan los correos de acceso (enlace y código de seis
   dígitos): http://127.0.0.1:54324
+
+Si `npm run db:start` falla porque el puerto 54321 ya está en uso, la API
+se puede levantar en otro puerto exportando la variable en la terminal
+antes de usar los scripts `db:*`, por ejemplo
+`export SUPABASE_API_PORT=54331`. En ese caso `NEXT_PUBLIC_SUPABASE_URL`
+usa ese mismo puerto.
 
 Para cambiar el esquema se crea una migración nueva con
 `npx supabase migration new <nombre>`, se aplica con `npm run db:reset` y se
