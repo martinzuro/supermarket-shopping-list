@@ -45,6 +45,37 @@ No implementar nada que contradiga un ADR sin que el usuario lo pida
 explícitamente. Seguir el orden de fases del plan: no adelantar trabajo de
 una fase posterior.
 
+## Calidad visual: requisito fundamental
+
+La calidad visual y de experiencia al nivel de los mejores sitios
+reconocidos por Awwwards es un requisito del proyecto, no un deseable.
+Esto significa identidad propia, dirección de arte, tipografía con
+criterio, movimiento diseñado y cero apariencia de plantilla o de
+componente por defecto.
+
+Antes de cualquier trabajo de interfaz (tokens, componentes, pantallas,
+animaciones, iconos, estados vacíos, textos visibles), leer en este orden:
+
+1. `docs/DESIGN_DIRECTION.md`: concepto "Fresh Editorial", principios
+   visuales, paleta, tipografía, layout, motion y decisiones pendientes.
+2. `docs/DESIGN_REFERENCES.md`: análisis de las cinco referencias y los
+   principios que se trasladan y los que no.
+
+Reglas que se derivan de esos documentos y se aplican siempre:
+
+- Nunca entregar un componente con la apariencia por defecto de una
+  librería. Las primitivas accesibles pueden venir de fuera; el aspecto es
+  siempre propio y sale de los tokens del proyecto.
+- Sin degradados ni glassmorphism decorativos, sin más de un nivel de
+  sombra, sin interfaces de tarjetas, sin fotografía de stock, sin emojis
+  como iconos.
+- Todo movimiento usa los tokens de duración y curva del sistema, solo
+  anima `transform` y `opacity` en interacciones frecuentes y respeta
+  `prefers-reduced-motion`.
+- El sistema de diseño (tokens y componentes base) se construye antes que
+  cualquier pantalla. No se implementa interfaz hasta que el usuario
+  apruebe la dirección de diseño.
+
 ## Stack
 
 - Next.js 16 con App Router y Turbopack. Esta versión tiene cambios respecto
