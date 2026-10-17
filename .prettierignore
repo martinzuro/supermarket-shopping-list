@@ -9,3 +9,4 @@ public/sw.js
 docs/**/*.md
 .claude/worktrees
 supabase/templates
+src/lib/supabase/database.types.ts
