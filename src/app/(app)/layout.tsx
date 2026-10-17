@@ -1,4 +1,5 @@
 import type { Viewport } from "next";
+import { SessionProvider } from "@/components/session-provider";
 
 export const viewport: Viewport = {
   // Dibuja bajo el notch y el indicador de inicio; los insets se compensan
@@ -13,6 +14,12 @@ export const viewport: Viewport = {
   ],
 };
 
+// Static on purpose: the session is read in the browser by SessionProvider
+// (a Client Component), never with cookies() here, so the shell prerenders.
 export default function AppLayout({ children }: LayoutProps<"/">) {
-  return <div className="flex flex-1 flex-col">{children}</div>;
+  return (
+    <SessionProvider>
+      <div className="flex flex-1 flex-col">{children}</div>
+    </SessionProvider>
+  );
 }
