@@ -61,7 +61,7 @@ Primera vez:
 3. Crear `.env.local` en la raíz del proyecto con estos valores:
 
    ```bash
-   NEXT_PUBLIC_SUPABASE_URL=<Project URL, normalmente http://127.0.0.1:54321>
+   NEXT_PUBLIC_SUPABASE_URL=<Project URL, normalmente http://127.0.0.1:54331>
    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<clave Publishable, empieza por sb_publishable_>
    ```
 
@@ -75,11 +75,9 @@ Con el entorno levantado:
 - Mailpit, donde llegan los correos de acceso (enlace y código de seis
   dígitos): http://127.0.0.1:54324
 
-Si `npm run db:start` falla porque el puerto 54321 ya está en uso, la API
-se puede levantar en otro puerto exportando la variable en la terminal
-antes de usar los scripts `db:*`, por ejemplo
-`export SUPABASE_API_PORT=54331`. En ese caso `NEXT_PUBLIC_SUPABASE_URL`
-usa ese mismo puerto.
+La API local escucha en el puerto 54331 en vez del 54321 habitual porque
+CleanMyMac ocupa el 54321 en la máquina de desarrollo. El resto de los
+puertos son los de Supabase por defecto.
 
 Para cambiar el esquema se crea una migración nueva con
 `npx supabase migration new <nombre>`, se aplica con `npm run db:reset` y se
