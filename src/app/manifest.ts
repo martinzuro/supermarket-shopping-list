@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
-// Neutral placeholder colors; update when the design tokens land.
-const THEME_COLOR = "#16a34a";
+// Matches the light background token in globals.css (--background).
+const THEME_COLOR = "#f5f7fa";
 const BACKGROUND_COLOR = "#ffffff";
 
 export default function manifest(): MetadataRoute.Manifest {
