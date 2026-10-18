@@ -32,6 +32,13 @@ export const texts = {
   menu: {
     title: "Menú",
   },
+  welcome: {
+    label: "Bienvenida",
+    headline: { lead: "Lo de", em: "siempre", tail: "sin pensarlo." },
+    body: "Agregá lo que falta, marcá lo que ya está en el carro y compartí la lista con quien compre con vos.",
+    items: ["Tomates perita", "Pan de campo", "Café molido"],
+    cta: "Empezar",
+  },
   offline: {
     title: "Sin conexión",
     body: "Lista necesita internet para mostrar y guardar tus listas. Revisá tu conexión y probá de nuevo.",
