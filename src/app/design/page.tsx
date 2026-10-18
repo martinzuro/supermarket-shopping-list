@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import { Check, CircleAlert, Menu, Plus, Users, WifiOff } from "lucide-react";
 import { CategoryIcon } from "@/components/icons/category-icons";
+import {
+  CartIllustration,
+  EmptyBagIllustration,
+  FullBagIllustration,
+} from "@/components/illustrations";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Moment } from "@/components/ui/moment";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { CategoryChip, Chip } from "@/components/ui/chip";
@@ -283,6 +290,31 @@ export default function DesignPage() {
         <Meta>{t.categories.thread}</Meta>
       </Section>
 
+      {/* Ilustración */}
+      <Section
+        id="ilustracion"
+        eyebrow={t.sections.illustration.eyebrow}
+        title={t.sections.illustration.title}
+      >
+        <ul className="grid gap-8 sm:grid-cols-3">
+          <li>
+            <EmptyBagIllustration className="text-ink size-32" />
+            <Meta>{t.illustration.emptyBag}</Meta>
+          </li>
+          <li>
+            <CartIllustration className="text-ink size-32" />
+            <Meta>{t.illustration.cart}</Meta>
+          </li>
+          <li>
+            <FullBagIllustration className="text-ink size-32" />
+            <Meta>{t.illustration.fullBag}</Meta>
+          </li>
+        </ul>
+        <p className="text-ink-2 mt-8 max-w-prose text-pretty">
+          {t.illustration.note}
+        </p>
+      </Section>
+
       {/* Espaciado y radios */}
       <Section
         id="espaciado"
@@ -352,15 +384,24 @@ export default function DesignPage() {
           </div>
         </div>
 
-        <div className="bg-inverse-bg text-inverse-fg rounded-sheet mt-10 px-6 py-10 md:px-10 md:py-14">
-          <p className="text-display font-serif text-balance">
-            {t.surfaces.inverseSample.lead}{" "}
-            <em>{t.surfaces.inverseSample.em}</em>
-          </p>
-          <p className="text-inverse-fg-2 mt-4 max-w-prose">
-            {t.surfaces.inverseSample.body}
-          </p>
+        <div className="mt-10">
+          <Moment
+            eyebrow={texts.moments.cartEmptied.eyebrow}
+            lead={texts.moments.cartEmptied.lead}
+            em={texts.moments.cartEmptied.em}
+            body={texts.moments.cartEmptied.body}
+            illustration={<FullBagIllustration />}
+            action={
+              <Button
+                type="button"
+                className="bg-lime text-on-lime hover:bg-lime/90 dark:hover:bg-lime/90"
+              >
+                {texts.moments.cartEmptied.action}
+              </Button>
+            }
+          />
         </div>
+        <Meta>{t.surfaces.moment}</Meta>
 
         <div className="bg-paper rounded-sheet shadow-sheet mt-10 max-w-sm p-6">
           <p className="text-heading">{t.surfaces.sheetTitle}</p>
@@ -492,6 +533,20 @@ export default function DesignPage() {
         <div className="mt-3 grid gap-2">
           <Eyebrow>{t.states.eyebrowSamples[0]}</Eyebrow>
           <Eyebrow tone="ink">{t.states.eyebrowSamples[1]}</Eyebrow>
+        </div>
+
+        <p className="eyebrow mt-10">{t.states.empty}</p>
+        <div className="mt-3 grid gap-4">
+          <EmptyState
+            illustration={<EmptyBagIllustration />}
+            body={texts.list.pending.empty}
+          />
+          <div className="bg-paper-2 rounded-sheet px-4">
+            <EmptyState
+              illustration={<CartIllustration />}
+              body={texts.list.cart.empty}
+            />
+          </div>
         </div>
 
         <p className="eyebrow mt-10">{t.states.rows}</p>

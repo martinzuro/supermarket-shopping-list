@@ -1,4 +1,9 @@
-import { Section, SectionEmpty } from "@/components/ui/section";
+import {
+  CartIllustration,
+  EmptyBagIllustration,
+} from "@/components/illustrations";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/utils";
 
 type ListSectionProps = {
@@ -25,7 +30,12 @@ export function ListSection({
       )}
     >
       <Section id={id} title={title}>
-        <SectionEmpty>{emptyText}</SectionEmpty>
+        <EmptyState
+          illustration={
+            surface === "cart" ? <CartIllustration /> : <EmptyBagIllustration />
+          }
+          body={emptyText}
+        />
       </Section>
     </div>
   );
