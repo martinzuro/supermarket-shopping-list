@@ -1,4 +1,5 @@
 import * as React from "react";
+import { CategoryIcon } from "@/components/icons/category-icons";
 import type { CategoryId } from "@/lib/design/tokens";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,8 @@ type CategoryChipProps = {
   category: CategoryId;
   children: React.ReactNode;
   className?: string;
+  /** Oculta el icono de categoría (por defecto se muestra). */
+  hideIcon?: boolean;
 } & (
   | ({ interactive?: false } & Omit<React.ComponentProps<"span">, "children">)
   | ({
@@ -39,11 +42,23 @@ type CategoryChipProps = {
  */
 export function CategoryChip(props: CategoryChipProps) {
   const style = { background: `var(--cat-${props.category})` };
+  const icon = props.hideIcon ? null : (
+    <CategoryIcon category={props.category} className="size-3.5" />
+  );
 
   if (props.interactive) {
-    const { category, interactive, selected, className, ...rest } = props;
+    const {
+      category,
+      interactive,
+      hideIcon,
+      selected,
+      className,
+      children,
+      ...rest
+    } = props;
     void category;
     void interactive;
+    void hideIcon;
     return (
       <button
         type="button"
@@ -57,19 +72,27 @@ export function CategoryChip(props: CategoryChipProps) {
           className,
         )}
         {...rest}
-      />
+      >
+        {icon}
+        {children}
+      </button>
     );
   }
 
-  const { category, interactive, className, ...rest } = props;
+  const { category, interactive, hideIcon, className, children, ...rest } =
+    props;
   void category;
   void interactive;
+  void hideIcon;
   return (
     <span
       data-slot="category-chip"
       style={style}
       className={cn(chipBase, className)}
       {...rest}
-    />
+    >
+      {icon}
+      {children}
+    </span>
   );
 }

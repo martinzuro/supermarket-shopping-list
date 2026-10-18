@@ -176,6 +176,7 @@ export const texts = {
       doneSample: "Hecho",
     },
     categories: {
+      icons: "Iconos propios · monolínea 1.5px · 48, 20 y 14px",
       thread: "Hilo de 2px junto a la agrupación",
       names: {
         verduras: "Frutas y verduras",

@@ -11,6 +11,8 @@ type SectionProps = {
   thread?: CategoryId;
   /** Eyebrow encima del título. */
   eyebrow?: string;
+  /** Icono a la izquierda del título (por ejemplo CategoryIcon). */
+  icon?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
@@ -27,6 +29,7 @@ export function Section({
   count,
   thread,
   eyebrow,
+  icon,
   action,
   className,
   children,
@@ -48,8 +51,11 @@ export function Section({
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
           <h2
             id={headingId}
-            className="text-heading flex items-baseline gap-2 truncate"
+            className="text-heading flex items-center gap-2 truncate"
           >
+            {icon ? (
+              <span className="text-ink-2 flex shrink-0">{icon}</span>
+            ) : null}
             {title}
             {typeof count === "number" ? (
               <span data-numeric className="text-ink-2 text-label font-mono">
