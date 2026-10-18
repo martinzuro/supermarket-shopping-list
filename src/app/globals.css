@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 /*
  * Sistema de diseño "Fresh Editorial" (docs/DESIGN_DIRECTION.md, ADR 0008).
@@ -423,22 +422,6 @@
   font-weight: var(--text-eyebrow--font-weight);
   text-transform: uppercase;
   color: var(--ink-2);
-}
-
-/* Entrada estándar: fundido más desplazamiento, 0 con movimiento reducido. */
-@keyframes enter-up {
-  from {
-    opacity: 0;
-    transform: translateY(var(--motion-shift));
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@utility animate-enter {
-  animation: enter-up var(--motion-dur-base) var(--motion-ease-out) both;
 }
 
 /* ---------------------------------------------------------------------- */

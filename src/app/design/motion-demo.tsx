@@ -2,6 +2,7 @@
 
 import { Check } from "lucide-react";
 import { useState } from "react";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { texts } from "@/lib/texts";
 
 const t = texts.design.motion;
@@ -25,19 +26,16 @@ export function MotionDemo() {
   return (
     <div className="grid gap-8">
       <div>
-        <ul key={run} className="border-rule border-t">
-          {t.demoItems.map((item, index) => (
-            <li
+        <Stagger key={run} className="border-rule border-t">
+          {t.demoItems.map((item) => (
+            <StaggerItem
               key={item}
-              className="animate-enter border-rule text-row h-row flex items-center border-b"
-              style={{
-                animationDelay: `calc(var(--motion-stagger) * ${index})`,
-              }}
+              className="border-rule text-row h-row flex items-center border-b"
             >
               {item}
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
         <button
           type="button"
           onClick={() => setRun((n) => n + 1)}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { SerwistProvider } from "@serwist/turbopack/react";
+import { MotionProvider } from "@/components/motion";
 import { texts } from "@/lib/texts";
 import "./globals.css";
 
@@ -48,7 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           swUrl="/serwist/sw.js"
           disable={process.env.NODE_ENV === "development"}
         >
-          {children}
+          <MotionProvider>{children}</MotionProvider>
         </SerwistProvider>
       </body>
     </html>
