@@ -32,6 +32,10 @@ export const texts = {
   menu: {
     title: "Menú",
   },
+  offline: {
+    title: "Sin conexión",
+    body: "Lista necesita internet para mostrar y guardar tus listas. Revisá tu conexión y probá de nuevo.",
+  },
   connection: {
     title: "Sin conexión",
     body: "Volvemos a intentar solos en unos segundos.",

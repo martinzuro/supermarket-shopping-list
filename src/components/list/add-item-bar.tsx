@@ -53,7 +53,7 @@ export function AddItemBar() {
     <div
       data-keyboard-open={keyboardOpen}
       style={{ bottom: keyboardInset }}
-      className="bg-background/95 fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-md"
+      className="bg-paper border-rule fixed inset-x-0 bottom-0 z-20 border-t"
     >
       <form
         onSubmit={handleSubmit}
@@ -71,14 +71,14 @@ export function AddItemBar() {
           autoCapitalize="sentences"
           enterKeyHint="enter"
           placeholder={texts.addItem.placeholder}
-          className="h-touch-lg bg-card dark:bg-card rounded-xl px-4 text-base md:text-base"
+          className="h-touch-lg rounded-full px-5"
         />
         <Button
           type="submit"
           size="icon-touch-lg"
           aria-label={texts.addItem.submit}
         >
-          <Plus aria-hidden strokeWidth={2.5} />
+          <Plus aria-hidden strokeWidth={2} />
         </Button>
       </form>
     </div>

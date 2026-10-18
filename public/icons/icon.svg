@@ -1,9 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lista">
-  <rect width="512" height="512" rx="112" fill="#16a34a"/>
-  <g fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M110 140h44l38 176h176l40-150H172"/>
-    <path d="M226 238l30 30 60-66" stroke-width="30"/>
-  </g>
-  <circle cx="224" cy="364" r="25" fill="#ffffff"/>
-  <circle cx="348" cy="364" r="25" fill="#ffffff"/>
+  <rect width="512" height="512" rx="112" fill="#1b2a1f"/>
+  <circle cx="256" cy="256" r="150" fill="#c9f04a"/>
+  <path d="M190 262l46 46 90-100" fill="none" stroke="#1b2a1f" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
