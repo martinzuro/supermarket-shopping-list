@@ -1,6 +1,5 @@
 "use client";
 
-import { ShoppingCart } from "lucide-react";
 import { ListSection } from "@/components/list/list-section";
 import { useSession } from "@/components/session-provider";
 import { useCurrentList } from "@/lib/queries";
@@ -22,14 +21,13 @@ export function ListView() {
         title={texts.list.pending.title}
         emptyText={texts.list.pending.empty}
       />
-      {/* La línea punteada marca el paso por caja: arriba lo que falta,
-          abajo lo que ya está en el carro. */}
+      {/* El carro va sobre pistacho: arriba lo que falta, abajo lo que ya
+          pasó por caja. */}
       <ListSection
         id="cart"
         title={texts.list.cart.title}
         emptyText={texts.list.cart.empty}
-        icon={ShoppingCart}
-        className="border-t-2 border-dashed"
+        surface="cart"
       />
     </>
   );

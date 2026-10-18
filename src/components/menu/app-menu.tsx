@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetBody,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -83,7 +84,7 @@ export function AppMenu() {
           aria-label={texts.header.menu}
           className="-mr-2.5"
         >
-          <Menu aria-hidden />
+          <Menu aria-hidden strokeWidth={1.5} />
         </Button>
       </SheetTrigger>
       <SheetContent
@@ -97,17 +98,17 @@ export function AppMenu() {
           (event.currentTarget as HTMLElement | null)?.focus();
         }}
       >
-        <SheetHeader className="pr-14">
-          <SheetTitle className="text-lg font-semibold">
-            {texts.menu.title}
-          </SheetTitle>
+        <SheetHeader>
+          <SheetTitle>{texts.menu.title}</SheetTitle>
         </SheetHeader>
-        <AccountSection
-          notice={currentNotice}
-          onNotice={setNotice}
-          pendingSignIn={pendingSignIn}
-          onPendingSignInChange={setPendingSignIn}
-        />
+        <SheetBody>
+          <AccountSection
+            notice={currentNotice}
+            onNotice={setNotice}
+            pendingSignIn={pendingSignIn}
+            onPendingSignInChange={setPendingSignIn}
+          />
+        </SheetBody>
       </SheetContent>
     </Sheet>
   );

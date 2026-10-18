@@ -7,17 +7,15 @@ import { texts } from "@/lib/texts";
 export default function ListPage() {
   return (
     <>
-      <header className="bg-background/95 pt-safe sticky top-0 z-10 border-b backdrop-blur-md">
+      <header className="bg-paper pt-safe border-rule sticky top-0 z-10 border-b">
         <div className="px-safe mx-auto flex h-14 w-full max-w-xl items-center justify-between">
-          <h1 className="text-xl font-semibold tracking-tight">
-            {texts.app.name}
-          </h1>
+          <h1 className="text-title font-serif">{texts.app.name}</h1>
           <AppMenu />
         </div>
         <ConnectionBanner />
       </header>
 
-      <main className="px-safe pb-add-bar mx-auto w-full max-w-xl flex-1 pt-1">
+      <main className="px-safe pb-add-bar mx-auto w-full max-w-xl flex-1 pt-2">
         <ListView />
       </main>
 
