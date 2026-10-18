@@ -32,6 +32,15 @@ export const texts = {
   menu: {
     title: "Menú",
   },
+  moments: {
+    cartEmptied: {
+      eyebrow: "Compra terminada",
+      lead: "Buena",
+      em: "compra",
+      body: "Lo de hoy quedó en tu historial. La próxima lista arranca vacía.",
+      action: "Empezar otra lista",
+    },
+  },
   welcome: {
     label: "Bienvenida",
     headline: { lead: "Lo de", em: "siempre", tail: "sin pensarlo." },
@@ -120,6 +129,10 @@ export const texts = {
         eyebrow: "Categorías",
         title: "Diez tintes, una saturación",
       },
+      illustration: {
+        eyebrow: "Ilustración",
+        title: "Monolínea, papel y tinta",
+      },
       spacing: {
         eyebrow: "Espaciado y radios",
         title: "Dos variables fluidas",
@@ -191,6 +204,12 @@ export const texts = {
         otros: "Otros",
       },
     },
+    illustration: {
+      emptyBag: "Bolsa vacía · nada pendiente",
+      cart: "Changuito · nada en el carro",
+      fullBag: "Bolsa llena · compra terminada, con el único relleno en lima",
+      note: "Grilla de 120, trazo fijo de 1.5px, tinta secundaria en los estados vacíos y tinta inversa en los momentos editoriales.",
+    },
     spacing: {
       margin: "Margen · clamp(16px, 4vw, 40px)",
       gap: "Gap · clamp(12px, 1.5vw, 24px)",
@@ -206,11 +225,7 @@ export const texts = {
       paper: "Papel · base",
       paper2: "Pistacho · carro, hojas, agrupaciones",
       inverse: "Tinta · momentos editoriales",
-      inverseSample: {
-        lead: "Carro",
-        em: "vacío",
-        body: "Buena compra. Lo de hoy quedó en tu historial.",
-      },
+      moment: "Momento editorial · entra escalonado · se usa pocas veces",
       sheet: "Hoja · la única sombra del sistema",
       sheetTitle: "Compartir lista",
       sheetBody: "Quien abra el enlace puede agregar y marcar ítems.",
@@ -308,6 +323,7 @@ export const texts = {
         "Frutas y verduras",
         "Hoy",
       ],
+      empty: "Estados vacíos",
       rows: "Filas de la lista",
       rowItems: [
         { name: "Tomates perita", quantity: "1 kg", note: "", checked: false },
