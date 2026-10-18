@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Check, CircleAlert, Menu, Plus, Users, WifiOff } from "lucide-react";
+import { CategoryIcon } from "@/components/icons/category-icons";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { CategoryChip, Chip } from "@/components/ui/chip";
@@ -245,14 +246,25 @@ export default function DesignPage() {
         eyebrow={t.sections.categories.eyebrow}
         title={t.sections.categories.title}
       >
-        <ul className="flex flex-wrap gap-2">
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-5">
           {categoryIds.map((id) => (
-            <li
-              key={id}
-              className="text-ink text-label rounded-field inline-flex h-7 items-center px-2.5"
-              style={{ background: `var(--cat-${id})` }}
-            >
-              {t.categories.names[id]}
+            <li key={id} className="flex flex-col items-start gap-3">
+              <CategoryIcon category={id} className="size-12" />
+              <div className="flex items-center gap-2">
+                <CategoryIcon category={id} className="size-5" />
+                <CategoryIcon category={id} className="size-3.5" />
+              </div>
+              <p className="eyebrow">{t.categories.names[id]}</p>
+            </li>
+          ))}
+        </ul>
+        <Meta>{t.categories.icons}</Meta>
+        <ul className="mt-10 flex flex-wrap gap-2">
+          {categoryIds.map((id) => (
+            <li key={id}>
+              <CategoryChip category={id}>
+                {t.categories.names[id]}
+              </CategoryChip>
             </li>
           ))}
         </ul>
@@ -495,6 +507,7 @@ export default function DesignPage() {
             count={t.states.section.count}
             eyebrow={t.states.section.eyebrow}
             thread="verduras"
+            icon={<CategoryIcon category="verduras" />}
           >
             <ul className="border-rule border-t">
               {t.states.rowItems.map((item) => (
@@ -512,6 +525,7 @@ export default function DesignPage() {
             id="design-section-empty"
             title={t.states.section.emptyTitle}
             thread="congelados"
+            icon={<CategoryIcon category="congelados" />}
           >
             <SectionEmpty>{t.states.section.empty}</SectionEmpty>
           </UiSection>
