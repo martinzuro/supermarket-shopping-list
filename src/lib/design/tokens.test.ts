@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { contrastRatio, formatRatio, oklchToRgb, rgbToHex } from "./contrast";
+import { motionTokens } from "./motion";
 import {
   categoryColors,
   categoryIds,
@@ -73,5 +74,34 @@ describe("conversión oklch", () => {
   it("convierte un gris medio al valor esperado", () => {
     // oklch(50% 0 0) ≈ #636363 según el navegador.
     expect(rgbToHex(oklchToRgb("oklch(50% 0 0)"))).toBe("#636363");
+  });
+});
+
+describe("tokens de motion", () => {
+  const value = (name: string) => {
+    const match = new RegExp(`--motion-${name}:\\s*([^;]+);`).exec(css);
+    return match ? match[1].trim() : null;
+  };
+  const bezier = (v: string | null) =>
+    v
+      ? v
+          .replace(/^cubic-bezier\(|\)$/g, "")
+          .split(",")
+          .map((n) => Number(n.trim()))
+      : null;
+  const seconds = (v: string | null) =>
+    v ? Number(v.replace("ms", "")) / 1000 : null;
+
+  it("las curvas coinciden con globals.css", () => {
+    expect(bezier(value("ease-out"))).toEqual([...motionTokens.ease.out]);
+    expect(bezier(value("ease-in-out"))).toEqual([...motionTokens.ease.inOut]);
+  });
+
+  it("las duraciones, el escalonado y el desplazamiento coinciden", () => {
+    for (const [name, duration] of Object.entries(motionTokens.duration)) {
+      expect(seconds(value(`dur-${name}`)), name).toBe(duration);
+    }
+    expect(seconds(value("stagger"))).toBe(motionTokens.stagger);
+    expect(value("shift")).toBe(`${motionTokens.shift}px`);
   });
 });

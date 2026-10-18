@@ -1,19 +1,48 @@
 "use client";
 
-import * as React from "react";
 import { XIcon } from "lucide-react";
+import { AnimatePresence, motion, type Variants } from "motion/react";
 import { Dialog as SheetPrimitive } from "radix-ui";
+import * as React from "react";
+import { transitions } from "@/components/motion";
 import { Button } from "@/components/ui/button";
 import { texts } from "@/lib/texts";
 import { cn } from "@/lib/utils";
 
 /**
  * Hoja: panel que flota sobre la lista con la única sombra del sistema.
- * En móvil entra desde abajo o desde la derecha; en escritorio se limita a
- * 24rem. Con movimiento reducido solo se funde.
+ * Entra desde un lado con Motion (solo transform y opacity); con movimiento
+ * reducido, MotionConfig deja únicamente el fundido. La salida se anima
+ * gracias a AnimatePresence y forceMount, por eso Sheet guarda el estado
+ * abierto y lo comparte con SheetContent.
  */
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />;
+
+const SheetContext = React.createContext(false);
+
+function Sheet({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  const [uncontrolled, setUncontrolled] = React.useState(defaultOpen);
+  const open = openProp ?? uncontrolled;
+
+  function handleOpenChange(next: boolean) {
+    setUncontrolled(next);
+    onOpenChange?.(next);
+  }
+
+  return (
+    <SheetContext.Provider value={open}>
+      <SheetPrimitive.Root
+        data-slot="sheet"
+        open={open}
+        onOpenChange={handleOpenChange}
+        {...props}
+      />
+    </SheetContext.Provider>
+  );
 }
 
 function SheetTrigger({
@@ -28,36 +57,21 @@ function SheetClose({
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
 }
 
-function SheetPortal({
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Portal>) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
-}
-
-function SheetOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
-  return (
-    <SheetPrimitive.Overlay
-      data-slot="sheet-overlay"
-      className={cn(
-        "bg-scrim data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 duration-base fixed inset-0 z-50 ease-out",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-const sides = {
-  right:
-    "inset-y-0 right-0 h-full w-[88vw] max-w-sm rounded-l-sheet data-open:slide-in-from-right-10 data-closed:slide-out-to-right-10 motion-reduce:data-open:slide-in-from-right-0 motion-reduce:data-closed:slide-out-to-right-0",
-  left: "inset-y-0 left-0 h-full w-[88vw] max-w-sm rounded-r-sheet data-open:slide-in-from-left-10 data-closed:slide-out-to-left-10 motion-reduce:data-open:slide-in-from-left-0 motion-reduce:data-closed:slide-out-to-left-0",
-  bottom:
-    "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet data-open:slide-in-from-bottom-10 data-closed:slide-out-to-bottom-10 motion-reduce:data-open:slide-in-from-bottom-0 motion-reduce:data-closed:slide-out-to-bottom-0",
-  top: "inset-x-0 top-0 max-h-[92dvh] rounded-b-sheet data-open:slide-in-from-top-10 data-closed:slide-out-to-top-10 motion-reduce:data-open:slide-in-from-top-0 motion-reduce:data-closed:slide-out-to-top-0",
+const sideClasses = {
+  right: "inset-y-0 right-0 h-full w-[88vw] max-w-sm rounded-l-sheet",
+  left: "inset-y-0 left-0 h-full w-[88vw] max-w-sm rounded-r-sheet",
+  bottom: "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet",
+  top: "inset-x-0 top-0 max-h-[92dvh] rounded-b-sheet",
 } as const;
+
+const sideVariants: Record<keyof typeof sideClasses, Variants> = {
+  right: { hidden: { x: "100%", opacity: 0 }, show: { x: 0, opacity: 1 } },
+  left: { hidden: { x: "-100%", opacity: 0 }, show: { x: 0, opacity: 1 } },
+  bottom: { hidden: { y: "100%", opacity: 0 }, show: { y: 0, opacity: 1 } },
+  top: { hidden: { y: "-100%", opacity: 0 }, show: { y: 0, opacity: 1 } },
+};
+
+const fade: Variants = { hidden: { opacity: 0 }, show: { opacity: 1 } };
 
 function SheetContent({
   className,
@@ -65,38 +79,63 @@ function SheetContent({
   side = "right",
   showCloseButton = true,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content> & {
-  side?: keyof typeof sides;
+}: Omit<
+  React.ComponentProps<typeof SheetPrimitive.Content>,
+  "asChild" | "forceMount"
+> & {
+  side?: keyof typeof sideClasses;
   showCloseButton?: boolean;
 }) {
+  const open = React.useContext(SheetContext);
+
   return (
-    <SheetPortal>
-      <SheetOverlay />
-      <SheetPrimitive.Content
-        data-slot="sheet-content"
-        data-side={side}
-        className={cn(
-          "bg-paper text-ink shadow-sheet data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 duration-base fixed z-50 flex flex-col overflow-y-auto ease-out outline-none",
-          sides[side],
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <SheetPrimitive.Close data-slot="sheet-close" asChild>
-            <Button
-              variant="ghost"
-              size="icon-touch"
-              className="absolute top-[calc(env(safe-area-inset-top,0px)_+_0.5rem)] right-2"
+    <AnimatePresence>
+      {open ? (
+        <SheetPrimitive.Portal key="sheet" forceMount data-slot="sheet-portal">
+          <SheetPrimitive.Overlay asChild forceMount>
+            <motion.div
+              data-slot="sheet-overlay"
+              variants={fade}
+              initial="hidden"
+              animate="show"
+              exit="hidden"
+              transition={transitions.base}
+              className="bg-scrim fixed inset-0 z-50"
+            />
+          </SheetPrimitive.Overlay>
+          <SheetPrimitive.Content asChild forceMount {...props}>
+            <motion.div
+              data-slot="sheet-content"
+              data-side={side}
+              variants={sideVariants[side]}
+              initial="hidden"
+              animate="show"
+              exit="hidden"
+              transition={transitions.base}
+              className={cn(
+                "bg-paper text-ink shadow-sheet fixed z-50 flex flex-col overflow-y-auto outline-none",
+                sideClasses[side],
+                className,
+              )}
             >
-              <XIcon aria-hidden strokeWidth={1.5} />
-              <span className="sr-only">{texts.sheet.close}</span>
-            </Button>
-          </SheetPrimitive.Close>
-        )}
-      </SheetPrimitive.Content>
-    </SheetPortal>
+              {children}
+              {showCloseButton && (
+                <SheetPrimitive.Close data-slot="sheet-close" asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-touch"
+                    className="absolute top-[calc(env(safe-area-inset-top,0px)_+_0.5rem)] right-2"
+                  >
+                    <XIcon aria-hidden strokeWidth={1.5} />
+                    <span className="sr-only">{texts.sheet.close}</span>
+                  </Button>
+                </SheetPrimitive.Close>
+              )}
+            </motion.div>
+          </SheetPrimitive.Content>
+        </SheetPrimitive.Portal>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
