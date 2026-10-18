@@ -449,6 +449,13 @@
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+  /*
+   * Primer uso: el script inline de (app)/layout pone --welcome-pending en
+   * <html> y la lista queda oculta hasta que la bienvenida termina (Welcome).
+   */
+  [data-welcome-hide] {
+    visibility: var(--welcome-pending, visible);
+  }
   /* Las cifras de la interfaz son tabulares por defecto. */
   input,
   td,

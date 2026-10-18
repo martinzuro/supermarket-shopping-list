@@ -42,6 +42,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
+      // (app)/layout sets --welcome-pending on <html> before hydration; the
+      // inline style is expected to differ from the server HTML.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
