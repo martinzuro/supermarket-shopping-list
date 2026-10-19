@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import { contrastRatio, formatRatio, oklchToRgb, rgbToHex } from "./contrast";
 import { motionTokens } from "./motion";
 import {
+  action,
   categoryColors,
   categoryIds,
   contrastPairs,
+  focusInverse,
   palette,
   type Mode,
 } from "./tokens";
@@ -36,6 +38,16 @@ describe("tokens de color", () => {
     (mode) => {
       for (const [name, hex] of Object.entries(palette[mode])) {
         expect(declared(byMode[mode], name), `--${name}`).toBe(hex);
+      }
+    },
+  );
+
+  it.each(Object.keys(palette) as Mode[])(
+    "los roles con hex fijo coinciden con tokens.ts en modo %s",
+    (mode) => {
+      expect(declared(byMode[mode], "focus-inverse")).toBe(focusInverse);
+      if (mode === "dark") {
+        expect(declared(byMode.dark, "action-fg")).toBe(action.dark.fg);
       }
     },
   );

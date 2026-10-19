@@ -379,7 +379,7 @@ export default function DesignPage() {
             <Meta>{t.surfaces.paper2}</Meta>
           </div>
           <div>
-            <div className="bg-inverse-bg rounded-sheet h-28" aria-hidden />
+            <div className="surface-inverse rounded-sheet h-28" aria-hidden />
             <Meta>{t.surfaces.inverse}</Meta>
           </div>
         </div>

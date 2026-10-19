@@ -32,7 +32,7 @@ export const palette: Record<Mode, Record<PaletteToken, string>> = {
     "paper-2": "#dce9c8",
     ink: "#1b2a1f",
     "ink-2": "#56655a",
-    "ink-3": "#7f8c82",
+    "ink-3": "#76837a",
     forest: "#2f4a3a",
     lime: "#c9f04a",
     "on-lime": "#1b2a1f",
@@ -57,9 +57,9 @@ export const palette: Record<Mode, Record<PaletteToken, string>> = {
     "citrus-text": "#ff9a62",
     tomato: "#f06a52",
     "tomato-text": "#f57f6a",
-    "inverse-bg": "#eeebe2",
-    "inverse-fg": "#121814",
-    "inverse-fg-2": "#56655a",
+    "inverse-bg": "#1b2a1f",
+    "inverse-fg": "#eeebe2",
+    "inverse-fg-2": "#afb8b0",
   },
 };
 
@@ -69,11 +69,13 @@ export const action: Record<Mode, { bg: string; fg: string }> = {
   dark: { bg: palette.dark.lime, fg: palette.dark.paper },
 };
 
-/** Foco: bosque en claro, lima en oscuro. */
+/** Foco: bosque en claro, lima en oscuro; lima sobre la superficie inversa. */
 export const focus: Record<Mode, string> = {
   light: palette.light.forest,
   dark: palette.dark.lime,
 };
+
+export const focusInverse = "#c9f04a";
 
 export const categoryIds = [
   "verduras",

@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Worktrees que el escritorio de Claude Code crea dentro del repo.
+    ".claude/worktrees/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 
