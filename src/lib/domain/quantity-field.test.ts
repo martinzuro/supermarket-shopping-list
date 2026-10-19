@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { canonicalUnit } from "./parse-item-input";
 import { formatQuantityField, parseQuantityField } from "./quantity-field";
 
 describe("parseQuantityField", () => {
@@ -57,5 +58,20 @@ describe("formatQuantityField", () => {
     for (const quantity of [1, 1.5, 0.333, 12.25, 999]) {
       expect(parseQuantityField(formatQuantityField(quantity))).toBe(quantity);
     }
+  });
+});
+
+describe("canonicalUnit", () => {
+  it.each([
+    ["Kilos", "kg"],
+    [" litro ", "L"],
+    ["GR.", "g"],
+    ["unidades", null],
+    ["Paquetes", "paquetes"],
+    ["", null],
+    ["   ", null],
+    ["bandejita", "bandejita"],
+  ])("%j becomes %j", (input, expected) => {
+    expect(canonicalUnit(input)).toBe(expected);
   });
 });

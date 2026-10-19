@@ -574,3 +574,40 @@ describe("useRemoveItem", () => {
     expect(cached(queryClient)).toEqual([]);
   });
 });
+
+describe("writes queued behind an insert", () => {
+  it.each(["remove", "edit"] as const)(
+    "the insert's answer does not undo a queued %s",
+    async (kind) => {
+      const { result, queryClient } = await renderItems([]);
+      const insert = deferred<Result>();
+      write.mockReturnValue(insert.promise);
+      update.mockReturnValue(new Promise(() => {}));
+
+      const input = newItem("Huevos");
+      act(() => result.current.add.mutate(input));
+      act(() =>
+        kind === "remove"
+          ? result.current.remove.mutate({ id: input.id, name: "Huevos" })
+          : result.current.edit.mutate({
+              id: input.id,
+              name: "Huevos",
+              changes: { note: "De campo" },
+            }),
+      );
+
+      // The insert answers with the row as it was created.
+      await act(async () =>
+        insert.resolve({
+          data: serverRow({ id: input.id, name: "Huevos" }),
+          error: null,
+        }),
+      );
+      await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+      const item = cached(queryClient)[0];
+      if (kind === "remove") expect(item.deleted_at).not.toBeNull();
+      else expect(item.note).toBe("De campo");
+      expect(read).not.toHaveBeenCalled();
+    },
+  );
+});

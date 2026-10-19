@@ -184,3 +184,15 @@ export function parseItemInput(text: string): ParsedItemInput {
     parseTrailing(clean) ?? { name: clean, quantity: null, unit: null }
   );
 }
+
+/**
+ * The unit as the add bar stores it: "Kilos" → "kg", "litro" → "L",
+ * "unidades" → null (a bare count), a count word in lowercase. Any other
+ * text is kept as typed, trimmed; empty is null.
+ */
+export function canonicalUnit(text: string): string | null {
+  const trimmed = text.trim().replace(/\.$/, "");
+  if (trimmed === "") return null;
+  const unit = parseUnit(trimmed);
+  return unit === undefined ? text.trim() : unit;
+}

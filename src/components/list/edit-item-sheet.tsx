@@ -17,7 +17,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatQuantityField, parseQuantityField } from "@/lib/domain";
+import {
+  canonicalUnit,
+  formatQuantityField,
+  parseQuantityField,
+} from "@/lib/domain";
 import type { EditableFields, Item } from "@/lib/queries";
 import { texts } from "@/lib/texts";
 import { cn } from "@/lib/utils";
@@ -32,6 +36,11 @@ const MAX_UNIT_LENGTH = 30;
 
 /** La confirmación de borrar se apaga sola si no llega el segundo toque. */
 const CONFIRM_MS = 4000;
+/**
+ * Un segundo toque antes de esto es un doble toque accidental, no una
+ * confirmación: se ignora, y el botón queda "armado" recién después.
+ */
+const ARM_MS = 350;
 
 type EditItemSheetProps = {
   /**
@@ -168,13 +177,21 @@ function EditForm({
     quantity: false,
   });
   const [confirming, setConfirming] = useState(false);
+  const [armed, setArmed] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!confirming) return;
-    const timer = setTimeout(() => setConfirming(false), CONFIRM_MS);
-    return () => clearTimeout(timer);
+    const arm = setTimeout(() => setArmed(true), ARM_MS);
+    const reset = setTimeout(() => {
+      setConfirming(false);
+      setArmed(false);
+    }, CONFIRM_MS);
+    return () => {
+      clearTimeout(arm);
+      clearTimeout(reset);
+    };
   }, [confirming]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -206,8 +223,9 @@ function EditForm({
     ) {
       changes.quantity = parsedQuantity;
     }
-    if (unit !== initial.unit && (unit.trim() || null) !== item.unit) {
-      changes.unit = unit.trim() || null;
+    const nextUnit = canonicalUnit(unit);
+    if (unit !== initial.unit && nextUnit !== item.unit) {
+      changes.unit = nextUnit;
     }
     if (note !== initial.note && (note.trim() || null) !== item.note) {
       changes.note = note.trim() || null;
@@ -222,6 +240,7 @@ function EditForm({
       setConfirming(true);
       return;
     }
+    if (!armed) return;
     onRemove(item);
     onClose();
   }
@@ -301,7 +320,9 @@ function EditForm({
         <Button
           type="button"
           variant="danger"
-          className={cn("w-full", confirming && "bg-danger-bg")}
+          data-armed={armed}
+          // Texto en tinta sobre el fondo de peligro, como en Banner.
+          className={cn("w-full", confirming && "bg-danger-bg text-ink")}
           onClick={handleRemove}
         >
           {confirming ? texts.editItem.confirmRemove : texts.editItem.remove}

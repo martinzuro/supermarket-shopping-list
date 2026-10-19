@@ -463,12 +463,12 @@ test.describe("list with the local Supabase stack", () => {
       await expect(rowBehind(pending(page), "Leche")).toBeVisible();
 
       const saved = nextWrite(page, "PATCH");
+      // Un segundo toque inmediato es un doble toque: se espera al botón armado.
+      await expect(remove).toHaveAttribute("data-armed", "true");
       await remove.click();
 
-      await expect(row(pending(page), "Leche")).toHaveCount(0, {
-        timeout: ACTION_MS,
-      });
       await expect(editor(page)).toBeHidden({ timeout: ACTION_MS });
+      await expect(row(pending(page), "Leche")).toHaveCount(0);
       await expect(field(page)).toBeFocused();
       await expect(count(pending(page))).toHaveText("1");
 
@@ -490,8 +490,7 @@ test.describe("list with the local Supabase stack", () => {
       await remove.click();
       await expect(remove).toHaveText(texts.editItem.confirmRemove);
 
-      await page.waitForTimeout(4500);
-      await expect(remove).toHaveText(texts.editItem.remove);
+      await expect(remove).toHaveText(texts.editItem.remove, { timeout: 6000 });
       await expect(editor(page)).toBeVisible();
       await expect(rowBehind(pending(page), "Pan")).toBeVisible();
     });
@@ -532,6 +531,7 @@ test.describe("list with the local Supabase stack", () => {
 
       await openEditor(page, "Leche");
       await removeButton(page).click();
+      await expect(removeButton(page)).toHaveAttribute("data-armed", "true");
       await removeButton(page).click();
 
       const notice = banner(page);
