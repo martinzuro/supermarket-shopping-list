@@ -1,28 +1,74 @@
 import { execSync } from "node:child_process";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "../src/lib/supabase/database.types";
 
 /**
  * Preparación de datos para los e2e contra el Supabase local: usa la clave
  * secreta del stack (solo existe en local) desde Node, nunca desde la página.
- * Sirve para dejar ítems en una categoría sin que haya selector todavía.
+ * Sirve para dejar ítems en una categoría sin que haya selector todavía, y
+ * para que `sharing-db.spec.ts` pruebe las RPC como usuarios reales.
  */
 
-const REST = "http://127.0.0.1:54331/rest/v1";
+export const API_URL = "http://127.0.0.1:54331";
+const REST = `${API_URL}/rest/v1`;
 
-let cachedKey: string | undefined;
+let cachedStatus: { SECRET_KEY?: string; PUBLISHABLE_KEY?: string } | undefined;
+
+function status() {
+  cachedStatus ??= JSON.parse(
+    execSync("npx supabase status -o json", {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }),
+  ) as { SECRET_KEY?: string; PUBLISHABLE_KEY?: string };
+  return cachedStatus;
+}
 
 /** `E2E_SUPABASE_SECRET_KEY`, o la `SECRET_KEY` de `supabase status`. */
 function secretKey(): string {
-  if (cachedKey) return cachedKey;
-  const fromEnv = process.env.E2E_SUPABASE_SECRET_KEY;
-  if (fromEnv) return (cachedKey = fromEnv);
-  const status = execSync("npx supabase status -o json", {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  const key = (JSON.parse(status) as { SECRET_KEY?: string }).SECRET_KEY;
+  const key = process.env.E2E_SUPABASE_SECRET_KEY ?? status().SECRET_KEY;
   if (!key) throw new Error("supabase status did not report a SECRET_KEY");
-  return (cachedKey = key);
+  return key;
+}
+
+/** La clave pública del build, o la `PUBLISHABLE_KEY` de `supabase status`. */
+function publishableKey(): string {
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    status().PUBLISHABLE_KEY;
+  if (!key) throw new Error("supabase status did not report a PUBLISHABLE_KEY");
+  return key;
+}
+
+export type Client = SupabaseClient<Database>;
+
+const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
+
+/** Cliente con la clave secreta: salta RLS. Solo para preparar y comprobar. */
+export function adminClient(): Client {
+  return createClient<Database>(API_URL, secretKey(), noSession);
+}
+
+/** Un usuario anónimo nuevo, con su propio cliente, como la app al primer uso. */
+export async function anonymousUser(): Promise<{ client: Client; id: string }> {
+  const client = createClient<Database>(API_URL, publishableKey(), noSession);
+  const { data, error } = await client.auth.signInAnonymously();
+  if (error || !data.user) throw error ?? new Error("no anonymous user");
+  return { client, id: data.user.id };
+}
+
+/**
+ * Le pone un email confirmado a un usuario, que deja de ser anónimo. Atajo
+ * de preparación: el flujo real (código por email) lo prueban los e2e de
+ * navegador.
+ */
+export async function confirmEmail(userId: string, email: string) {
+  const { error } = await adminClient().auth.admin.updateUserById(userId, {
+    email,
+    email_confirm: true,
+  });
+  if (error) throw error;
 }
 
 async function admin<T>(path: string, init: RequestInit = {}): Promise<T> {

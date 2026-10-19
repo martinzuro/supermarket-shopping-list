@@ -1,6 +1,43 @@
 export { QueryProvider } from "./query-client";
 export { queryKeys } from "./keys";
-export { useLists, useCreateList, useCurrentList, type List } from "./lists";
+export {
+  useLists,
+  useCreateList,
+  useCurrentList,
+  currentListOf,
+  leftoversOf,
+  useMembershipNotice,
+  type List,
+  type MembershipNotice,
+} from "./lists";
+export {
+  useMembers,
+  useRemoveMember,
+  useLeaveList,
+  useDiscardList,
+  type Member,
+  type RemoveMember,
+} from "./members";
+export {
+  useCreateInvite,
+  useInvitePreview,
+  useAcceptInvite,
+  inviteUrl,
+  INVITE_PATH,
+  type Invite,
+  type InvitePreview,
+} from "./invites";
+export {
+  useMergeList,
+  useClaimCarryOver,
+  useCarryOver,
+  prepareCarryOver,
+  clearCarryOver,
+  idsFor,
+  type MergeList,
+  type ClaimCarryOver,
+  type CarryOver,
+} from "./merge";
 export {
   useItems,
   useAddItem,
@@ -30,4 +67,4 @@ export {
   useRemoteChanges,
   type Announcement,
 } from "./realtime";
-export { RequestError } from "./errors";
+export { RequestError, sharingErrorOf, type SharingError } from "./errors";

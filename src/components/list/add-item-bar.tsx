@@ -18,6 +18,7 @@ import {
   useCatalog,
   useCategories,
   useItems,
+  currentListOf,
   useLists,
   type EditItem,
   type RemoveItem,
@@ -115,7 +116,7 @@ export function AddItemBar() {
   const { user } = useSession();
   const userId = user?.id ?? null;
   // Solo lee la lista: crearla en el primer uso es cosa de ListView.
-  const listId = useLists(userId).data?.[0]?.id ?? null;
+  const listId = currentListOf(useLists(userId).data)?.id ?? null;
   const items = useItems(userId, listId);
   const categories = useCategories(userId, listId);
   const catalog = useCatalog(userId, listId);

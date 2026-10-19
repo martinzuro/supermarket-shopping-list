@@ -12,6 +12,8 @@ import {
   type Item,
 } from "./items";
 import { queryKeys } from "./keys";
+import { useCurrentList, useMembershipNotice } from "./lists";
+import type { Member } from "./members";
 import {
   describeRemoteChanges,
   netKind,
@@ -19,7 +21,13 @@ import {
   useRemoteAnnouncement,
   useRemoteChanges,
 } from "./realtime";
-import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
+import { useMergeList } from "./merge";
+import {
+  makeRpc,
+  makeTable,
+  makeTestQueryClient,
+  makeWrapper,
+} from "./test-utils";
 
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
@@ -34,11 +42,16 @@ const updateItems =
   vi.fn<(changes: unknown, filters: [string, unknown][]) => Promise<Result>>();
 const readCategories = vi.fn<() => Promise<Result>>();
 const readCatalog = vi.fn<() => Promise<Result>>();
+const readMemberships = vi.fn<() => Promise<Result>>();
+const writeLists = vi.fn<(row: unknown) => Promise<Result>>();
+const callRpc = vi.fn<(name: string, args: unknown) => Promise<Result>>();
 const readOnly = () => Promise.reject(new Error("read-only table"));
 const tables = {
   items: makeTable({ read: readItems, write: writeItems, update: updateItems }),
   categories: makeTable({ read: readCategories, write: readOnly }),
   catalog: makeTable({ read: readCatalog, write: readOnly }),
+  list_members: makeTable({ read: readMemberships, write: readOnly }),
+  lists: makeTable({ read: readOnly, write: writeLists }),
 };
 
 type Status = "SUBSCRIBED" | "CHANNEL_ERROR" | "TIMED_OUT" | "CLOSED";
@@ -112,6 +125,7 @@ const supabase = {
     channel.close();
     return "ok";
   },
+  rpc: makeRpc((name, args) => callRpc(name, args)),
   realtime: {
     setAuth: async () => {
       calls.push("setAuth");
@@ -178,6 +192,7 @@ function useList({ userId, listId }: Props) {
     toggle: useToggleItem(userId ?? "", listId ?? ""),
     edit: useEditItem(userId ?? "", listId ?? ""),
     emptyCart: useEmptyCart(userId ?? "", listId ?? ""),
+    merge: useMergeList(userId ?? "", listId ?? ""),
     remote: useRemoteChanges(userId, listId),
     announcement: useRemoteAnnouncement(userId, listId),
   };
@@ -226,6 +241,9 @@ beforeEach(() => {
     updateItems,
     readCategories,
     readCatalog,
+    readMemberships,
+    writeLists,
+    callRpc,
   ]) {
     mock.mockReset();
   }
@@ -241,7 +259,7 @@ afterEach(() => {
 });
 
 describe("the list's channel", () => {
-  it("listens to the list's items and categories, with the session's token", async () => {
+  it("listens to the list's items, categories and members, with the session's token", async () => {
     const { channel } = await renderList([]);
     expect(live()).toEqual([channel]);
     expect(channel.params).toEqual({
@@ -265,6 +283,12 @@ describe("the list's channel", () => {
         event: "*",
         schema: "public",
         table: "categories",
+        filter: `list_id=eq.${LIST}`,
+      },
+      {
+        event: "*",
+        schema: "public",
+        table: "list_members",
         filter: `list_id=eq.${LIST}`,
       },
     ]);
@@ -1337,6 +1361,341 @@ describe("what screen readers are told", () => {
     await waitFor(() => expect(result.current.add.isSuccess).toBe(true));
     channel.emit("items", inserted(created));
     await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(result.current.announcement).toEqual({ text: "", seq: 0 });
+  });
+});
+
+describe("the members of the list", () => {
+  const owner: Member = {
+    user_id: MEMBER,
+    role: "owner",
+    joined_at: at(0),
+    email: "duena@example.com",
+  };
+  const guest: Member = {
+    user_id: USER,
+    role: "member",
+    joined_at: at(1),
+    email: null,
+  };
+  const newcomer = "00000000-0000-7000-8000-000000000005";
+
+  it("reads them again when someone joins, and drops who leaves at once", async () => {
+    const { channel, queryClient } = await renderList([]);
+    const membersKey = queryKeys.members(USER, LIST);
+    queryClient.setQueryData<Member[]>(membersKey, [
+      owner,
+      guest,
+      { user_id: newcomer, role: "member", joined_at: at(2), email: null },
+    ]);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    channel.emit("list_members", {
+      eventType: "INSERT",
+      new: { list_id: LIST, user_id: newcomer, role: "member" },
+      old: {},
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: membersKey });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: queryKeys.lists(USER),
+    });
+
+    channel.emit("list_members", {
+      eventType: "DELETE",
+      new: {},
+      old: { list_id: LIST, user_id: newcomer },
+    });
+    expect(
+      queryClient.getQueryData<Member[]>(membersKey)?.map((m) => m.user_id),
+    ).toEqual([MEMBER, USER]);
+    expect(channel.removed).toBe(false);
+  });
+});
+
+describe("losing the list", () => {
+  type Row = { role: string; joined_at: string; list: object };
+  const shared = (joinedAt = at(1)): Row => ({
+    role: "member",
+    joined_at: joinedAt,
+    list: {
+      id: LIST,
+      name: "Mi lista",
+      created_by: MEMBER,
+      created_at: at(0),
+      updated_at: at(0),
+      deleted_at: null,
+      members: [{ count: 2 }],
+    },
+  });
+
+  const milk = serverRow({ id: "milk", name: "Leche" });
+
+  function useScreen() {
+    const current = useCurrentList(USER);
+    const listId = current.list?.id ?? null;
+    useListRealtime(USER, listId);
+    return {
+      listId,
+      items: useItems(USER, listId),
+      // Bound to the shared list, as the add bar was when the user typed.
+      add: useAddItem(USER, LIST),
+      notice: useMembershipNotice(),
+    };
+  }
+
+  /** The user is in the shared list only; a new list gets created on loss. */
+  async function renderScreen() {
+    let server: Row[] = [shared()];
+    readMemberships.mockImplementation(async () => ({
+      data: server,
+      error: null,
+    }));
+    writeLists.mockImplementation(async (row) => {
+      const created = {
+        ...(row as { id: string; name: string }),
+        created_by: USER,
+        created_at: at(9),
+        updated_at: at(9),
+        deleted_at: null,
+      };
+      server = [
+        {
+          role: "owner",
+          joined_at: at(9),
+          list: { ...created, members: [{ count: 1 }] },
+        },
+      ];
+      return { data: created, error: null };
+    });
+    readItems.mockResolvedValue({ data: [milk], error: null });
+    const queryClient = makeTestQueryClient();
+    const hook = renderHook(useScreen, { wrapper: makeWrapper(queryClient) });
+    await waitFor(() => expect(hook.result.current.listId).toBe(LIST));
+    await waitFor(() => expect(live()).toHaveLength(1));
+    const channel = live()[0];
+    channel.status("SUBSCRIBED");
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    readItems.mockClear();
+    return {
+      ...hook,
+      queryClient,
+      channel,
+      lose: () => {
+        server = [];
+      },
+    };
+  }
+
+  /** Reads of the items of a given list since the last clear. */
+  const readsOf = (listId: string) =>
+    readItems.mock.calls.filter((call) =>
+      ((call as unknown[])[0] as [string, unknown][] | undefined)?.some(
+        ([column, value]) => column === "list_id" && value === listId,
+      ),
+    ).length;
+
+  it("closes the channel the moment the user's own row goes, and hears nothing after it", async () => {
+    const { result, queryClient, channel, lose } = await renderScreen();
+    lose();
+    const late = serverRow({ id: "late", name: "Pan", updated_at: at(20) });
+    let seen: Item[] | undefined;
+    act(() => {
+      const handlers = (table: string) =>
+        channel.bindings.filter((binding) => binding.table === table);
+      for (const binding of handlers("list_members")) {
+        binding.handler({
+          eventType: "DELETE",
+          new: {},
+          old: { list_id: LIST, user_id: USER },
+        });
+      }
+      // Realtime still delivers deletes (no RLS on them) and, until the
+      // channel is gone, anything already on its way.
+      for (const binding of handlers("items")) {
+        binding.handler(inserted(late));
+        binding.handler(deleted("milk"));
+      }
+      seen = queryClient.getQueryData<Item[]>(key);
+    });
+    expect(channel.removed).toBe(true);
+    expect(seen).toEqual([milk]);
+
+    await waitFor(() =>
+      expect(result.current.notice.notice).toMatchObject({
+        kind: "removed",
+        listId: LIST,
+      }),
+    );
+    // On to a list of the user's own, with its own channel.
+    await waitFor(() => expect(writeLists).toHaveBeenCalledTimes(1));
+    const { id: own } = writeLists.mock.calls[0][0] as { id: string };
+    await waitFor(() => expect(result.current.listId).toBe(own));
+    await waitFor(() => expect(live()).toHaveLength(1));
+    expect(live()[0].bindings[0].filter).toBe(`list_id=eq.${own}`);
+    expect(queryClient.getQueryData(key)).toBeUndefined();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(readsOf(LIST)).toBe(0);
+  });
+
+  it("lets the writes still queued fail without bringing the list back", async () => {
+    const { result, queryClient, channel, lose } = await renderScreen();
+    const first = deferred<Result>();
+    writeItems
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({ ...rejection, status: 403 });
+    act(() => {
+      result.current.add.mutate(newItem("Leche"));
+      result.current.add.mutate(newItem("Yerba"));
+    });
+    await waitFor(() => expect(writeItems).toHaveBeenCalledTimes(1));
+
+    lose();
+    channel.emit("list_members", {
+      eventType: "DELETE",
+      new: {},
+      old: { list_id: LIST, user_id: USER },
+    });
+    await waitFor(() => expect(result.current.listId).not.toBe(LIST));
+    expect(result.current.listId).not.toBeNull();
+
+    // Out of the list, RLS refuses both.
+    await act(async () => first.resolve({ ...rejection, status: 403 }));
+    await waitFor(() => expect(writeItems).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(queryClient.isMutating({ mutationKey: key })).toBe(0),
+    );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+
+    // Their rollbacks touch a list nobody shows; nothing reads it again.
+    const lost = queryClient.getQueryCache().find({ queryKey: key });
+    expect(lost?.getObserversCount() ?? 0).toBe(0);
+    expect(readsOf(LIST)).toBe(0);
+    expect(result.current.notice.notice).toMatchObject({ kind: "removed" });
+    expect(live()).toHaveLength(1);
+    expect(live()[0].bindings[0].filter).not.toBe(`list_id=eq.${LIST}`);
+  });
+
+  it("creates no list while a merge is pending, and its rollback is the way back", async () => {
+    const own: Row = {
+      role: "owner",
+      joined_at: at(0),
+      list: {
+        id: OTHER_LIST,
+        name: "Mi lista",
+        created_by: USER,
+        created_at: at(0),
+        updated_at: at(0),
+        deleted_at: null,
+        members: [{ count: 1 }],
+      },
+    };
+    let server: Row[] = [own, shared()];
+    readMemberships.mockImplementation(async () => ({
+      data: server,
+      error: null,
+    }));
+    readItems.mockResolvedValue({ data: [], error: null });
+    const queryClient = makeTestQueryClient();
+    const { result } = renderHook(
+      () => ({ ...useScreen(), merge: useMergeList(USER, LIST) }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+    await waitFor(() => expect(result.current.listId).toBe(LIST));
+    await waitFor(() => expect(live()).toHaveLength(1));
+    const channel = live()[0];
+    channel.status("SUBSCRIBED");
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    const answer = deferred<Result>();
+    callRpc.mockReturnValue(answer.promise);
+    act(() =>
+      result.current.merge.mutate({ sourceListId: OTHER_LIST, ids: [] }),
+    );
+    await waitFor(() => expect(callRpc).toHaveBeenCalledTimes(1));
+
+    // Taken out of the shared list while the merge into it is in flight.
+    // The lists come back after a while, as over the network: until then
+    // the cache shows none.
+    server = [own];
+    readMemberships.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ data: server, error: null }), 50),
+        ),
+    );
+    channel.emit("list_members", {
+      eventType: "DELETE",
+      new: {},
+      old: { list_id: LIST, user_id: USER },
+    });
+    await waitFor(() =>
+      expect(result.current.notice.notice).toMatchObject({ kind: "removed" }),
+    );
+    await act(async () =>
+      answer.resolve({
+        data: null,
+        error: { message: "list_not_found", code: "P0001" },
+      }),
+    );
+    await waitFor(() => expect(result.current.merge.isError).toBe(true));
+    await waitFor(() => expect(result.current.listId).toBe(OTHER_LIST));
+    expect(writeLists).not.toHaveBeenCalled();
+  });
+
+  it("finds out when the channel joins again, if it happened while it was down", async () => {
+    const { result, channel, lose } = await renderScreen();
+    lose();
+    channel.status("SUBSCRIBED");
+    await waitFor(() =>
+      expect(result.current.notice.notice).toMatchObject({
+        kind: "removed",
+        listId: LIST,
+      }),
+    );
+    await waitFor(() => expect(result.current.listId).not.toBe(LIST));
+    expect(channel.removed).toBe(true);
+  });
+});
+
+describe("items brought from another list", () => {
+  it("never pulses the copies of a merge, while it is pending or after", async () => {
+    const { result, channel, queryClient } = await renderList([
+      serverRow({ id: "milk", name: "Leche" }),
+    ]);
+    const answer = deferred<Result>();
+    callRpc.mockReturnValue(answer.promise);
+    const copy = serverRow({
+      id: "00000000-0000-7000-8000-0000000000aa",
+      name: "Yerba",
+      position: 1,
+      created_at: at(5),
+      updated_at: at(5),
+    });
+
+    act(() =>
+      result.current.merge.mutate({ sourceListId: OTHER_LIST, ids: [copy.id] }),
+    );
+    await waitFor(() => expect(callRpc).toHaveBeenCalledTimes(1));
+    expect(callRpc).toHaveBeenCalledWith("merge_list", {
+      source_list_id: OTHER_LIST,
+      target_list_id: LIST,
+      new_ids: [copy.id],
+    });
+    // Its echo arrives before the answer: a write of ours is pending on it.
+    channel.emit("items", inserted(copy));
+    expect(ids(queryClient)).toEqual(["milk"]);
+
+    readItems.mockResolvedValue({
+      data: [serverRow({ id: "milk", name: "Leche" }), copy],
+      error: null,
+    });
+    await act(async () => answer.resolve({ data: [copy], error: null }));
+    await waitFor(() => expect(result.current.merge.isSuccess).toBe(true));
+    expect(ids(queryClient)).toEqual(["milk", copy.id]);
+    // And after the answer, it is a version of our own.
+    channel.emit("items", inserted(copy));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect([...result.current.remote]).toEqual([]);
     expect(result.current.announcement).toEqual({ text: "", seq: 0 });
   });
 });

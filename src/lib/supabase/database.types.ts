@@ -79,14 +79,14 @@ isOneToOne: false
                   ]
                 },"list_invites": {
                   Row: {
-                    "created_by": string,"expires_at": string,"id": string,"list_id": string,"token": string,"used_at": string | null,"used_by": string | null
+                    "created_by": string,"expires_at": string,"id": string,"list_id": string,"purpose": string,"token": string,"used_at": string | null,"used_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_by"?: string,"expires_at"?: string,"id"?: string,"list_id": string,"token"?: string,"used_at"?: string | null,"used_by"?: string | null
+                    "created_by"?: string,"expires_at"?: string,"id"?: string,"list_id": string,"purpose"?: string,"token"?: string,"used_at"?: string | null,"used_by"?: string | null
                   }
                   Update: {
-                    "created_by"?: string,"expires_at"?: string,"id"?: string,"list_id"?: string,"token"?: string,"used_at"?: string | null,"used_by"?: string | null
+                    "created_by"?: string,"expires_at"?: string,"id"?: string,"list_id"?: string,"purpose"?: string,"token"?: string,"used_at"?: string | null,"used_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -140,6 +140,68 @@ isOneToOne: false
             "accept_invite":
 { Args: { "invite_token": string }; Returns: string
                            },
+"claim_carry_over":
+{ Args: { "invite_token": string,"new_ids"?: (string)[],"target_list_id": string }; Returns: {
+              "category_id": string | null,
+"checked": boolean,
+"checked_at": string | null,
+"created_at": string,
+"created_by": string | null,
+"currency": string | null,
+"deleted_at": string | null,
+"estimated_price": number | null,
+"id": string,
+"list_id": string,
+"name": string,
+"name_normalized": string,
+"note": string | null,
+"position": number,
+"quantity": number | null,
+"unit": string | null,
+"updated_at": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "items"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"invite_preview":
+{ Args: { "invite_token": string }; Returns: {
+              "inviter_email": string,"list_id": string,"status": string
+            }[]
+                           },
+"list_member_emails":
+{ Args: { "target_list_id": string }; Returns: {
+              "email": string,"joined_at": string,"role": string,"user_id": string
+            }[]
+                           },
+"merge_list":
+{ Args: { "new_ids"?: (string)[],"source_list_id": string,"target_list_id": string }; Returns: {
+              "category_id": string | null,
+"checked": boolean,
+"checked_at": string | null,
+"created_at": string,
+"created_by": string | null,
+"currency": string | null,
+"deleted_at": string | null,
+"estimated_price": number | null,
+"id": string,
+"list_id": string,
+"name": string,
+"name_normalized": string,
+"note": string | null,
+"position": number,
+"quantity": number | null,
+"unit": string | null,
+"updated_at": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "items"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "normalize_name":
 { Args: { "value": string }; Returns: string
                            }
