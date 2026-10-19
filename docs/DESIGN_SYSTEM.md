@@ -6,6 +6,9 @@ decisiones están en [DESIGN_DIRECTION.md](DESIGN_DIRECTION.md) y en el
 construir con ellas. La página interna `/design` muestra todo renderizado.
 
 Estado: construido entre el 2026-10-17 y el 2026-10-18 en los PR 13 a 20.
+Actualizado el 2026-10-19 con lo que sumó la Fase 2a: `ListRow` y `Section`
+con las agrupaciones por categoría, las coreografías de la lista, la
+excepción del pulso remoto y los e2e con Supabase local.
 
 ---
 
@@ -168,6 +171,33 @@ sin scroll suavizado ni secuestro de scroll; sin bucles visibles en la
 lista. Las coreografías clave están descritas en DESIGN_DIRECTION.md,
 sección 8.
 
+Excepción documentada: el pulso remoto (`ListRow highlighted`, token
+`--remote-pulse`) anima `background-color`. Se permite porque es raro (solo
+lo provocan los cambios de otros miembros), corto (`duration-instant` al
+encender, `duration-slow` al apagar) y no va atado a una interacción
+frecuente del usuario. Todo lo que sí es frecuente (marcar, añadir, mover
+filas) sigue en `transform` y `opacity`.
+
+### Coreografías de la lista
+
+Implementadas en `src/components/list/list-view.tsx`:
+
+- **Entrada solo para lo nuevo.** `Enter` anima únicamente las filas y los
+  grupos cuyo id aparece después de la primera carga (`useFreshIds`): la
+  primera carga es la línea base y no anima nada, y una fila que solo
+  cambia de sección conserva su id y no vuelve a entrar. Un grupo entra
+  (fundido y desplazamiento) solo si es nuevo y contiene algo recién
+  añadido; sus filas no entran por su cuenta.
+- **Marcar.** La fila se queda 320 ms (`duration-base`) en su sección
+  mientras se juega el tachado y el check, y después viaja a la otra. El
+  viaje es un `layoutId` compartido (el id del ítem) con
+  `layout="position"`, que mueve solo con `transform` y no escala la fila
+  entre secciones de distinto ancho. Con movimiento reducido no hay espera:
+  la fila se mueve de inmediato.
+- **Grupos.** Cada categoría de Pendientes es un `Enter` con
+  `layout="position"`: cuando un grupo aparece o desaparece, los de abajo
+  se deslizan. No se anima la altura de nada.
+
 Aviso aprendido en la bienvenida: cuando una raíz con `AnimatePresence`
 tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 `exit={undefined}` o la salida nunca termina.
@@ -181,8 +211,8 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | `Eyebrow` | Metadatos en mayúsculas | `tone="ink"` cuando es título; `as` para la etiqueta |
 | `Chip` / `CategoryChip` | Etiquetas cortas / categoría con tinte e icono | `CategoryChip interactive` es un botón con `aria-pressed` y un área táctil de 44px alrededor de sus 28px visibles; `hideIcon` quita el icono |
 | `CheckCircle` | Marca visual de "hecho" | Disco con el par de acción: tinta con check lima en claro, lima con check tinta en oscuro. Solo presentación; el control accesible lo pone `ListRow` |
-| `ListRow` | Fila de la lista | 56px, checkbox accesible de 44px, tachado animado, `note`, `quantity` en mono, `highlighted` para el pulso remoto, `onPress` para editar |
-| `Section` + `SectionEmpty` | Agrupación | `thread` pone el hilo de categoría, `icon` el icono junto al título, `count` en mono |
+| `ListRow` | Fila de la lista | 56px, tachado animado, `note`, `quantity` en mono, `highlighted` para el pulso remoto. El checkbox mide 44px y su etiqueta accesible es solo el nombre del ítem (el rol y `aria-checked` dicen el resto). Con `onPress` el nombre es un botón de 44px con `aria-haspopup="dialog"` (abre la hoja de edición); sin él es texto. `as` elige la raíz: `li` por defecto, `div` cuando el `li` lo pone un envoltorio de motion |
+| `Section` + `SectionEmpty` | Agrupación | `thread` pone el hilo de categoría, `icon` el icono junto al título, `count` en mono. `level` 2 (por defecto, `h2` en `text-heading`) o 3 (`h3` en `text-row font-medium`): el nivel 3 es el grupo de categoría dentro de Pendientes y no lleva nombre accesible, para que diez grupos no llenen la lista de landmarks (el `h3` sigue en la navegación por encabezados) |
 | `EmptyState` | Estado vacío de una sección | Ilustración en tinta 2 a la izquierda, texto a la derecha. Es una invitación a actuar |
 | `Banner` | Aviso persistente | Tonos `info`, `attention`, `error`. El texto siempre en tinta; el color en icono e hilo izquierdo. Esquinas izquierdas rectas |
 | `Sheet` | Hoja flotante | Radix Dialog + Motion. `side` right, left, bottom, top. `SheetHeader`, `SheetBody`, `SheetFooter`, `SheetTitle`, `SheetDescription`. Guarda el estado abierto para animar la salida |
@@ -240,6 +270,14 @@ reducido de `visual.spec.ts` lo desactivan.
 - Etiquetas visibles en los campos, errores asociados por
   `aria-describedby`, hojas con `role="dialog"` de Radix, filas con
   `role="checkbox"` y `aria-checked`.
+- Foco que no se pierde cuando el elemento que lo tenía desaparece: tras
+  marcar, el foco sigue a la fila hasta su checkbox en la nueva sección (si
+  no se había movido a otro lado); la hoja de edición lo devuelve al nombre
+  de la fila, o al campo de añadir si la fila se borró; el momento de carro
+  vaciado lleva el foco a su acción y, si se cierra porque algo vuelve al
+  carro, lo devuelve a "Vaciar el carro".
+- Los avisos de escrituras rechazadas son banners `role="alert"` (el tono
+  `error` de `Banner`) sobre el campo de añadir, con botón para cerrarlos.
 - Inputs de 16px como mínimo para evitar el zoom de iOS.
 
 ## 10. Pruebas
@@ -256,6 +294,14 @@ reducido de `visual.spec.ts` lo desactivan.
   de la lista. No compara píxeles: las fuentes se rasterizan distinto en
   cada sistema. Las capturas quedan en `test-results/` y suben como
   artefacto en CI.
+- `e2e/list.spec.ts` y `e2e/phase-2a.spec.ts` ejercitan la lista contra el
+  Supabase local y necesitan `E2E_SUPABASE=1` y `npm run db:start`; sin eso
+  se saltean, como en CI, que no tiene Supabase. Adjuntan capturas a 375px
+  en claro y oscuro (lista, lista agrupada, momento de carro vaciado,
+  aviso de rechazo, hoja de edición y confirmación de borrado).
+  `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
+  lado de Node (nunca desde la página) para dejar ítems en otras
+  categorías, ya que el selector manual llega en la Fase 3.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.

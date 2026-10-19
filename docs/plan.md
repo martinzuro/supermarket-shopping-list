@@ -67,7 +67,28 @@ actualizaciones optimistas.** [ADR 0003](decisions/0003-online-only.md)
 - Toda lectura va a Supabase a través de TanStack Query, que aporta caché
   en memoria, deduplicación, reintentos y estado de carga.
 - Toda escritura es una mutación con actualización optimista: la UI cambia
-  al instante y se revierte si el servidor rechaza.
+  al instante y se revierte si el servidor rechaza. El patrón de referencia
+  está en `src/lib/queries/items.ts` y `errors.ts`:
+  - Una cola por lista: todas las escrituras de ítems comparten un `scope`
+    (`items:<listId>`) y se ejecutan en serie, reintentos incluidos, así el
+    servidor recibe los cambios en el orden del usuario (un marcado sobre un
+    insert en vuelo espera a que la fila exista).
+  - Rollback dirigido: `onError` deshace solo el cambio de esa mutación,
+    nunca restaura un snapshot de la lista, y solo si la caché todavía
+    muestra esa escritura (un cambio posterior sobre el mismo campo no se
+    pisa).
+  - `onSuccess` reemplaza la fila por la respuesta del servidor solo si
+    `isLastWriteTo` confirma que no hay otra escritura pendiente sobre el
+    mismo ítem.
+  - `settle` invalida una sola vez, al terminar la última escritura en
+    vuelo de la lista, tanto los ítems como el catálogo (lo cambian los
+    triggers). Mientras hay escrituras en vuelo no hay refetch por foco ni
+    por reconexión.
+  - Reintentos solo ante status 0 (sin respuesta) o 5xx, con backoff y hasta
+    tres veces; un rechazo (4xx) se revierte en el acto. Cada escritura
+    tiene un timeout de 10 s, que cuenta como status 0. Si el reintento de
+    un insert choca con su propio id (`23505`, se perdió la respuesta), se
+    recupera la fila ya guardada.
 - Supabase Realtime mantiene la caché al día con los cambios de otros
   miembros de la lista.
 - Sin red: banner persistente "sin conexión", las mutaciones en curso se
@@ -380,6 +401,25 @@ Tests y CI en verde.
 opcionales. Marcar y desmarcar. Editar y borrar. Secciones "pendientes" y
 "en el carro". Vaciar carro al terminar. Todo con mutaciones optimistas.
 
+Estado al 2026-10-19: la 2a está en `main` (PR 27 a 29 y el cierre de
+fase). Se puede añadir un ítem desde el campo único, que saca cantidad y
+unidad del texto ("2 kg de tomates", "Leche x3"), marcar y desmarcar, editar
+en una hoja (nombre, cantidad, unidad y nota) y borrar con confirmación
+ligera (borrado blando con `deleted_at`). Pendientes se agrupa por categoría
+en el orden del recorrido, y un ítem nuevo entra en la categoría que el
+catálogo recuerda para ese producto (sin categoría, en "Otros"). "Vaciar el
+carro" archiva con `deleted_at` las filas marcadas, con una sola marca de
+tiempo y un solo pedido, y muestra el momento "Buena compra". Todo es
+optimista, con un `scope` de mutaciones por lista, rollbacks dirigidos,
+reintentos solo ante falta de respuesta o 5xx y timeout de 10 s por
+escritura (ver 2.3). Los e2e con Supabase local (`E2E_SUPABASE=1`) cubren
+cada flujo, incluido el criterio de salida de la 2a en
+`e2e/phase-2a.spec.ts`. Cambio de alcance, a pedido del usuario: la
+"agrupación y asignación automática desde el catálogo", que estaba en la
+Fase 3, se adelantó a la 2a. Pendiente: ningún e2e que usa Supabase corre en
+CI (no hay Supabase allí), solo en local; el selector manual de categoría
+sigue en la Fase 3.
+
 **2b. Tiempo real (0,5 a 1 día).** Canal Realtime por lista,
 invalidación o parche de caché al recibir cambios. Test e2e con dos
 contextos de navegador.
@@ -393,9 +433,10 @@ cambios de la otra en menos de un segundo.
 
 ### Fase 3. Diferencial — 5 días
 
-- **Categorías y recorrido:** agrupación, asignación automática desde el
-  catálogo, cambio manual, reordenar categorías (flechas arriba/abajo,
-  más fiable en móvil que arrastrar), orden persistido por lista.
+- **Categorías y recorrido:** cambio manual, reordenar categorías (flechas
+  arriba/abajo, más fiable en móvil que arrastrar), orden persistido por
+  lista. La agrupación y la asignación automática desde el catálogo se
+  adelantaron a la Fase 2a.
 - **Autocompletado y frecuentes:** sugerencias desde `catalog`, vista de
   frecuentes con un toque para añadir, botón "lo de siempre".
 - **Notas por ítem.**

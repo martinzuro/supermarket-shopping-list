@@ -571,7 +571,6 @@ export default function DesignPage() {
                   name={item.name}
                   quantity={item.quantity || undefined}
                   checked={item.checked}
-                  toggleLabel={t.states.rowToggle(item.name)}
                 />
               ))}
             </ul>
@@ -595,11 +594,7 @@ export default function DesignPage() {
               icon={<CategoryIcon category="lacteos" />}
             >
               <ul className="border-rule border-t">
-                <ListRow
-                  name={t.states.section.groupItem}
-                  checked={false}
-                  toggleLabel={t.states.section.groupItem}
-                />
+                <ListRow name={t.states.section.groupItem} checked={false} />
               </ul>
             </UiSection>
           </div>

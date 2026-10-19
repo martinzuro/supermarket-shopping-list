@@ -375,7 +375,6 @@ export const texts = {
         },
         { name: "Pan de campo", quantity: "", note: "", checked: true },
       ],
-      rowToggle: (name: string) => `Marcar ${name} como comprado`,
       rowHighlight: "Simular cambio de otro miembro",
       sections: "Sección",
       section: {

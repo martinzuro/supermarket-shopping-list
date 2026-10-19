@@ -308,7 +308,6 @@ export function ListView() {
           quantity={formatQuantity(item.quantity, item.unit)}
           note={item.note ?? undefined}
           checked={item.checked}
-          toggleLabel={item.name}
           onCheckedChange={(next) => handleCheckedChange(item, next)}
           onPress={() => setEditingId(item.id)}
         />

@@ -11,8 +11,6 @@ type ListRowProps = {
   /** Nota corta: marca, tamaño, preferencia. */
   note?: string;
   checked: boolean;
-  /** Texto accesible del control de marcar. */
-  toggleLabel: string;
   onCheckedChange?: (checked: boolean) => void;
   /** Pulso naranja que se apaga: lo cambió otro miembro. */
   highlighted?: boolean;
@@ -37,7 +35,6 @@ export function ListRow({
   quantity,
   note,
   checked,
-  toggleLabel,
   onCheckedChange,
   highlighted = false,
   onPress,
@@ -63,7 +60,8 @@ export function ListRow({
         type="button"
         role="checkbox"
         aria-checked={checked}
-        aria-label={toggleLabel}
+        // Solo el nombre: el rol y aria-checked ya dicen "casilla, marcada".
+        aria-label={name}
         onClick={() => onCheckedChange?.(!checked)}
         className="group/check size-touch -ml-2.5 flex shrink-0 items-center justify-center rounded-full"
       >
