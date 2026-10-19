@@ -13,8 +13,9 @@ test.describe("with reduced motion", () => {
     // MotionConfig reducedMotion="user" drops the translate: only the fade
     // remains, so the panel never sits off-screen while it settles.
     await expect
-      .poll(() =>
-        dialog.evaluate((element) => getComputedStyle(element).transform),
+      .poll(
+        () => dialog.evaluate((element) => getComputedStyle(element).transform),
+        { intervals: [100] },
       )
       .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
 

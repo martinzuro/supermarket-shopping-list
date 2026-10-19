@@ -38,9 +38,12 @@ test.describe("first use", () => {
     await expect(welcome).toBeVisible();
 
     // Auto-finish at 2.6 s plus the 0.32 s exit: gone within 3.5 s of showing.
+    // Sondeo cada 100 ms: con los intervalos por defecto (hasta 1 s) el
+    // último sondeo cae antes del cierre y el siguiente ya pasa el límite.
     await expect
       .poll(async () => await welcome.count(), {
         timeout: Math.max(500, 3500 - (Date.now() - shownAt)),
+        intervals: [100],
       })
       .toBe(0);
     await expect(page.locator("h1")).toBeVisible();
