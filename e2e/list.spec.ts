@@ -87,6 +87,18 @@ async function rejectItems(page: Page, method: "POST" | "PATCH") {
   });
 }
 
+/**
+ * Promesa de la respuesta al próximo `method` sobre ítems. Las escrituras de
+ * una lista van en cola, así que la última respondida implica todas.
+ */
+function nextWrite(page: Page, method: "POST" | "PATCH") {
+  return page.waitForResponse(
+    (response) =>
+      response.url().includes("/rest/v1/items") &&
+      response.request().method() === method,
+  );
+}
+
 async function openList(page: Page) {
   await page.goto("/");
   await expect(field(page)).toBeVisible();
@@ -159,14 +171,16 @@ test.describe("list with the local Supabase stack", () => {
   });
 
   test("the items persist after a reload", async ({ page }) => {
+    await withoutServiceWorker(page);
     await openList(page);
     await addWithEnter(page, "2 kg de tomates", "tomates");
     await addWithEnter(page, "Leche x3", "Leche");
+    const saved = nextWrite(page, "POST");
     await addWithEnter(page, "Pan", "Pan");
 
     // Que el servidor ya los tenga: el reload no puede depender de la caché.
     await expect(count(pending(page))).toHaveText("3");
-    await page.waitForLoadState("networkidle");
+    await saved;
     await page.reload();
 
     await expect(pending(page).locator("li")).toHaveCount(3);
@@ -186,10 +200,12 @@ test.describe("list with the local Supabase stack", () => {
   test("checking moves a row to the cart and unchecking brings it back", async ({
     page,
   }) => {
+    await withoutServiceWorker(page);
     await openList(page);
     await addWithEnter(page, "2 kg de tomates", "tomates");
     await addWithEnter(page, "Pan", "Pan");
 
+    const checked = nextWrite(page, "PATCH");
     await checkbox(page, "tomates").click();
     await expect(row(cart(page), "tomates")).toBeVisible({
       timeout: ACTION_MS,
@@ -206,7 +222,7 @@ test.describe("list with the local Supabase stack", () => {
     ).toHaveText("2 kg");
 
     // El servidor lo guardó: sigue en el carro tras recargar.
-    await page.waitForLoadState("networkidle");
+    await checked;
     await page.reload();
     await expect(row(cart(page), "tomates")).toBeVisible();
     await expect(checkbox(page, "tomates")).toHaveAttribute(
@@ -263,8 +279,9 @@ test.describe("list with the local Supabase stack", () => {
 
     test("a rejected toggle puts the row back and warns", async ({ page }) => {
       await openList(page);
+      const saved = nextWrite(page, "POST");
       await addWithEnter(page, "Leche x3", "Leche");
-      await page.waitForLoadState("networkidle");
+      await saved;
       await rejectItems(page, "PATCH");
 
       await checkbox(page, "Leche").click();
@@ -323,7 +340,9 @@ test.describe("list with the local Supabase stack", () => {
       test("the rejection notice", async ({ page }, testInfo) => {
         await withoutServiceWorker(page);
         await openList(page);
+        const saved = nextWrite(page, "POST");
         await addWithEnter(page, "Leche x3", "Leche");
+        await saved;
         await rejectItems(page, "POST");
 
         await field(page).fill("Tomates con un nombre bastante largo, 2 kg");

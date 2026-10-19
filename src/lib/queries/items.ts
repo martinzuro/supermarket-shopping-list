@@ -9,7 +9,7 @@ import {
 import { newId, normalizeName } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/database.types";
-import { unwrap } from "./errors";
+import { RequestError, unwrap } from "./errors";
 import { queryKeys } from "./keys";
 
 export type Item = Tables<"items">;
@@ -26,10 +26,18 @@ async function fetchItems(listId: string): Promise<Item[]> {
 }
 
 export function useItems(userId: string | null, listId: string | null) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId ?? "", listId ?? "");
+  // A refetch while a write is in flight would bring back the server state
+  // without it, and the row would jump back until the write settles. The
+  // last write refetches on its own (see settle).
+  const idle = () => queryClient.isMutating({ mutationKey: key }) === 0;
   return useQuery({
-    queryKey: queryKeys.items(userId ?? "", listId ?? ""),
+    queryKey: key,
     queryFn: () => fetchItems(listId!),
     enabled: userId !== null && listId !== null,
+    refetchOnWindowFocus: idle,
+    refetchOnReconnect: idle,
   });
 }
 
@@ -81,25 +89,56 @@ function optimisticItem(
   };
 }
 
+/**
+ * A write that hangs (signal but no packets) would block the list's queue of
+ * writes for minutes. After this long it is aborted, which postgrest-js
+ * reports as status 0, so it is retried like any lost request.
+ */
+const WRITE_TIMEOUT_MS = 10_000;
+
+/** Postgres unique_violation. */
+const DUPLICATE_KEY = "23505";
+
+async function fetchItem(id: string): Promise<Item> {
+  return unwrap(
+    await createClient()
+      .from("items")
+      .select("*")
+      .eq("id", id)
+      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+      .single(),
+  );
+}
+
 async function insertItem(
   input: NewItem,
   listId: string,
   position: number,
 ): Promise<Item> {
-  return unwrap(
-    await createClient()
-      .from("items")
-      .insert({
-        id: input.id,
-        list_id: listId,
-        name: input.name,
-        quantity: input.quantity,
-        unit: input.unit,
-        position,
-      })
-      .select()
-      .single(),
-  );
+  try {
+    return unwrap(
+      await createClient()
+        .from("items")
+        .insert({
+          id: input.id,
+          list_id: listId,
+          name: input.name,
+          quantity: input.quantity,
+          unit: input.unit,
+          position,
+        })
+        .select()
+        .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+        .single(),
+    );
+  } catch (error) {
+    // A retry after a lost answer: the first attempt was saved. The id is
+    // generated on the client, so a duplicate id can only be this same item.
+    if (error instanceof RequestError && error.code === DUPLICATE_KEY) {
+      return fetchItem(input.id);
+    }
+    throw error;
+  }
 }
 
 async function updateItem(
@@ -112,6 +151,7 @@ async function updateItem(
       .update(changes)
       .eq("id", id)
       .select()
+      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
       .single(),
   );
 }
@@ -257,7 +297,9 @@ export type ToggleItem = {
 /**
  * Checks or unchecks an item: it moves between "Pendientes" and "En el carro"
  * at once. Same pattern as useAddItem; the rollback restores the item's
- * previous check state only if no later toggle has overwritten it.
+ * previous check state only if no later toggle has overwritten it. When two
+ * quick toggles are both rejected, the second restores the first one's
+ * (rejected) state for a moment: the refetch of settle corrects it.
  */
 export function useToggleItem(userId: string, listId: string) {
   const queryClient = useQueryClient();

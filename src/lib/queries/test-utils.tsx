@@ -40,7 +40,7 @@ export function makeTable(handlers: {
     let operation: "read" | "insert" | "update" = "read";
     const filters: [string, unknown][] = [];
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "is", "order", "single"]) {
+    for (const method of ["select", "is", "order", "single", "abortSignal"]) {
       chain[method] = vi.fn(() => chain);
     }
     chain.eq = vi.fn((column: string, value: unknown) => {

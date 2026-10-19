@@ -8,12 +8,13 @@ import {
   newItem,
   type Item,
 } from "./items";
+import { shouldRetryMutation } from "./errors";
 import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
 
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
 
-type Result = { data: unknown; error: unknown };
+type Result = { data: unknown; error: unknown; status?: number };
 
 const read = vi.fn<() => Promise<Result>>();
 const write = vi.fn<(row: unknown) => Promise<Result>>();
@@ -61,9 +62,11 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function renderItems(initial: Item[]) {
+async function renderItems(
+  initial: Item[],
+  queryClient = makeTestQueryClient(),
+) {
   read.mockResolvedValue({ data: initial, error: null });
-  const queryClient = makeTestQueryClient();
   const hook = renderHook(
     () => ({
       list: useItems(USER, LIST),
@@ -176,6 +179,37 @@ describe("useAddItem (optimistic mutation pattern)", () => {
     await waitFor(() =>
       expect(cached(queryClient)).toEqual([existing, created]),
     );
+  });
+
+  it("keeps the row when a retry finds the first attempt already saved", async () => {
+    // The app's retry rule, without the backoff.
+    const queryClient = makeTestQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      mutations: { retry: shouldRetryMutation, retryDelay: 0 },
+    });
+    const { result } = await renderItems([], queryClient);
+    const input = newItem("Yerba");
+    const created = serverRow({ id: input.id, name: "Yerba" });
+    // The insert reaches the server but its answer is lost (status 0); the
+    // retry is told the id already exists.
+    write
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "TypeError: Failed to fetch", code: "" },
+        status: 0,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "duplicate key value", code: "23505" },
+        status: 409,
+      });
+    read.mockResolvedValue({ data: [created], error: null });
+
+    act(() => result.current.add.mutate(input));
+    await waitFor(() => expect(result.current.add.isSuccess).toBe(true));
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(cached(queryClient)).toEqual([created]);
   });
 
   it("refetches once, after the last write in flight settles", async () => {

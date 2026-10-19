@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutationState } from "@tanstack/react-query";
+import { useIsMutating, useMutationState } from "@tanstack/react-query";
 import { Plus, XIcon } from "lucide-react";
 import {
   useEffect,
@@ -18,7 +18,9 @@ import { parseItemInput } from "@/lib/domain";
 import {
   itemMutationKeys,
   newItem,
+  queryKeys,
   useAddItem,
+  useItems,
   useLists,
   type ToggleItem,
 } from "@/lib/queries";
@@ -64,9 +66,9 @@ const MAX_NAME_LENGTH = 200;
 
 type Notice = { key: string; at: number; title: string; body: string };
 
-/** Último toque de marcar que el servidor rechazó, como aviso. */
-function useToggleFailure(userId: string, listId: string): Notice | null {
-  const failures = useMutationState({
+/** Toques de marcar que el servidor rechazó, como avisos. */
+function useToggleFailures(userId: string, listId: string): Notice[] {
+  return useMutationState({
     filters: {
       mutationKey: itemMutationKeys.toggle(userId, listId),
       status: "error",
@@ -83,10 +85,19 @@ function useToggleFailure(userId: string, listId: string): Notice | null {
       };
     },
   });
-  return failures.reduce<Notice | null>(
-    (latest, notice) => (!latest || notice.at >= latest.at ? notice : latest),
-    null,
-  );
+}
+
+/** El aviso más reciente que no se cerró. */
+function latestNotice(
+  notices: readonly (Notice | null)[],
+  dismissed: ReadonlySet<string>,
+): Notice | null {
+  let latest: Notice | null = null;
+  for (const notice of notices) {
+    if (!notice || dismissed.has(notice.key)) continue;
+    if (!latest || notice.at >= latest.at) latest = notice;
+  }
+  return latest;
 }
 
 export function AddItemBar() {
@@ -101,22 +112,33 @@ export function AddItemBar() {
   const userId = user?.id ?? null;
   // Solo lee la lista: crearla en el primer uso es cosa de ListView.
   const listId = useLists(userId).data?.[0]?.id ?? null;
+  const items = useItems(userId, listId);
+  // Mientras la lista se crea, el servidor todavía no la conoce: un ítem
+  // agregado en ese momento lo rechazaría la RLS.
+  const creatingList =
+    useIsMutating({ mutationKey: queryKeys.lists(userId ?? "") }) > 0;
+  // Antes de que lleguen los ítems, la posición del nuevo chocaría con la de
+  // uno existente y la lista mostraría solo el nuevo.
+  const ready =
+    userId !== null && listId !== null && items.isSuccess && !creatingList;
   const add = useAddItem(userId ?? "", listId ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [addFailure, setAddFailure] = useState<Notice | null>(null);
-  const toggleFailure = useToggleFailure(userId ?? "", listId ?? "");
-  const [dismissed, setDismissed] = useState<string | null>(null);
-  const latest =
-    addFailure && (!toggleFailure || addFailure.at >= toggleFailure.at)
-      ? addFailure
-      : toggleFailure;
-  const notice = latest && latest.key !== dismissed ? latest : null;
+  const toggleFailures = useToggleFailures(userId ?? "", listId ?? "");
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const notice = latestNotice([addFailure, ...toggleFailures], dismissed);
+
+  function dismiss(key: string) {
+    setDismissed((current) => new Set(current).add(key));
+  }
 
   const noticeKey = notice?.key ?? null;
   useEffect(() => {
     if (noticeKey === null) return;
-    const timer = setTimeout(() => setDismissed(noticeKey), NOTICE_MS);
+    const timer = setTimeout(() => dismiss(noticeKey), NOTICE_MS);
     return () => clearTimeout(timer);
   }, [noticeKey]);
 
@@ -128,10 +150,10 @@ export function AddItemBar() {
     field.focus();
     const raw = field.value;
     const parsed = parseItemInput(raw);
-    if (!parsed.name || userId === null || listId === null) return;
+    if (!parsed.name || !ready) return;
 
     field.value = "";
-    if (notice) setDismissed(notice.key);
+    if (notice) dismiss(notice.key);
     const item = newItem(parsed.name, parsed);
     const at = Date.now();
     add.mutateAsync(item).catch(() => {
@@ -172,7 +194,7 @@ export function AddItemBar() {
                 variant="ghost"
                 size="icon-touch"
                 aria-label={texts.itemErrors.dismiss}
-                onClick={() => setDismissed(notice.key)}
+                onClick={() => dismiss(notice.key)}
               >
                 <XIcon aria-hidden strokeWidth={1.5} />
               </Button>

@@ -26,6 +26,8 @@ describe("parseItemInput", () => {
       ["2 kg. tomates", "tomates", 2, "kg"],
       ["2 Lechuga", "Lechuga", 2, null],
       ["2 leche 3", "leche 3", 2, null],
+      ["1/4 de queso", "queso", 0.25, null],
+      ["2 de leche", "leche", 2, null],
     ])("parses %j", (...args) => check(args));
   });
 
@@ -42,7 +44,8 @@ describe("parseItemInput", () => {
       ["fideos 2 paquetes", "fideos", 2, "paquetes"],
       ["huevos 1 docena", "huevos", 1, "docena"],
       ["yogur 6 u", "yogur", 6, null],
-      ["Leche 0,5", "Leche", 0.5, null],
+      ["queso 1/2", "queso", 0.5, null],
+      ["Leche 0,5 L", "Leche", 0.5, "L"],
     ])("parses %j", (...args) => check(args));
   });
 
@@ -155,6 +158,11 @@ describe("parseItemInput", () => {
 
   describe("do not parse", () => {
     it.each([
+      ["Leche 0,5"],
+      ["Coca Zero 2,25"],
+      ["Fanta 2.25"],
+      ["pañales talle 3"],
+      ["zapatillas número 38"],
       ["Pinturas 2025"],
       ["2025 Pinturas"],
       ["Leche 0"],

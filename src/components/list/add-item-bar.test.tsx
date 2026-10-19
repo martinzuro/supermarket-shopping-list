@@ -25,10 +25,8 @@ const lists = makeTable({
   read: async () => ({ data: [{ id: LIST, name: "Mi lista" }], error: null }),
   write: async () => ({ data: null, error: null }),
 });
-const items = makeTable({
-  read: async () => ({ data: [], error: null }),
-  write,
-});
+const readItems = vi.fn<() => Promise<Result>>();
+const items = makeTable({ read: readItems, write });
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
@@ -63,22 +61,26 @@ function type(field: HTMLInputElement, text: string) {
   if (enter) fireEvent.submit(field.form!);
 }
 
-async function renderBar() {
+async function renderBar({ itemsLoaded = true } = {}) {
   const queryClient = makeTestQueryClient();
-  // The user's list is already known, as after ListView loaded it.
+  // The user's list and its items are already known, as after ListView
+  // loaded them.
   queryClient.setQueryData(queryKeys.lists(USER), [
     { id: LIST, name: "Mi lista" },
   ]);
+  if (itemsLoaded) queryClient.setQueryData(queryKeys.items(USER, LIST), []);
   render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
   const field = screen.getByRole<HTMLInputElement>("textbox", {
     name: texts.addItem.label,
   });
   const submit = screen.getByRole("button", { name: texts.addItem.submit });
   field.focus();
-  return { field, submit };
+  return { field, submit, queryClient };
 }
 
 beforeEach(() => {
+  readItems.mockReset();
+  readItems.mockResolvedValue({ data: [], error: null });
   write.mockReset();
   items.insert.mockClear();
 });
@@ -164,6 +166,67 @@ describe("AddItemBar", () => {
       screen.getByRole("button", { name: texts.itemErrors.dismiss }),
     );
 
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("keeps the focus on the field when the + button is pressed", async () => {
+    const { submit } = await renderBar();
+    // false: the default (moving the focus to the button) was prevented.
+    expect(fireEvent.mouseDown(submit)).toBe(false);
+  });
+
+  it("waits for the items before adding, keeping the text", async () => {
+    // The items query never answers here.
+    readItems.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar({ itemsLoaded: false });
+    type(field, "Tomates{Enter}");
+    expect(items.insert).not.toHaveBeenCalled();
+    expect(field.value).toBe("Tomates");
+  });
+
+  it("shows a rejected check", async () => {
+    const { queryClient } = await renderBar();
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: [...queryKeys.items(USER, LIST), "toggle"],
+      mutationFn: (): Promise<unknown> => Promise.reject(new Error("denied")),
+    });
+    await act(async () => {
+      await mutation
+        .execute({ id: "milk", name: "Leche", checked: true })
+        .catch(() => {});
+    });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(texts.itemErrors.check("Leche"));
+    expect(alert).toHaveTextContent(texts.itemErrors.toggleBody);
+  });
+
+  it("does not bring back a dismissed notice", async () => {
+    write.mockResolvedValue(rejection);
+    const { field, queryClient } = await renderBar();
+
+    type(field, "Tomates{Enter}");
+    await screen.findByRole("alert");
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.itemErrors.dismiss }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+
+    // A later failure shows, and once it is gone the old one stays gone.
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: [...queryKeys.items(USER, LIST), "toggle"],
+      mutationFn: (): Promise<unknown> => Promise.reject(new Error("denied")),
+    });
+    await act(async () => {
+      await mutation
+        .execute({ id: "milk", name: "Leche", checked: false })
+        .catch(() => {});
+    });
+    await screen.findByRole("alert");
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.itemErrors.dismiss }),
+    );
+    act(() => queryClient.getMutationCache().remove(mutation));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 });
