@@ -66,3 +66,16 @@ export async function archiveItem(itemId: string) {
     body: JSON.stringify({ deleted_at: new Date().toISOString() }),
   });
 }
+
+/** Makes a user a plain member of a list (the app has no invites yet). */
+export async function addMember(listId: string, userId: string) {
+  await admin("/list_members", {
+    method: "POST",
+    body: JSON.stringify({ list_id: listId, user_id: userId, role: "member" }),
+  });
+}
+
+/** Deletes a list for good, with its items, categories and memberships. */
+export async function deleteList(listId: string) {
+  await admin(`/lists?id=eq.${listId}`, { method: "DELETE" });
+}

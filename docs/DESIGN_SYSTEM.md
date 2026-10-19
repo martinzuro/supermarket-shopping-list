@@ -197,6 +197,18 @@ Implementadas en `src/components/list/list-view.tsx`:
 - **Grupos.** Cada categoría de Pendientes es un `Enter` con
   `layout="position"`: cuando un grupo aparece o desaparece, los de abajo
   se deslizan. No se anima la altura de nada.
+- **Cambio remoto.** `ListView` pasa `highlighted` a las filas cuyo id
+  está en `useRemoteChanges`: el pulso dura 400 ms encendido y después
+  `ListRow` lo funde en `duration-slow`, un segundo en total. Solo lo
+  provocan las filas que otro miembro añade, edita, marca o devuelve,
+  también si una lectura las mostró antes de que llegara su evento; nunca
+  los cambios propios, los ecos, los borrados ni los archivados. Es un
+  fundido de color sin desplazamiento, así que con
+  movimiento reducido se queda tal cual (las transiciones CSS no dependen
+  de `useReducedMotion`). `ListRow` expone `data-highlighted` para las
+  pruebas. Una fila que otro miembro marca viaja por el mismo `layoutId`,
+  sin la espera de 320 ms (esa es solo de los toques propios), y una que
+  añade entra con el `Enter` de siempre y con el pulso.
 
 Aviso aprendido en la bienvenida: cuando una raíz con `AnimatePresence`
 tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
@@ -295,12 +307,17 @@ reducido de `visual.spec.ts` lo desactivan.
   de la lista. No compara píxeles: las fuentes se rasterizan distinto en
   cada sistema. Las capturas quedan en `test-results/` y suben como
   artefacto en CI.
-- `e2e/list.spec.ts` y `e2e/phase-2a.spec.ts` ejercitan la lista contra el
-  Supabase local y necesitan `E2E_SUPABASE=1` y `npm run db:start`; sin eso
-  se saltean. En CI corren siempre: el job "E2E" levanta el stack local y
-  exporta sus claves antes del build. Adjuntan capturas a 375px
-  en claro y oscuro (lista, lista agrupada, momento de carro vaciado,
-  aviso de rechazo, hoja de edición y confirmación de borrado).
+- `e2e/list.spec.ts`, `e2e/phase-2a.spec.ts` y `e2e/phase-2b.spec.ts`
+  ejercitan la lista contra el Supabase local y necesitan `E2E_SUPABASE=1`
+  y `npm run db:start`; sin eso se saltean. En CI corren siempre: el job
+  "E2E" levanta el stack local y exporta sus claves antes del build.
+  Adjuntan capturas a 375px en claro y oscuro (lista, lista agrupada,
+  momento de carro vaciado, aviso de rechazo, hoja de edición y
+  confirmación de borrado). `phase-2b.spec.ts` abre dos contextos (dos
+  miembros de una misma lista), mide cada cambio de uno a otro (menos de
+  1 s, también con escrituras en cola mientras el otro escribe), comprueba
+  con un `MutationObserver` que solo pulsan las filas del otro miembro y
+  que las propias no parpadean, y adjunta la fila en pleno pulso.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
   categorías, ya que el selector manual llega en la Fase 3.
