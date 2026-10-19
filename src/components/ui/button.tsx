@@ -23,7 +23,7 @@ const buttonVariants = cva(
         ghost:
           "text-ink hover:bg-paper-hover aria-expanded:bg-paper-hover disabled:text-ink-3",
         danger: "text-tomato-text hover:bg-danger-bg disabled:text-ink-3",
-        link: "text-ink h-auto rounded-none px-0 underline-offset-4 hover:underline disabled:text-ink-3",
+        link: "text-ink underline-offset-4 hover:underline disabled:text-ink-3",
       },
       size: {
         sm: "h-9 px-4",
@@ -33,6 +33,9 @@ const buttonVariants = cva(
         "icon-touch-lg": "size-touch-lg [&_svg:not([class*='size-'])]:size-6",
       },
     },
+    // El enlace no es una píldora: sin alto ni padding del tamaño, sea cual
+    // sea (las clases de aquí van después de las del tamaño y ganan).
+    compoundVariants: [{ variant: "link", class: "h-auto rounded-none px-0" }],
     defaultVariants: {
       variant: "default",
       size: "touch",

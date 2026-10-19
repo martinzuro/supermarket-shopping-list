@@ -51,12 +51,14 @@ export function Section({
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
           <h2
             id={headingId}
-            className="text-heading flex items-center gap-2 truncate"
+            className="text-heading flex min-w-0 items-center gap-2"
           >
             {icon ? (
               <span className="text-ink-2 flex shrink-0">{icon}</span>
             ) : null}
-            {title}
+            {/* El recorte con puntos suspensivos solo funciona en un bloque
+                propio, no en el texto suelto de un contenedor flex. */}
+            <span className="truncate">{title}</span>
             {typeof count === "number" ? (
               <span data-numeric className="text-ink-2 text-label font-mono">
                 {count}
