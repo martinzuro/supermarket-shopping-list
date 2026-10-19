@@ -31,6 +31,7 @@ import {
   useEditItem,
   useEmptyCart,
   useItems,
+  useListRealtime,
   useRemoveItem,
   useToggleItem,
   type Item,
@@ -139,6 +140,8 @@ export function ListView() {
   const list = currentList.list;
   const listId = list?.id ?? null;
   const items = useItems(userId, listId);
+  // The other members' changes reach the cache through this channel.
+  useListRealtime(userId, listId);
   const toggle = useToggleItem(userId ?? "", listId ?? "");
   const edit = useEditItem(userId ?? "", listId ?? "");
   const remove = useRemoveItem(userId ?? "", listId ?? "");
