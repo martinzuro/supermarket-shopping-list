@@ -52,7 +52,7 @@ export function ListRow({
       className={cn(
         "border-rule text-row min-h-row flex items-center gap-1 border-b transition-colors",
         highlighted
-          ? "bg-remote-pulse duration-instant"
+          ? "bg-remote-pulse duration-instant ease-out"
           : "duration-slow bg-transparent ease-out",
         className,
       )}

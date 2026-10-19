@@ -200,9 +200,10 @@ Implementadas en `src/components/list/list-view.tsx`:
 - **Cambio remoto.** `ListView` pasa `highlighted` a las filas cuyo id
   está en `useRemoteChanges`: el pulso dura 400 ms encendido y después
   `ListRow` lo funde en `duration-slow`, un segundo en total. Solo lo
-  provocan las filas que otro miembro añade, edita, marca o devuelve;
-  nunca los cambios propios, los ecos, los borrados, los archivados ni los
-  refetches. Es un fundido de color sin desplazamiento, así que con
+  provocan las filas que otro miembro añade, edita, marca o devuelve,
+  también si una lectura las mostró antes de que llegara su evento; nunca
+  los cambios propios, los ecos, los borrados ni los archivados. Es un
+  fundido de color sin desplazamiento, así que con
   movimiento reducido se queda tal cual (las transiciones CSS no dependen
   de `useReducedMotion`). `ListRow` expone `data-highlighted` para las
   pruebas. Una fila que otro miembro marca viaja por el mismo `layoutId`,
@@ -314,9 +315,9 @@ reducido de `visual.spec.ts` lo desactivan.
   momento de carro vaciado, aviso de rechazo, hoja de edición y
   confirmación de borrado). `phase-2b.spec.ts` abre dos contextos (dos
   miembros de una misma lista), mide cada cambio de uno a otro (menos de
-  1 s), comprueba con un `MutationObserver` que solo pulsan las filas del
-  otro miembro y que las propias no parpadean, y adjunta la fila en pleno
-  pulso.
+  1 s, también con escrituras en cola mientras el otro escribe), comprueba
+  con un `MutationObserver` que solo pulsan las filas del otro miembro y
+  que las propias no parpadean, y adjunta la fila en pleno pulso.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
   categorías, ya que el selector manual llega en la Fase 3.

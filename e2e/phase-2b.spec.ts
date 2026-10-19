@@ -113,30 +113,72 @@ async function openAndCreateList(page: Page): Promise<CreatedList> {
 }
 
 /**
- * Resolves with the `list_id` the page reads its items with, once the page
- * has read them a second time. After the first load the list is read again
- * about 100 ms after the channel joined (SUBSCRIBED), so the second read means
- * the channel is listening. Call it before the navigation.
+ * Resolves with the id of the list whose channel the page has joined. It
+ * listens on the Realtime websocket for the join's reply: `phx_reply` with
+ * status ok, for the topic `realtime:list:<listId>:<n>` (the app's own),
+ * carrying the ids of the postgres_changes bindings it asked for. With
+ * `postgres_changes_options.wait` that reply is sent once the changes are
+ * flowing. Only sockets opened after the call are heard, so it cannot pick
+ * up a frame of the previous document: call it before the navigation.
+ *
+ * The join also makes the app read the items again (a moment later, to catch
+ * up with whatever came with no event). That read is waited for too: one that
+ * lands between a change and its event would show the change with no pulse
+ * (refetches never pulse), so a step must not start while it is in flight.
  */
 function channelJoined(page: Page): Promise<string> {
-  let reads = 0;
+  let joined: string | undefined;
   return new Promise((resolve) => {
-    const onResponse = (response: {
-      url(): string;
-      request(): { method(): string };
-    }) => {
+    page.on("websocket", (socket) => {
+      if (!socket.url().includes("/realtime/")) return;
+      socket.on("framereceived", ({ payload }) => {
+        let message: unknown;
+        try {
+          message = JSON.parse(payload.toString());
+        } catch {
+          return;
+        }
+        // Protocol 1: an object; protocol 2: [join_ref, ref, topic, event, payload].
+        const [topic, event, body] = Array.isArray(message)
+          ? [message[2], message[3], message[4]]
+          : [
+              (message as { topic?: string }).topic,
+              (message as { event?: string }).event,
+              (message as { payload?: unknown }).payload,
+            ];
+        const reply = body as {
+          status?: string;
+          response?: { postgres_changes?: { table?: string }[] };
+        };
+        const listId = /^realtime:list:([0-9a-f-]{36}):\d+$/.exec(
+          String(topic),
+        )?.[1];
+        if (
+          event === "phx_reply" &&
+          reply?.status === "ok" &&
+          listId &&
+          reply.response?.postgres_changes?.some(
+            (change) => change.table === "items",
+          )
+        ) {
+          joined = listId;
+        }
+      });
+    });
+    // The first read that starts after the join is the catch-up one.
+    page.on("request", async (request) => {
       if (
-        response.request().method() !== "GET" ||
-        !/\/rest\/v1\/items\?/.test(response.url())
+        joined === undefined ||
+        request.method() !== "GET" ||
+        !/\/rest\/v1\/items\?/.test(request.url())
       ) {
         return;
       }
-      if (++reads < 2) return;
-      page.off("response", onResponse);
-      const listId = /list_id=eq\.([0-9a-f-]+)/.exec(response.url())?.[1];
-      resolve(listId ?? "");
-    };
-    page.on("response", onResponse);
+      const listId = joined;
+      joined = undefined;
+      await request.response().catch(() => null);
+      resolve(listId);
+    });
   });
 }
 
@@ -180,13 +222,13 @@ async function recordPulses(context: BrowserContext) {
     const rows: string[] = [];
     window.__pulses = log;
     window.__rows = rows;
-    // When the page itself saw the last tap or key: Playwright's click waits
+    // When the page itself saw the first tap or key since the last clear: Playwright's click waits
     // for the target to be stable first, and that wait is not the app's.
     for (const type of ["click", "keydown"]) {
       document.addEventListener(
         type,
         () => {
-          window.__gestureAt = Date.now();
+          window.__gestureAt ??= Date.now();
         },
         true,
       );
@@ -296,11 +338,36 @@ async function clearLogs(page: Page) {
   await page.evaluate(() => {
     window.__pulses?.splice(0);
     window.__rows?.splice(0);
+    window.__gestureAt = undefined;
   });
 }
 
 function rowEventsOf(page: Page) {
   return page.evaluate(() => window.__rows ?? []);
+}
+
+/** Waits, polling on every frame (expect.poll would round up), for a pulse. */
+function waitForPulse(page: Page, name: string) {
+  return page.waitForFunction(
+    (pulsed) => (window.__pulses ?? []).some((pulse) => pulse.name === pulsed),
+    name,
+    { polling: "raf", timeout: CHANGE_MS },
+  );
+}
+
+/** What happened to one row, from `rowEventsOf`. */
+async function rowEventsFor(page: Page, name: string) {
+  return (await rowEventsOf(page)).filter((event) => {
+    const [, rowName] = event.split(" ");
+    return rowName === name;
+  });
+}
+
+/** Names in a section, top to bottom. */
+function namesIn(section: Locator) {
+  return section
+    .locator('[role="checkbox"]')
+    .evaluateAll((boxes) => boxes.map((box) => box.getAttribute("aria-label")));
 }
 
 /** Names that pulsed since the last clear, once each, in order. */
@@ -320,6 +387,10 @@ async function newPlayer(
     storageState: testInfo.project.use.storageState,
   });
   await recordPulses(context);
+  // So page.route sees every request (a service worker's are invisible to it).
+  await context.addInitScript(() => {
+    Reflect.deleteProperty(Navigator.prototype, "serviceWorker");
+  });
   return { context, page: await context.newPage() };
 }
 
@@ -388,19 +459,19 @@ for (const colorScheme of ["light", "dark"] as const) {
           await gesture();
           await outcome();
           for (const name of pulses) {
-            // Polled on every frame: expect.poll would round up to its steps.
-            await other.waitForFunction(
-              (pulsed) =>
-                (window.__pulses ?? []).some((pulse) => pulse.name === pulsed),
-              name,
-              { polling: "raf", timeout: CHANGE_MS },
-            );
+            await waitForPulse(other, name);
           }
           const end = Date.now();
           const ms = end - start;
           const gestureAt = await actor.evaluate(() => window.__gestureAt ?? 0);
-          steps.push({ label, ms, fromGesture: end - gestureAt });
-          expect(ms, `${label} took ${ms} ms`).toBeLessThan(CHANGE_MS);
+          const fromGesture = end - gestureAt;
+          steps.push({ label, ms, fromGesture });
+          // The criterion is what the user sees after tapping: the page's own
+          // click or key, not Playwright's wait for the target to be ready.
+          expect(
+            fromGesture,
+            `${label} took ${fromGesture} ms from the gesture (${ms} ms in all)`,
+          ).toBeLessThan(CHANGE_MS);
           await whileLit?.();
 
           await other.waitForTimeout(PULSE_END_MS);
@@ -526,13 +597,118 @@ for (const colorScheme of ["light", "dark"] as const) {
         );
         await expect(editor(a)).toBeHidden();
 
-        // 6. A empties the cart: B's cart is empty, and nothing pulses.
+        // 6. Writes queued while the other member writes. A adds "Huevos" and
+        // checks it at once, so its add and its check are both queued in A's
+        // list; B adds "Yerba" at the same time. Nothing is lost or reordered:
+        // both end with Huevos in the cart and Yerba pending, A's own row goes
+        // through exactly add, check and move, B's has one mount, and each
+        // pulses only on the other side.
+        // A's writes are slowed (the add 150 ms, the check 300 ms), so they
+        // are still queued when B's insert arrives over Realtime (about 100 ms
+        // after it commits): that interleaving is what this step is about.
+        // Without the delay A's settle read could bring Yerba in before its
+        // event; the row then still pulses when the event comes, but the step
+        // would no longer cover writes queued during a remote change.
+        const slow = { POST: 150, PATCH: 300 } as Record<string, number>;
+        const itemsApi = /\/rest\/v1\/items\?/;
+        await a.route(itemsApi, async (route) => {
+          const delay = slow[route.request().method()];
+          if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+          await route.continue();
+        });
+        await field(a).fill("Huevos");
+        await field(b).fill("Yerba");
+        await Promise.all([clearLogs(a), clearLogs(b)]);
+        const queuedStart = Date.now();
+        const reachedB = (async () => {
+          await row(cart(b), "Huevos").waitFor({ timeout: CHANGE_MS * 2 });
+          await waitForPulse(b, "Huevos");
+          return Date.now();
+        })();
+        const reachedA = (async () => {
+          await row(pending(a), "Yerba").waitFor({ timeout: CHANGE_MS * 2 });
+          await waitForPulse(a, "Yerba");
+          return Date.now();
+        })();
+        await Promise.all([
+          (async () => {
+            await field(a).press("Enter");
+            // At once, as a quick second tap: no wait for the row to settle.
+            await checkbox(a, "Huevos").dispatchEvent("click");
+          })(),
+          field(b).press("Enter"),
+        ]);
+        const [endB, endA] = await Promise.all([reachedB, reachedA]);
+        const [gestureA, gestureB] = await Promise.all(
+          [a, b].map((page) => page.evaluate(() => window.__gestureAt ?? 0)),
+        );
+        // A's writes were slowed on purpose by `slow` (150 ms for the add, 300
+        // ms for the check, one after the other): that time is the test's, so
+        // it is taken off A's budget. Both figures are logged.
+        const slowedMs = slow.POST + slow.PATCH;
+        const queued = [
+          {
+            label: "6 A adds+checks Huevos",
+            ms: endB - queuedStart,
+            from: endB - gestureA,
+            budget: endB - gestureA - slowedMs,
+          },
+          {
+            label: "6 B adds Yerba",
+            ms: endA - queuedStart,
+            from: endA - gestureB,
+            budget: endA - gestureB,
+          },
+        ];
+        for (const { label, ms, from, budget } of queued) {
+          steps.push({ label, ms, fromGesture: from });
+          expect(
+            budget,
+            `${label} took ${from} ms from the gesture (${budget} ms without the slowdown)`,
+          ).toBeLessThan(CHANGE_MS);
+        }
+        await a.waitForTimeout(PULSE_END_MS);
+        await a.unroute(itemsApi);
+        expect(await pulsedNames(a), "queued: A pulsed").toEqual(["Yerba"]);
+        expect(await pulsedNames(b), "queued: B pulsed").toEqual(["Huevos"]);
+        // A's row: the add, the check where it stands, then the move.
+        expect(await rowEventsFor(a, "Huevos"), "queued: A's Huevos").toEqual([
+          "mount Huevos pending",
+          "checked Huevos false>true",
+          "unmount Huevos pending",
+          "mount Huevos cart",
+        ]);
+        expect(await rowEventsFor(b, "Yerba"), "queued: B's Yerba").toEqual([
+          "mount Yerba pending",
+        ]);
+        // Each side shows the other's row once.
+        expect(await rowEventsFor(a, "Yerba"), "queued: A's Yerba").toEqual([
+          "mount Yerba pending",
+        ]);
+        for (const page of [a, b]) {
+          await expect(row(cart(page), "Huevos")).toHaveCount(1);
+          await expect(row(pending(page), "Yerba")).toHaveCount(1);
+          await expect(row(pending(page), "Huevos")).toHaveCount(0);
+          await expect(row(cart(page), "Yerba")).toHaveCount(0);
+        }
+        // Same order in both, and the server's order after a fresh read.
+        const cartA = await namesIn(cart(a));
+        expect(cartA).toEqual(["Leche", "Huevos"]);
+        expect(await namesIn(cart(b))).toEqual(cartA);
+        expect(await namesIn(pending(b))).toEqual(await namesIn(pending(a)));
+        expect(await reloadJoined(b)).toBe(listA.id);
+        await expect(row(cart(b), "Huevos")).toBeVisible();
+        expect(await namesIn(cart(b))).toEqual(cartA);
+        expect(await namesIn(pending(b))).toEqual(await namesIn(pending(a)));
+
+        // 7. A empties the cart: both rows in it go, B's cart is empty and
+        // nothing pulses. Yerba stays pending in both.
         await step(
-          "6 A empties the cart",
+          "7 A empties the cart",
           a,
           b,
           [],
-          ["unmount Leche cart"],
+          ["unmount Leche cart", "unmount Huevos cart"],
           () => emptyAction(a).click(),
           () =>
             cart(b)
@@ -541,18 +717,17 @@ for (const colorScheme of ["light", "dark"] as const) {
         );
 
         await expect(checkbox(b, "Leche")).toHaveCount(0);
+        await expect(checkbox(b, "Huevos")).toHaveCount(0);
 
-        // At the end both show the same list: nothing left in either.
+        // At the end both show the same list: only Yerba is left, pending.
         for (const page of [a, b]) {
-          await expect(pending(page).locator("li")).toHaveCount(0);
           await expect(cart(page).locator("li")).toHaveCount(0);
+          expect(await namesIn(pending(page))).toEqual(["Yerba"]);
         }
         // And the server agrees: a read from scratch finds the same.
         expect(await reloadJoined(b)).toBe(listA.id);
-        await expect(
-          pending(b).getByText(texts.list.pending.empty),
-        ).toBeVisible();
         await expect(cart(b).getByText(texts.list.cart.empty)).toBeVisible();
+        expect(await namesIn(pending(b))).toEqual(["Yerba"]);
       } finally {
         const lines = steps.map(
           (s) =>
