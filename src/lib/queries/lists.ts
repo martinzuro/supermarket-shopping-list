@@ -5,6 +5,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type Mutation,
   type MutationKey,
   type QueryClient,
 } from "@tanstack/react-query";
@@ -209,15 +210,16 @@ export function useCreateList(userId: string) {
       insertList(id, texts.list.defaultName),
     onMutate: async ({ id }) => {
       await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<List[]>(key);
       setLists(queryClient, userId, (lists) => [
         ...lists,
         optimisticList(id, userId),
       ]);
-      return { previous };
     },
-    onError: (_error, _variables, context) => {
-      queryClient.setQueryData(key, context?.previous);
+    onError: (_error, { id }) => {
+      // Only this list: a read that landed meanwhile stays (plan 2.3).
+      setLists(queryClient, userId, (lists) =>
+        lists.filter((list) => list.id !== id),
+      );
     },
     onSuccess: (created) => {
       setLists(queryClient, userId, (lists) =>
@@ -250,59 +252,46 @@ export const membershipMutationKeys = {
     ["user", userId, "membership", "discard", listId] as const,
 };
 
-function hasMutation(
-  queryClient: QueryClient,
-  mutationKey: MutationKey,
-  status?: "pending" | "error",
-  predicate: (variables: unknown) => boolean = () => true,
-) {
-  return (
-    queryClient.getMutationCache().findAll({
-      mutationKey,
-      status,
-      predicate: (mutation) => predicate(mutation.state.variables),
-    }).length > 0
-  );
+/**
+ * Whether a mutation takes a list out of the user's lists: leaving or
+ * discarding one (membershipMutationKeys), or merging one away (merge.ts,
+ * whose variables name the source). While one is pending the cache may show
+ * no list for a moment, and its rollback may bring one back.
+ */
+export function takesListOut(mutation: Mutation, userId: string) {
+  const [scope, owner, kind] = mutation.options.mutationKey ?? [];
+  if (scope !== "user" || owner !== userId) return false;
+  const variables = mutation.state.variables as
+    { sourceListId?: string } | undefined;
+  return kind === "membership" || variables?.sourceListId !== undefined;
 }
 
 /** The user is leaving the list (useLeaveList), right now. */
 function isLeaving(queryClient: QueryClient, userId: string, listId: string) {
-  return hasMutation(
-    queryClient,
-    membershipMutationKeys.leave(userId, listId),
-    "pending",
+  return (
+    queryClient.getMutationCache().findAll({
+      mutationKey: membershipMutationKeys.leave(userId, listId),
+      status: "pending",
+    }).length > 0
   );
 }
 
 /**
- * The user is retiring the list on purpose: discarding it, or merging it
- * into another (merge.ts), pending or done. Nothing to tell then.
+ * A creation of the list the server has not confirmed (in flight, or
+ * rolled back after an error): it was never more than optimistic.
  */
-function isRetiring(queryClient: QueryClient, userId: string, listId: string) {
-  return (
-    hasMutation(queryClient, membershipMutationKeys.discard(userId, listId)) ||
-    hasMutation(
-      queryClient,
-      ["user", userId, "list"],
-      undefined,
-      (variables) =>
-        (variables as { sourceListId?: string } | undefined)?.sourceListId ===
-        listId,
-    )
-  );
-}
-
-/** A first creation that failed: the list was never there. */
-function failedToCreate(
+function isUnconfirmed(
   queryClient: QueryClient,
   userId: string,
   listId: string,
 ) {
-  return hasMutation(
-    queryClient,
-    [...queryKeys.lists(userId), "create"],
-    "error",
-    (variables) => (variables as { id?: string } | undefined)?.id === listId,
+  return (
+    queryClient.getMutationCache().findAll({
+      mutationKey: [...queryKeys.lists(userId), "create"],
+      predicate: (mutation) =>
+        (mutation.state.variables as { id?: string } | undefined)?.id ===
+          listId && mutation.state.status !== "success",
+    }).length > 0
   );
 }
 
@@ -380,12 +369,11 @@ function listWentAway(
   userId: string,
   listId: string,
 ) {
-  if (!failedToCreate(queryClient, userId, listId)) {
-    if (isLeaving(queryClient, userId, listId)) {
-      setMembershipNotice(queryClient, { kind: "left", listId });
-    } else if (!isRetiring(queryClient, userId, listId)) {
-      setMembershipNotice(queryClient, { kind: "removed", listId });
-    }
+  if (!isUnconfirmed(queryClient, userId, listId)) {
+    setMembershipNotice(queryClient, {
+      kind: isLeaving(queryClient, userId, listId) ? "left" : "removed",
+      listId,
+    });
   }
   const filters = { queryKey: queryKeys.list(userId, listId) };
   void queryClient.cancelQueries(filters);
@@ -461,11 +449,11 @@ export function useCurrentList(userId: string | null) {
   const queryClient = useQueryClient();
   const lists = useLists(userId);
   const createList = useCreateList(userId ?? "");
-  // While the user leaves or discards a list, the cache may show none for a
-  // moment; a rollback brings it back, and a new list would be in the way.
+  // While a list is being taken out, the cache may show none for a moment;
+  // a rollback brings it back, and a new list would be in the way.
   const retiring =
     useIsMutating({
-      mutationKey: membershipMutationKeys.all(userId ?? ""),
+      predicate: (mutation) => takesListOut(mutation, userId ?? ""),
     }) > 0;
   // The creation asked for, and for whom: no second one for that user, even
   // across re-renders, refetches and failures (retry() asks again), until
@@ -503,7 +491,11 @@ export function useCurrentList(userId: string | null) {
       listWentAway(queryClient, userId, before);
     }
     shown.current = { userId, listId };
-    writeLastList(userId, listId);
+    // Only a list the server has: a creation that never lands must not be
+    // told as lost on the next open.
+    if (listId === null || !isUnconfirmed(queryClient, userId, listId)) {
+      writeLastList(userId, listId);
+    }
   }, [queryClient, userId, lists.isSuccess, lists.data, listId]);
 
   /** After an error: read the lists again and, if still none, create one. */

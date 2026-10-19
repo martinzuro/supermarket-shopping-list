@@ -59,6 +59,8 @@ export function useMembers(userId: string | null, listId: string | null) {
  * left, or the removal went through and only its answer was lost).
  */
 const departures = new WeakMap<QueryClient, Map<string, number>>();
+/** Far longer than a removal takes, retries included. */
+const DEPARTURE_MS = 60_000;
 
 export function noteMemberGone(
   queryClient: QueryClient,
@@ -70,7 +72,11 @@ export function noteMemberGone(
     gone = new Map();
     departures.set(queryClient, gone);
   }
-  gone.set(`${listId}:${memberId}`, Date.now());
+  const now = Date.now();
+  for (const [key, at] of gone) {
+    if (now - at > DEPARTURE_MS) gone.delete(key);
+  }
+  gone.set(`${listId}:${memberId}`, now);
 }
 
 function goneSince(
@@ -208,13 +214,12 @@ export function useLeaveList(userId: string, listId: string) {
   });
 }
 
-/** Postgres check_violation, for an owner trying to discard a shared list. */
-const SHARED = "23514";
-
 /**
  * Discards a list left behind (leftoversOf) instead of merging it: an owner
  * alone in it soft-deletes it, a member leaves it. Optimistic, like
- * useLeaveList, and silent: the list was not on screen.
+ * useLeaveList, and silent: the list was not on screen. A list of the user's
+ * own that others use is refused here and by the database (list_shared),
+ * which also catches someone joining after the lists were read.
  */
 export function useDiscardList(userId: string, list: List) {
   const queryClient = useQueryClient();
@@ -225,7 +230,7 @@ export function useDiscardList(userId: string, list: List) {
     mutationFn: async () => {
       if (list.role === "member") return leave(listId, userId);
       if (list.member_count > 1) {
-        throw new RequestError({ message: "list_shared", code: SHARED }, 400);
+        throw new RequestError({ message: "list_shared", code: "P0001" }, 400);
       }
       // Already soft-deleted (a retry whose answer was lost) matches no row.
       unwrap(

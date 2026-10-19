@@ -125,24 +125,41 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- lists: only the owner soft-deletes or restores
+-- lists: only the owner soft-deletes or restores, and never a list in use
 -- -----------------------------------------------------------------------------
 -- The update policy lets any member change a list, deleted_at included: with
--- sharing, a member could make the list disappear for everyone. Requests with
--- no user (the service role, migrations) are not end users and pass.
+-- sharing, a member could make the list disappear for everyone. And deleting
+-- a shared list is not a feature of v1: an owner can soft-delete a list only
+-- while nobody else is in it (the discard of a list left behind, and
+-- merge_list, which checks the same first). Requests with no user (the
+-- service role, migrations) are not end users and pass.
 create function private.only_owner_changes_deleted_at()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
-  if new.deleted_at is distinct from old.deleted_at
-    and (select auth.uid()) is not null
-    and not private.is_list_owner(old.id)
+  if new.deleted_at is not distinct from old.deleted_at
+    or (select auth.uid()) is null
   then
+    return new;
+  end if;
+
+  if not private.is_list_owner(old.id) then
     raise exception 'only the owner can delete or restore a list'
       using errcode = '42501';
   end if;
+
+  if new.deleted_at is not null and exists (
+    select 1
+    from public.list_members m
+    where m.list_id = old.id
+      and m.user_id <> (select auth.uid())
+  ) then
+    raise exception 'list_shared'
+      using errcode = 'P0001', detail = 'Other members still use this list.';
+  end if;
+
   return new;
 end;
 $$;

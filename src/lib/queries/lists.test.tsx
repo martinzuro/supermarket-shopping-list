@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RequestError, shouldRetryMutation } from "./errors";
 import { queryKeys } from "./keys";
+import { useLeaveList } from "./members";
 import {
   currentListOf,
   leftoversOf,
@@ -17,10 +18,12 @@ import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
 const USER = "00000000-0000-7000-8000-000000000001";
 const OTHER_USER = "00000000-0000-7000-8000-000000000009";
 
-const read = vi.fn<() => Promise<{ data: unknown; error: unknown }>>();
-const write =
-  vi.fn<(row: unknown) => Promise<{ data: unknown; error: unknown }>>();
-const lists = makeTable({ read, write });
+type Answer = { data: unknown; error: unknown; status?: number };
+const read = vi.fn<(filters: [string, unknown][]) => Promise<Answer>>();
+const write = vi.fn<(row: unknown) => Promise<Answer>>();
+const remove = vi.fn<(filters: [string, unknown][]) => Promise<Answer>>();
+// One fake table for every request: the tests tell them apart by filters.
+const lists = makeTable({ read, write, remove });
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({ from: () => lists.builder() }),
@@ -77,6 +80,7 @@ function list(partial: Partial<List> & Pick<List, "id">): List {
 beforeEach(() => {
   read.mockReset();
   write.mockReset();
+  remove.mockReset();
   lists.insert.mockClear();
   window.localStorage.clear();
 });
@@ -510,6 +514,101 @@ describe("losing the list on screen", () => {
     );
     expect(result.current.notice.notice).toBeNull();
     expect(result.current.current.list?.id).toBe("shared");
+  });
+});
+
+describe("a first creation that does not go through", () => {
+  const later = <T,>(value: T, ms: number) =>
+    new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
+
+  it("is never told as a lost list, now or on the next open", async () => {
+    // Real timing: React renders the optimistic list before the refusal and
+    // the refetch of onSettled come back.
+    read.mockImplementation(() => later({ data: [], error: null }, 20));
+    write.mockImplementation(() =>
+      later(
+        {
+          data: null,
+          error: { message: "row-level security", code: "42501" },
+          status: 403,
+        },
+        30,
+      ),
+    );
+    const stored: string[] = [];
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key, value) {
+        if (key.startsWith("lista:last-list:")) stored.push(value);
+      });
+    const notices: unknown[] = [];
+    const { result } = renderHook(
+      () => {
+        const current = useCurrentList(USER);
+        const { notice } = useMembershipNotice();
+        if (notice) notices.push(notice);
+        return current;
+      },
+      { wrapper: makeWrapper(makeTestQueryClient()) },
+    );
+    await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.list).not.toBeNull());
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+
+    expect(result.current.list).toBeNull();
+    expect(notices).toEqual([]);
+    expect(stored).toEqual([]);
+    expect(lists.insert).toHaveBeenCalledTimes(1);
+    setItem.mockRestore();
+  });
+});
+
+describe("leaving with the list screen on", () => {
+  const isListsRead = (filters: [string, unknown][]) =>
+    filters.some(([column]) => column === "list.deleted_at");
+
+  it("tells it left, then that it failed, and creates no list in between", async () => {
+    const sharedRow = membership(
+      { id: "shared", created_by: OTHER_USER },
+      { role: "member", members: 2 },
+    );
+    read.mockImplementation(async (filters) =>
+      isListsRead(filters)
+        ? { data: [sharedRow], error: null }
+        : // The check after a delete that matched nothing: still in it.
+          { data: [{ role: "owner" }], error: null },
+    );
+    let refuse!: () => void;
+    remove.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          refuse = () => resolve({ data: [], error: null });
+        }),
+    );
+    const notices: string[] = [];
+    const { result } = renderHook(
+      () => {
+        const current = useCurrentList(USER);
+        const { notice } = useMembershipNotice();
+        if (notice && notices.at(-1) !== notice.kind) notices.push(notice.kind);
+        return { current, leave: useLeaveList(USER, "shared") };
+      },
+      { wrapper: makeWrapper(makeTestQueryClient()) },
+    );
+    await waitFor(() => expect(result.current.current.list?.id).toBe("shared"));
+
+    act(() => result.current.leave.mutate());
+    await waitFor(() => expect(result.current.current.list).toBeNull());
+    await waitFor(() => expect(remove).toHaveBeenCalled());
+    expect(notices).toEqual(["left"]);
+    expect(lists.insert).not.toHaveBeenCalled();
+
+    await act(async () => refuse());
+    await waitFor(() => expect(result.current.leave.isError).toBe(true));
+    await waitFor(() => expect(result.current.current.list?.id).toBe("shared"));
+    expect(notices).toEqual(["left", "leave_failed"]);
+    expect(lists.insert).not.toHaveBeenCalled();
   });
 });
 

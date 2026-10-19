@@ -33,9 +33,17 @@ import { putListBack, takeListOut, type List } from "./lists";
  * copies enter when the answer does, in the server's order.
  */
 
-/** Ids for the copies of `count` source items (more items get server ids). */
+/**
+ * Spare ids beyond the items the client counted: the source may have grown
+ * since (another device of an owner, a carry-over counted before the
+ * sign-in). A copy with a server id is not covered while the write is
+ * pending, and its echo would pulse. Unused ids cost nothing.
+ */
+const SPARE_IDS = 20;
+
+/** Ids for the copies of `count` source items, and some to spare. */
 export function idsFor(count: number): string[] {
-  return Array.from({ length: Math.max(0, count) }, () => newId());
+  return Array.from({ length: Math.max(0, count) + SPARE_IDS }, () => newId());
 }
 
 export type MergeList = {

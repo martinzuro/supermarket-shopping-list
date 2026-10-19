@@ -1575,6 +1575,73 @@ describe("losing the list", () => {
     expect(live()[0].bindings[0].filter).not.toBe(`list_id=eq.${LIST}`);
   });
 
+  it("creates no list while a merge is pending, and its rollback is the way back", async () => {
+    const own: Row = {
+      role: "owner",
+      joined_at: at(0),
+      list: {
+        id: OTHER_LIST,
+        name: "Mi lista",
+        created_by: USER,
+        created_at: at(0),
+        updated_at: at(0),
+        deleted_at: null,
+        members: [{ count: 1 }],
+      },
+    };
+    let server: Row[] = [own, shared()];
+    readMemberships.mockImplementation(async () => ({
+      data: server,
+      error: null,
+    }));
+    readItems.mockResolvedValue({ data: [], error: null });
+    const queryClient = makeTestQueryClient();
+    const { result } = renderHook(
+      () => ({ ...useScreen(), merge: useMergeList(USER, LIST) }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+    await waitFor(() => expect(result.current.listId).toBe(LIST));
+    await waitFor(() => expect(live()).toHaveLength(1));
+    const channel = live()[0];
+    channel.status("SUBSCRIBED");
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    const answer = deferred<Result>();
+    callRpc.mockReturnValue(answer.promise);
+    act(() =>
+      result.current.merge.mutate({ sourceListId: OTHER_LIST, ids: [] }),
+    );
+    await waitFor(() => expect(callRpc).toHaveBeenCalledTimes(1));
+
+    // Taken out of the shared list while the merge into it is in flight.
+    // The lists come back after a while, as over the network: until then
+    // the cache shows none.
+    server = [own];
+    readMemberships.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ data: server, error: null }), 50),
+        ),
+    );
+    channel.emit("list_members", {
+      eventType: "DELETE",
+      new: {},
+      old: { list_id: LIST, user_id: USER },
+    });
+    await waitFor(() =>
+      expect(result.current.notice.notice).toMatchObject({ kind: "removed" }),
+    );
+    await act(async () =>
+      answer.resolve({
+        data: null,
+        error: { message: "list_not_found", code: "P0001" },
+      }),
+    );
+    await waitFor(() => expect(result.current.merge.isError).toBe(true));
+    await waitFor(() => expect(result.current.listId).toBe(OTHER_LIST));
+    expect(writeLists).not.toHaveBeenCalled();
+  });
+
   it("finds out when the channel joins again, if it happened while it was down", async () => {
     const { result, channel, lose } = await renderScreen();
     lose();

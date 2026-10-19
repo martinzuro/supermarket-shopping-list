@@ -104,12 +104,12 @@ afterEach(() => {
 });
 
 describe("idsFor", () => {
-  it("gives one new id per source item, all different", () => {
+  it("gives a new id per source item and some to spare, all different", () => {
     const ids = idsFor(3);
-    expect(ids).toHaveLength(3);
-    expect(new Set(ids).size).toBe(3);
-    expect(idsFor(0)).toEqual([]);
-    expect(idsFor(-1)).toEqual([]);
+    expect(ids).toHaveLength(23);
+    expect(new Set(ids).size).toBe(23);
+    expect(idsFor(0)).toHaveLength(20);
+    expect(idsFor(-1)).toHaveLength(20);
   });
 });
 

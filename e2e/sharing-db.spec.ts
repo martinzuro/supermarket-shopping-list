@@ -316,7 +316,7 @@ test.describe("invites", () => {
 });
 
 test.describe("members", () => {
-  test("only the owner soft-deletes or restores the list", async () => {
+  test("only the owner soft-deletes a list, and only once nobody else is in it", async () => {
     const owner = await person();
     const member = await person();
     await accept(member, (await createInvite(owner)).token);
@@ -334,16 +334,39 @@ test.describe("members", () => {
       .eq("id", owner.listId);
     expect(renamed.error).toBeNull();
 
-    const byOwner = await owner.client
+    // Not while someone else uses it (a discard on a stale count of members).
+    const inUse = await owner.client
       .from("lists")
       .update({ deleted_at: deletedAt })
       .eq("id", owner.listId);
-    expect(byOwner.error).toBeNull();
+    expect(inUse.error?.message).toBe("list_shared");
+
+    // Soft-deleted anyway (the service role), a member cannot bring it back.
+    await adminClient()
+      .from("lists")
+      .update({ deleted_at: deletedAt })
+      .eq("id", owner.listId);
     const restored = await member.client
       .from("lists")
       .update({ deleted_at: null })
       .eq("id", owner.listId);
     expect(restored.error?.code).toBe("42501");
+    const byOwner = await owner.client
+      .from("lists")
+      .update({ deleted_at: null })
+      .eq("id", owner.listId);
+    expect(byOwner.error).toBeNull();
+
+    await member.client
+      .from("list_members")
+      .delete()
+      .eq("list_id", owner.listId)
+      .eq("user_id", member.id);
+    const alone = await owner.client
+      .from("lists")
+      .update({ deleted_at: deletedAt })
+      .eq("id", owner.listId);
+    expect(alone.error).toBeNull();
   });
 
   test("list_member_emails shows the members to members only", async () => {
