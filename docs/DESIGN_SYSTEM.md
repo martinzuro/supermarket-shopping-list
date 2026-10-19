@@ -290,6 +290,11 @@ reducido de `visual.spec.ts` lo desactivan.
   carro, lo devuelve a "Vaciar el carro".
 - Los avisos de escrituras rechazadas son banners `role="alert"` (el tono
   `error` de `Banner`) sobre el campo de añadir, con botón para cerrarlos.
+- Los cambios de otros miembros no se comunican solo con color: una
+  región `role="status"` (cortés, siempre montada, oculta a la vista) dice
+  una frase por ráfaga de cambios, sin autor ("Agregaron “Leche”", "Sacaron
+  2 productos de la lista"), y nunca los cambios propios. Sus textos viven
+  en `texts.remoteChanges`.
 - Inputs de 16px como mínimo para evitar el zoom de iOS.
 
 ## 10. Pruebas
@@ -317,7 +322,9 @@ reducido de `visual.spec.ts` lo desactivan.
   miembros de una misma lista), mide cada cambio de uno a otro (menos de
   1 s, también con escrituras en cola mientras el otro escribe), comprueba
   con un `MutationObserver` que solo pulsan las filas del otro miembro y
-  que las propias no parpadean, y adjunta la fila en pleno pulso.
+  que las propias no parpadean, comprueba qué se les dice a los lectores
+  de pantalla (la frase exacta al otro miembro y nada al que hizo el
+  cambio) y adjunta la fila en pleno pulso.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
   categorías, ya que el selector manual llega en la Fase 3.
