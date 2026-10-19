@@ -140,13 +140,22 @@ function pendingFromUser(user: User): Pending | null {
 
 type GuestAccountProps = {
   user: User;
+  /** Replaces the sentence above the email field (the share sheet says why). */
+  intro?: string;
   onNotice: (notice: MenuNotice | null) => void;
   pendingSignIn: PendingSignIn | null;
   onPendingSignInChange: (pending: PendingSignIn | null) => void;
 };
 
-function GuestAccount({
+/**
+ * The conversion of an anonymous user: email, then the 6-digit code. Used by
+ * the menu and by the share sheet, which both keep `pendingSignIn` above it.
+ * It ends on its own when the session becomes an account (the parent then
+ * stops rendering it) and tells so with onNotice("confirmed" | "signed_in").
+ */
+export function GuestAccount({
   user,
+  intro = texts.account.anonymous.intro,
   onNotice,
   pendingSignIn,
   onPendingSignInChange,
@@ -253,9 +262,7 @@ function GuestAccount({
         className="flex flex-col gap-4"
         noValidate
       >
-        <p className="text-ink-2 text-pretty">
-          {texts.account.anonymous.intro}
-        </p>
+        <p className="text-ink-2 text-pretty">{intro}</p>
         <Field
           label={texts.account.anonymous.emailLabel}
           error={error ? errorTexts[error] : undefined}

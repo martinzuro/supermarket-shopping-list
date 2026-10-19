@@ -62,11 +62,13 @@ jobs:
 
       # Stack local de Supabase (CLI de devDependencies, la misma versión que
       # en local) con solo lo que usan los e2e: Postgres, Auth, PostgREST,
-      # Realtime (Fase 2b) y Kong, que expone la API en el puerto 54331.
+      # Realtime (Fase 2b), Kong, que expone la API en el puerto 54331, y
+      # Mailpit (Fase 2c), donde los e2e leen el código de los correos de
+      # Auth para convertir una cuenta por el flujo real.
       - name: Start Supabase
         run: >
           npx supabase start
-          -x imgproxy,studio,edge-runtime,logflare,vector,supavisor,storage-api,postgres-meta,mailpit
+          -x imgproxy,studio,edge-runtime,logflare,vector,supavisor,storage-api,postgres-meta
 
       # Las claves del stack local se incrustan en el build (NEXT_PUBLIC_) y
       # la secreta queda solo en Node, para e2e/supabase-admin.ts.

@@ -5,7 +5,9 @@ import {
   CartIllustration,
   EmptyBagIllustration,
   FullBagIllustration,
+  InvitationIllustration,
 } from "@/components/illustrations";
+import { InvitationCard } from "@/components/ui/invitation-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Moment } from "@/components/ui/moment";
 import { Banner } from "@/components/ui/banner";
@@ -296,7 +298,7 @@ export default function DesignPage() {
         eyebrow={t.sections.illustration.eyebrow}
         title={t.sections.illustration.title}
       >
-        <ul className="grid gap-8 sm:grid-cols-3">
+        <ul className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <li>
             <EmptyBagIllustration className="text-ink size-32" />
             <Meta>{t.illustration.emptyBag}</Meta>
@@ -308,6 +310,10 @@ export default function DesignPage() {
           <li>
             <FullBagIllustration className="text-ink size-32" />
             <Meta>{t.illustration.fullBag}</Meta>
+          </li>
+          <li>
+            <InvitationIllustration className="text-ink size-32" />
+            <Meta>{t.illustration.invitation}</Meta>
           </li>
         </ul>
         <p className="text-ink-2 mt-8 max-w-prose text-pretty">
@@ -411,6 +417,21 @@ export default function DesignPage() {
           </span>
         </div>
         <Meta>{t.surfaces.sheet}</Meta>
+
+        <div className="mt-10 grid max-w-2xl gap-6 sm:grid-cols-2">
+          {[t.surfaces.invitationLink, null].map((link) => (
+            <InvitationCard
+              key={link ?? "pending"}
+              eyebrow={texts.share.card.eyebrow}
+              title={t.surfaces.invitationList}
+              linkLabel={texts.share.card.linkLabel}
+              link={link}
+              pending={texts.share.card.preparing}
+              note={texts.share.card.note}
+            />
+          ))}
+        </div>
+        <Meta>{t.surfaces.invitation}</Meta>
       </Section>
 
       {/* Motion */}

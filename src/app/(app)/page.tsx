@@ -1,7 +1,7 @@
 import { ConnectionBanner } from "@/components/connection-banner";
 import { AddItemBar } from "@/components/list/add-item-bar";
 import { ListView } from "@/components/list/list-view";
-import { AppMenu } from "@/components/menu/app-menu";
+import { HeaderActions } from "@/components/menu/header-actions";
 import { Welcome } from "@/components/welcome/welcome";
 import { texts } from "@/lib/texts";
 
@@ -14,7 +14,7 @@ export default function ListPage() {
       >
         <div className="px-safe mx-auto flex h-14 w-full max-w-xl items-center justify-between">
           <h1 className="text-title font-serif">{texts.app.name}</h1>
-          <AppMenu />
+          <HeaderActions />
         </div>
         <ConnectionBanner />
       </header>

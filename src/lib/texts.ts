@@ -94,6 +94,139 @@ export const texts = {
   menu: {
     title: "Menú",
   },
+  /**
+   * Compartir (dueño): la hoja de la cabecera. Un invitado sin cuenta
+   * convierte primero la suya (account.*); con cuenta ve la invitación.
+   */
+  share: {
+    open: "Compartir lista",
+    title: "Compartir lista",
+    description:
+      "Mandá un enlace y la otra persona ve la misma lista que vos, con los cambios al instante.",
+    loading: "Cargando tu lista…",
+    offline:
+      "Sin conexión. Cuando vuelva la red vas a poder armar el enlace para compartir.",
+    guest: {
+      why: "Para compartir, tu lista tiene que quedar guardada en una cuenta: así no se pierde y la otra persona sigue viéndola.",
+      intro:
+        "Ingresá tu correo y te mandamos un código de 6 dígitos. Después seguís acá y armás el enlace.",
+    },
+    converted: "Listo, tu lista quedó guardada. Acá está tu enlace.",
+    card: {
+      eyebrow: "Invitación",
+      linkLabel: "Enlace de invitación",
+      preparing: "Preparando tu enlace…",
+      note: "Sirve para una persona y vence en 7 días.",
+    },
+    actions: {
+      share: "Compartir enlace",
+      copy: "Copiar enlace",
+      copied: "Enlace copiado",
+      another: "Armar otro enlace",
+      anotherHint: "Cada enlace es para una sola persona.",
+    },
+    copyFailed:
+      "No pudimos copiarlo solo. Dejamos el enlace seleccionado: copialo a mano.",
+    message: {
+      title: "Sumate a mi lista",
+      text: "Te invito a compartir mi lista de compras en Lista.",
+    },
+    errors: {
+      network:
+        "No pudimos armar el enlace. Revisá tu conexión y probá de nuevo.",
+      notAuthenticated:
+        "Se perdió tu sesión. Recargá la página y probá de nuevo.",
+      unknown: "Algo salió mal al armar el enlace. Probá de nuevo en un rato.",
+      retry: "Reintentar",
+    },
+  },
+  /** Pantalla de la invitación (/invite/<enlace>): el momento editorial de quien recibe. */
+  invite: {
+    eyebrow: "Invitación",
+    from: "Te invita",
+    unknownInviter: "Una persona que usa Lista",
+    loading: {
+      lead: "Abriendo la",
+      em: "invitación",
+      tail: "…",
+      body: "Un momento.",
+    },
+    offline: {
+      eyebrow: "Sin conexión",
+      lead: "Sin",
+      em: "conexión",
+      tail: "",
+      body: "Necesitamos internet para abrir la invitación. Revisá tu conexión y probá de nuevo.",
+    },
+    loadError: {
+      eyebrow: "Algo falló",
+      lead: "No pudimos abrir la",
+      em: "invitación",
+      tail: ".",
+      body: "Revisá tu conexión y probá de nuevo.",
+    },
+    valid: {
+      lead: "Te invitaron a",
+      em: "compartir",
+      tail: " una lista.",
+      body: "Van a ver la misma lista, y cada cambio de uno le aparece al otro al instante.",
+    },
+    member: {
+      eyebrow: "Ya estás adentro",
+      lead: "Ya estás en",
+      em: "esta lista",
+      tail: ".",
+      body: "Esta invitación es de una lista que ya compartís. No hace falta usarla de nuevo.",
+    },
+    own: {
+      eyebrow: "Tu invitación",
+      lead: "Este enlace es",
+      em: "tuyo",
+      tail: ".",
+      body: "Mandáselo a quien quieras que compre con vos. Cada enlace sirve para una sola persona.",
+    },
+    used: {
+      eyebrow: "Invitación usada",
+      lead: "Esta invitación ya",
+      em: "se usó",
+      tail: ".",
+      body: "Cada enlace sirve para una sola persona. Pedile a quien te invitó que te mande uno nuevo.",
+    },
+    expired: {
+      eyebrow: "Invitación vencida",
+      lead: "Esta invitación",
+      em: "venció",
+      tail: ".",
+      body: "Los enlaces duran 7 días. Pedile a quien te invitó que te mande uno nuevo.",
+    },
+    notFound: {
+      eyebrow: "Invitación no encontrada",
+      lead: "No encontramos",
+      em: "esa invitación",
+      tail: ".",
+      body: "Puede que el enlace esté cortado o incompleto. Revisalo, o pedile a quien te invitó que te mande uno nuevo.",
+    },
+    actions: {
+      join: "Unirme a la lista",
+      joining: "Uniéndote…",
+      later: "Ahora no",
+      goToList: "Ir a la lista",
+      goToMyList: "Ir a mi lista",
+      retry: "Reintentar",
+      retryJoin: "Probar de nuevo",
+    },
+    joining: "Uniéndote a la lista…",
+    errors: {
+      invite_not_found: "Esa invitación ya no existe. Pedí un enlace nuevo.",
+      invite_already_used:
+        "Alguien acaba de usar esta invitación. Pedí un enlace nuevo.",
+      invite_expired: "La invitación venció. Pedí un enlace nuevo.",
+      not_authenticated:
+        "Se perdió tu sesión. Recargá la página y probá de nuevo.",
+      network: "No pudimos conectarnos. Revisá tu conexión y probá de nuevo.",
+      unknown: "Algo salió mal. Probá de nuevo en un rato.",
+    },
+  },
   moments: {
     cartEmptied: {
       eyebrow: "Compra terminada",
@@ -270,6 +403,7 @@ export const texts = {
       emptyBag: "Bolsa vacía · nada pendiente",
       cart: "Changuito · nada en el carro",
       fullBag: "Bolsa llena · compra terminada, con el único relleno en lima",
+      invitation: "Dos hojas · la misma lista, de dos personas",
       note: "Grilla de 120, trazo fijo de 1.5px, tinta secundaria en los estados vacíos y tinta inversa en los momentos editoriales.",
     },
     spacing: {
@@ -289,6 +423,10 @@ export const texts = {
       inverse: "Tinta · momentos editoriales",
       moment: "Momento editorial · entra escalonado · se usa pocas veces",
       sheet: "Hoja · la única sombra del sistema",
+      invitation:
+        "Invitación · el objeto de compartir: pistacho, línea de corte, enlace legible. Listo y preparando",
+      invitationList: "Mi lista",
+      invitationLink: "https://lista.app/invite/9f3k2m7x4c8d1b6a5e0h2j9q",
       sheetTitle: "Compartir lista",
       sheetBody: "Quien abra el enlace puede agregar y marcar ítems.",
     },

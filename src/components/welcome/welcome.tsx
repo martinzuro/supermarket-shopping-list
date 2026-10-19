@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle } from "@/components/ui/check-circle";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
 import { texts } from "@/lib/texts";
-import { WELCOME_PENDING_PROPERTY, WELCOME_SEEN_KEY } from "./welcome-flag";
+import {
+  markWelcomeSeen,
+  WELCOME_PENDING_PROPERTY,
+  WELCOME_SEEN_KEY,
+} from "./welcome-flag";
 
 const t = texts.welcome;
 
@@ -43,15 +47,6 @@ function readPending() {
 const noopSubscribe = () => () => {};
 const getServerPending = () => false;
 
-function markSeen() {
-  try {
-    localStorage.setItem(WELCOME_SEEN_KEY, String(Date.now()));
-  } catch {
-    // Sin almacenamiento la bienvenida se repetirá; no es grave.
-  }
-  document.documentElement.style.removeProperty(WELCOME_PENDING_PROPERTY);
-}
-
 /**
  * Pantalla de bienvenida del primer uso (ADR 0008, decisión 7): una sola
  * vez por dispositivo, sobre la superficie tinta, con el wordmark, un
@@ -75,7 +70,7 @@ export function Welcome() {
   const reduced = useReducedMotion();
 
   function finish() {
-    markSeen();
+    markWelcomeSeen();
     setDismissed(true);
     // El foco sigue a la lista: el campo de añadir ya es visible.
     document.getElementById(ADD_ITEM_INPUT_ID)?.focus({ preventScroll: true });
