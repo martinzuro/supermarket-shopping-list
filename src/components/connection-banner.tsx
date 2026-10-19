@@ -37,7 +37,7 @@ export function ConnectionBanner() {
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="touch"
               onClick={handleRetry}
               disabled={retrying}
             >
