@@ -1,11 +1,21 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { shouldRetryMutation } from "./errors";
+import { useQueryClient } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RequestError, shouldRetryMutation } from "./errors";
 import { queryKeys } from "./keys";
-import { useCurrentList } from "./lists";
+import {
+  currentListOf,
+  leftoversOf,
+  membershipMutationKeys,
+  readListsAfterRejection,
+  useCurrentList,
+  useMembershipNotice,
+  type List,
+} from "./lists";
 import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
 
 const USER = "00000000-0000-7000-8000-000000000001";
+const OTHER_USER = "00000000-0000-7000-8000-000000000009";
 
 const read = vi.fn<() => Promise<{ data: unknown; error: unknown }>>();
 const write =
@@ -16,26 +26,126 @@ vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({ from: () => lists.builder() }),
 }));
 
-describe("useCurrentList", () => {
-  beforeEach(() => {
-    read.mockReset();
-    write.mockReset();
-    lists.insert.mockClear();
+type ListRow = {
+  id: string;
+  name?: string;
+  created_by?: string;
+  created_at?: string;
+};
+
+/**
+ * A row as the lists query reads it: the user's membership with its list
+ * embedded, and the count of members.
+ */
+function membership(
+  list: ListRow,
+  {
+    role = "owner",
+    joined_at = "2026-10-17T00:00:00.000Z",
+    members = 1,
+  }: { role?: string; joined_at?: string; members?: number } = {},
+) {
+  return {
+    role,
+    joined_at,
+    list: {
+      name: "Mi lista",
+      created_by: USER,
+      created_at: joined_at,
+      updated_at: joined_at,
+      deleted_at: null,
+      ...list,
+      members: [{ count: members }],
+    },
+  };
+}
+
+function list(partial: Partial<List> & Pick<List, "id">): List {
+  return {
+    name: "Mi lista",
+    created_by: USER,
+    created_at: "2026-10-17T00:00:00.000Z",
+    updated_at: "2026-10-17T00:00:00.000Z",
+    deleted_at: null,
+    role: "owner",
+    joined_at: "2026-10-17T00:00:00.000Z",
+    member_count: 1,
+    ...partial,
+  };
+}
+
+beforeEach(() => {
+  read.mockReset();
+  write.mockReset();
+  lists.insert.mockClear();
+  window.localStorage.clear();
+});
+
+afterEach(() => {
+  window.localStorage.clear();
+});
+
+describe("currentListOf", () => {
+  it("is the list the user joined last", () => {
+    const own = list({ id: "own", joined_at: "2026-10-17T00:00:00.000Z" });
+    const shared = list({
+      id: "shared",
+      role: "member",
+      member_count: 2,
+      joined_at: "2026-10-19T00:00:00.000Z",
+    });
+    expect(currentListOf([own, shared])).toBe(shared);
+    expect(currentListOf([shared, own])).toBe(shared);
+    expect(currentListOf([])).toBeNull();
+    expect(currentListOf(undefined)).toBeNull();
   });
 
+  it("breaks a tie by id, which grows with time (UUID v7)", () => {
+    const at = "2026-10-19T00:00:00.000Z";
+    const a = list({ id: "0190-a", joined_at: at });
+    const b = list({ id: "0190-b", joined_at: at });
+    expect(currentListOf([b, a])).toBe(b);
+  });
+});
+
+describe("leftoversOf", () => {
+  const current = list({
+    id: "shared",
+    role: "member",
+    member_count: 2,
+    joined_at: "2026-10-19T00:00:00.000Z",
+  });
+
+  it("offers the user's own list nobody else is in, and lists of others", () => {
+    const own = list({ id: "own" });
+    const other = list({ id: "other", role: "member", member_count: 3 });
+    expect(leftoversOf([own, other, current], current)).toEqual([own, other]);
+  });
+
+  it("never a list of their own that others still use", () => {
+    const sharedOwn = list({ id: "mine", member_count: 2 });
+    expect(leftoversOf([sharedOwn, current], current)).toEqual([]);
+  });
+
+  it("nothing without a current list", () => {
+    expect(leftoversOf([current], null)).toEqual([]);
+  });
+});
+
+describe("useCurrentList", () => {
   it("creates exactly one list for a user without lists", async () => {
     // The fake table remembers what was inserted, like the real one.
-    const rows: unknown[] = [];
+    const rows: ReturnType<typeof membership>[] = [];
     read.mockImplementation(async () => ({ data: [...rows], error: null }));
     write.mockImplementation(async (row) => {
       const created = {
-        ...(row as object),
+        ...(row as { id: string; name: string }),
         created_by: USER,
         created_at: "2026-10-17T00:00:00.000Z",
         updated_at: "2026-10-17T00:00:00.000Z",
         deleted_at: null,
       };
-      rows.push(created);
+      rows.push(membership(created));
       return { data: created, error: null };
     });
 
@@ -45,6 +155,10 @@ describe("useCurrentList", () => {
 
     await waitFor(() => expect(result.current.list).not.toBeNull());
     expect(result.current.list?.name).toBe("Mi lista");
+    expect(result.current.list).toMatchObject({
+      role: "owner",
+      member_count: 1,
+    });
     expect(lists.insert).toHaveBeenCalledTimes(1);
     expect(lists.insert.mock.calls[0][0]).toMatchObject({ name: "Mi lista" });
 
@@ -55,14 +169,41 @@ describe("useCurrentList", () => {
 
   it("returns the existing list without creating one", async () => {
     read.mockResolvedValue({
-      data: [{ id: "l1", name: "Casa", created_by: USER }],
+      data: [membership({ id: "l1", name: "Casa" })],
       error: null,
     });
     const { result } = renderHook(() => useCurrentList(USER), {
       wrapper: makeWrapper(makeTestQueryClient()),
     });
     await waitFor(() => expect(result.current.list?.id).toBe("l1"));
+    expect(result.current.list).toMatchObject({
+      name: "Casa",
+      role: "owner",
+      joined_at: "2026-10-17T00:00:00.000Z",
+      member_count: 1,
+    });
     expect(lists.insert).not.toHaveBeenCalled();
+  });
+
+  it("shows the shared list the user joined last", async () => {
+    read.mockResolvedValue({
+      data: [
+        membership({ id: "own" }),
+        membership(
+          { id: "shared", created_by: OTHER_USER },
+          { role: "member", joined_at: "2026-10-19T00:00:00.000Z", members: 2 },
+        ),
+      ],
+      error: null,
+    });
+    const { result } = renderHook(() => useCurrentList(USER), {
+      wrapper: makeWrapper(makeTestQueryClient()),
+    });
+    await waitFor(() => expect(result.current.list?.id).toBe("shared"));
+    expect(result.current.list).toMatchObject({
+      role: "member",
+      member_count: 2,
+    });
   });
 
   it("does nothing without a user", () => {
@@ -116,14 +257,19 @@ describe("useCurrentList", () => {
         data: { ...(row as object), created_by: USER, deleted_at: null },
         error: null,
       }));
-    const { result } = renderHook(() => useCurrentList(USER), {
-      wrapper: makeWrapper(makeTestQueryClient()),
-    });
-    await waitFor(() => expect(result.current.error).not.toBeNull());
-    expect(result.current.list).toBeNull();
+    const queryClient = makeTestQueryClient();
+    const { result } = renderHook(
+      () => ({ current: useCurrentList(USER), notice: useMembershipNotice() }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+    await waitFor(() => expect(result.current.current.error).not.toBeNull());
+    expect(result.current.current.list).toBeNull();
+    // The optimistic list came and went: it was never lost.
+    expect(result.current.notice.notice).toBeNull();
+    expect(lists.insert).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      await result.current.retry();
+      await result.current.current.retry();
     });
     await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(2));
   });
@@ -154,7 +300,7 @@ describe("useCurrentList", () => {
   });
 
   it("recovers a creation whose retry finds it already saved", async () => {
-    let saved: unknown = null;
+    let saved: { id: string } | null = null;
     let answerRetry!: () => void;
     // The fake table cannot tell `.single()` apart: right after the
     // duplicate key comes the read by id (one row), then list queries.
@@ -164,12 +310,16 @@ describe("useCurrentList", () => {
         readById = false;
         return { data: saved, error: null };
       }
-      return { data: saved ? [saved] : [], error: null };
+      return { data: saved ? [membership(saved)] : [], error: null };
     });
     write
       .mockImplementationOnce(async (row) => {
         // Saved on the server, but the answer is lost.
-        saved = { ...(row as object), created_by: USER, deleted_at: null };
+        saved = {
+          ...(row as { id: string }),
+          created_by: USER,
+          deleted_at: null,
+        } as { id: string };
         return {
           data: null,
           error: { message: "TypeError: Failed to fetch", code: "" },
@@ -211,5 +361,195 @@ describe("useCurrentList", () => {
         queryClient.getQueryData(queryKeys.categories(USER, id)),
       ).toBeUndefined(),
     );
+  });
+});
+
+describe("losing the list on screen", () => {
+  function useScreen() {
+    return {
+      current: useCurrentList(USER),
+      notice: useMembershipNotice(),
+      queryClient: useQueryClient(),
+    };
+  }
+
+  /** The user is in a shared list only (their own was merged away). */
+  async function renderShared() {
+    let rows: unknown[] = [
+      membership(
+        { id: "shared", created_by: OTHER_USER },
+        { role: "member", members: 2 },
+      ),
+    ];
+    read.mockImplementation(async () => ({ data: rows, error: null }));
+    // The server remembers a list created meanwhile.
+    write.mockImplementation(async (row) => {
+      const created = {
+        ...(row as { id: string }),
+        created_by: USER,
+        deleted_at: null,
+      };
+      rows = [
+        ...rows,
+        membership(created, { joined_at: "2026-10-20T00:00:00.000Z" }),
+      ];
+      return { data: created, error: null };
+    });
+    const queryClient = makeTestQueryClient();
+    const hook = renderHook(useScreen, { wrapper: makeWrapper(queryClient) });
+    await waitFor(() =>
+      expect(hook.result.current.current.list?.id).toBe("shared"),
+    );
+    queryClient.setQueryData(queryKeys.items(USER, "shared"), []);
+    return {
+      ...hook,
+      queryClient,
+      setServer: (next: unknown[]) => {
+        rows = next;
+      },
+    };
+  }
+
+  it("tells the user, forgets the list, and gives them a list of their own", async () => {
+    const { result, queryClient, setServer } = await renderShared();
+    setServer([]);
+    await act(() =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.lists(USER) }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.notice.notice).toMatchObject({
+        kind: "removed",
+        listId: "shared",
+      }),
+    );
+    expect(
+      queryClient.getQueryData(queryKeys.items(USER, "shared")),
+    ).toBeUndefined();
+    await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(1));
+    const { id } = lists.insert.mock.calls[0][0] as { id: string };
+    await waitFor(() => expect(result.current.current.list?.id).toBe(id));
+    // A list of their own, not the one they lost: nothing more to tell.
+    await waitFor(() => expect(result.current.current.isPending).toBe(false));
+    expect(lists.insert).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.notice.dismiss());
+    expect(result.current.notice.notice).toBeNull();
+  });
+
+  it("says the user left when it was them, and waits to create a list", async () => {
+    const { result, queryClient } = await renderShared();
+    // A leave in flight, as useLeaveList leaves it: the list out of the
+    // cache and the mutation pending.
+    let finish!: () => void;
+    act(() => {
+      void queryClient
+        .getMutationCache()
+        .build(queryClient, {
+          mutationKey: membershipMutationKeys.leave(USER, "shared"),
+          mutationFn: () =>
+            new Promise<void>((resolve) => {
+              finish = resolve;
+            }),
+        })
+        .execute(undefined);
+      queryClient.setQueryData<List[]>(queryKeys.lists(USER), []);
+    });
+
+    await waitFor(() =>
+      expect(result.current.notice.notice).toMatchObject({ kind: "left" }),
+    );
+    // While leaving, no new list: a rollback would bring the old one back.
+    expect(lists.insert).not.toHaveBeenCalled();
+
+    await act(async () => finish());
+    await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(1));
+  });
+
+  it("tells a list lost while the app was closed", async () => {
+    window.localStorage.setItem(`lista:last-list:${USER}`, "gone");
+    read.mockResolvedValue({ data: [membership({ id: "own" })], error: null });
+    const { result } = renderHook(useScreen, {
+      wrapper: makeWrapper(makeTestQueryClient()),
+    });
+    await waitFor(() =>
+      expect(result.current.notice.notice).toMatchObject({
+        kind: "removed",
+        listId: "gone",
+      }),
+    );
+    expect(window.localStorage.getItem(`lista:last-list:${USER}`)).toBe("own");
+  });
+
+  it("does not take the lists of another user for a loss", async () => {
+    window.localStorage.setItem(`lista:last-list:${OTHER_USER}`, "theirs");
+    read.mockResolvedValue({ data: [membership({ id: "own" })], error: null });
+    const { result } = renderHook(useScreen, {
+      wrapper: makeWrapper(makeTestQueryClient()),
+    });
+    await waitFor(() => expect(result.current.current.list?.id).toBe("own"));
+    expect(result.current.notice.notice).toBeNull();
+  });
+
+  it("stays quiet when a list that was not on screen goes", async () => {
+    const own = membership({ id: "own" });
+    const shared = membership(
+      { id: "shared", created_by: OTHER_USER },
+      { role: "member", joined_at: "2026-10-19T00:00:00.000Z", members: 2 },
+    );
+    let rows: unknown[] = [own, shared];
+    read.mockImplementation(async () => ({ data: rows, error: null }));
+    const queryClient = makeTestQueryClient();
+    const { result } = renderHook(useScreen, {
+      wrapper: makeWrapper(queryClient),
+    });
+    await waitFor(() => expect(result.current.current.list?.id).toBe("shared"));
+    rows = [shared];
+    await act(() =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.lists(USER) }),
+    );
+    expect(result.current.notice.notice).toBeNull();
+    expect(result.current.current.list?.id).toBe("shared");
+  });
+});
+
+describe("readListsAfterRejection", () => {
+  it("reads the user's lists again after a refusal that may mean lost access", () => {
+    const queryClient = makeTestQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const key = [...queryKeys.items(USER, "l1"), "add"];
+
+    readListsAfterRejection(
+      queryClient,
+      key,
+      new RequestError({ message: "row-level security", code: "42501" }, 403),
+    );
+    readListsAfterRejection(
+      queryClient,
+      key,
+      new RequestError({ message: "no rows", code: "PGRST116" }, 406),
+    );
+    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: queryKeys.lists(USER),
+    });
+
+    invalidate.mockClear();
+    readListsAfterRejection(
+      queryClient,
+      key,
+      new RequestError({ message: "bad gateway" }, 502),
+    );
+    readListsAfterRejection(
+      queryClient,
+      key,
+      new RequestError({ message: "check", code: "23514" }, 400),
+    );
+    readListsAfterRejection(
+      queryClient,
+      ["other"],
+      new RequestError({ message: "x", code: "42501" }, 403),
+    );
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

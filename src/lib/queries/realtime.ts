@@ -17,11 +17,23 @@ import {
   type RemoteItemOutcome,
 } from "./items";
 import { queryKeys } from "./keys";
+import { dropList } from "./lists";
+import { noteMemberGone, type Member } from "./members";
 
 /**
  * Keeps the cache of the user's current list in step with what the other
- * members do (plan 2.3, phase 2b): one Realtime channel per list, with the
- * changes to its items and categories. Mount it once, on the list screen.
+ * members do (plan 2.3, phases 2b and 2c): one Realtime channel per list,
+ * with the changes to its items, categories and members. Mount it once, on
+ * the list screen.
+ *
+ * Membership (phase 2c): someone joining or leaving updates the members and
+ * the lists. The user's own row going away means they lost the list (an
+ * owner took them out, or they left from another device): the channel
+ * closes at once and the list leaves the cache, and useCurrentList tells
+ * them. Realtime checks RLS for inserts and updates but not for deletes,
+ * which is what lets that event reach someone no longer in the list, and
+ * also why the channel cannot stay open: it would keep hearing the ids of
+ * items deleted for good.
  */
 export function useListRealtime(userId: string | null, listId: string | null) {
   const queryClient = useQueryClient();
@@ -54,9 +66,12 @@ function openListChannel(
   let channel: RealtimeChannel | null = null;
   let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // The user is out of the list: whatever still comes is not for them.
+  let lost = false;
   const filter = `list_id=eq.${listId}`;
 
   function handleItem(payload: RealtimePostgresChangesPayload<Item>) {
+    if (lost) return;
     let change: RemoteItemChange;
     if (payload.eventType === "DELETE") {
       if (!payload.old.id) return;
@@ -77,11 +92,54 @@ function openListChannel(
     announce(announcementsOf(queryClient, userId, listId), told);
   }
 
+  function handleMember(
+    payload: RealtimePostgresChangesPayload<{ user_id: string }>,
+  ) {
+    if (lost) return;
+    if (payload.eventType === "DELETE") {
+      const gone = payload.old.user_id;
+      if (gone === userId) {
+        lose();
+        return;
+      }
+      if (gone) {
+        noteMemberGone(queryClient, listId, gone);
+        queryClient.setQueryData<Member[]>(
+          queryKeys.members(userId, listId),
+          (members) => members?.filter((member) => member.user_id !== gone),
+        );
+      }
+    }
+    // A newcomer's email comes with the members' read, and the count of
+    // members with the lists'.
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.members(userId, listId),
+    });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.lists(userId) });
+  }
+
+  /** Out of the list: stop listening now, before React moves on. */
+  function lose() {
+    lost = true;
+    clearTimeout(timer);
+    const current = channel;
+    channel = null;
+    if (current) void supabase.removeChannel(current);
+    silence(announcementsOf(queryClient, userId, listId));
+    dropList(queryClient, userId, listId);
+  }
+
   /**
    * The channel joined, or joined again after a lost connection: whatever
-   * changed while it was not listening came with no event. Read it again.
+   * changed while it was not listening came with no event. Read it again,
+   * the user's lists too: if they were taken out of this one meanwhile, that
+   * is how the app finds out (useCurrentList).
    */
   function recover() {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.lists(userId) });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.members(userId, listId),
+    });
     readItemsAgain(queryClient, userId, listId);
     void queryClient.invalidateQueries({
       queryKey: queryKeys.categories(userId, listId),
@@ -100,7 +158,7 @@ function openListChannel(
     } catch {
       // The join goes with the last token known; a refused join is retried.
     }
-    if (disposed) return;
+    if (disposed || lost) return;
     const current = supabase
       .channel(`list:${listId}:${++openings}`, {
         // SUBSCRIBED only once the changes are flowing, so the read in
@@ -115,14 +173,21 @@ function openListChannel(
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "categories", filter },
-        () =>
+        () => {
+          if (lost) return;
           void queryClient.invalidateQueries({
             queryKey: queryKeys.categories(userId, listId),
-          }),
+          });
+        },
+      )
+      .on<{ user_id: string }>(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "list_members", filter },
+        handleMember,
       );
     channel = current;
     current.subscribe((status) => {
-      if (disposed || channel !== current) return;
+      if (disposed || lost || channel !== current) return;
       if (status === "SUBSCRIBED") {
         failures = 0;
         recover();

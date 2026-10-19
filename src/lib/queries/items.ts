@@ -252,7 +252,7 @@ function isOwnVersion(queryClient: QueryClient, listId: string, row: Item) {
  * flight reaches the server after the row exists, and two quick toggles of
  * the same row cannot land the wrong way round.
  */
-function listScope(listId: string) {
+export function listScope(listId: string) {
   return { id: `items:${listId}` };
 }
 
@@ -283,7 +283,7 @@ function isLastWriteTo(queryClient: QueryClient, listId: string, id: string) {
  * each one would bring back the server state without the optimistic changes
  * still pending, and those rows would flicker.
  */
-function settle(queryClient: QueryClient, key: readonly unknown[]) {
+export function settle(queryClient: QueryClient, key: readonly unknown[]) {
   if (queryClient.isMutating({ mutationKey: key }) > 1) return;
   // The catalog changes with adds and renames (database triggers); the next
   // add reads it to pick the category.
@@ -307,6 +307,11 @@ export const itemMutationKeys = {
     [...queryKeys.items(userId, listId), "remove"] as const,
   emptyCart: (userId: string, listId: string) =>
     [...queryKeys.items(userId, listId), "empty-cart"] as const,
+  /** Items brought from another list (merge.ts). */
+  merge: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "merge"] as const,
+  carryOver: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "carry-over"] as const,
 };
 
 /**
@@ -643,6 +648,35 @@ export function useEmptyCart(userId: string, listId: string) {
     },
     onSettled: () => settle(queryClient, key),
   });
+}
+
+/**
+ * Rows a write of the user's own created on the server (a merge, a carry
+ * over): into the cache in the server's order, remembered as our own so
+ * their Realtime echoes never pulse. A row the cache has already (a later
+ * read) is replaced. Nothing is written before the first load: settle
+ * reads the list after the write.
+ */
+export function receiveOwnRows(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+  rows: readonly Item[],
+) {
+  rememberOwn(queryClient, listId, rows);
+  const key = queryKeys.items(userId, listId);
+  if (queryClient.getQueryData(key) === undefined) return;
+  setItems(queryClient, key, (items) =>
+    rows.reduce((next, row) => {
+      if (next.some((item) => item.id === row.id)) {
+        return next.map((item) => (item.id === row.id ? row : item));
+      }
+      const at = next.findIndex((item) => compareServerOrder(row, item) < 0);
+      return at === -1
+        ? [...next, row]
+        : [...next.slice(0, at), row, ...next.slice(at)];
+    }, items),
+  );
 }
 
 /**
