@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { texts } from "@/lib/texts";
 
-const INPUT_ID = "add-item-name";
+/** Id del campo de añadir; la bienvenida le pasa el foco al terminar. */
+export const ADD_ITEM_INPUT_ID = "add-item-name";
+const INPUT_ID = ADD_ITEM_INPUT_ID;
 
 /*
  * Alto del teclado virtual en iOS, donde el teclado no achica el layout

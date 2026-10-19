@@ -41,13 +41,14 @@ alias de shadcn (solo para código heredado; no usar en código nuevo).
 | `--paper-2` (`bg-paper-2`) | `#dce9c8` | `#1f2b22` | Pistacho: carro, hojas, agrupaciones, botón secundario |
 | `--ink` (`text-ink`) | `#1b2a1f` | `#eeebe2` | Texto principal |
 | `--ink-2` (`text-ink-2`) | `#56655a` | `#9ba69c` | Metadatos, eyebrows, cuerpo secundario, borde de campo |
-| `--ink-3` (`text-ink-3`) | `#7f8c82` | `#6b776e` | Solo decorativo o deshabilitado (3:1) |
+| `--ink-3` (`text-ink-3`) | `#76837a` | `#6b776e` | Solo decorativo o deshabilitado (3:1 sobre papel y pistacho) |
 | `--forest` | `#2f4a3a` | `#8fb89b` | Marca, foco en claro, hover de la acción primaria |
 | `--lime` | `#c9f04a` | `#c9f04a` | Acción primaria y estado "hecho". Nunca como fondo de texto claro |
 | `--on-lime` | `#1b2a1f` | `#1b2a1f` | El único texto permitido sobre lima |
 | `--citrus` / `--citrus-text` | `#f26b1d` / `#b8480a` | `#ff8a47` / `#ff9a62` | Atención, cambios de otros. El `-text` es el que cumple 4.5:1 |
 | `--tomato` / `--tomato-text` | `#d9432b` / `#b5341f` | `#f06a52` / `#f57f6a` | Único rojo. Igual: `-text` para texto |
-| `--inverse-bg` / `--inverse-fg` / `--inverse-fg-2` | tinta / marfil | marfil / tinta | Superficie inversa de los momentos editoriales |
+| `--inverse-bg` / `--inverse-fg` / `--inverse-fg-2` | `#1b2a1f` / `#eeebe2` / `#afb8b0` | iguales | Superficie inversa (bienvenida, momentos): tinta verde en los dos modos, así la lima siempre va sobre tinta |
+| `--focus-inverse` | `#c9f04a` | igual | Anillo de foco dentro de la superficie inversa; lo aplica la utilidad `surface-inverse` |
 
 ### Roles derivados
 
@@ -57,11 +58,12 @@ alias de shadcn (solo para código heredado; no usar en código nuevo).
 | `--rule-strong` | tinta al 24% | Reglas que deben verse más |
 | `--paper-hover` / `--paper-pressed` | tinta al 6% / 10% sobre papel | Hover y pressed de superficies |
 | `--field-border` | `--ink-2` | Borde de campos (3:1 garantizado) |
-| `--action-bg` / `--action-fg` | tinta / lima en claro, lima / tinta en oscuro | Botón primario |
+| `--action-bg` / `--action-fg` | tinta / lima en claro, lima / tinta en oscuro | Botón primario y el disco de "hecho" (`CheckCircle`) |
 | `--focus` | bosque en claro, lima en oscuro | Anillo de foco global (`:focus-visible`, 2px, offset 2px) |
 | `--remote-pulse` | cítrico al 22% | Pulso de una fila que cambió otro miembro |
 | `--attention-bg` / `--danger-bg` | cítrico / tomate al 10% sobre papel | Fondos de aviso. El texto va en tinta; el color en icono e hilo |
-| `--scrim` | `rgb(27 42 31 / 0.4)` | Velo detrás de hojas, oscuro en ambos modos |
+| `--scrim` | tinta al 40% en claro, negro al 60% en oscuro | Velo detrás de hojas |
+| `--shadow-sheet` | tinta al 22% en claro, negro al 60% en oscuro | La única sombra, definida por modo para que en oscuro no sea un halo claro |
 | `--cat-<id>` / `--cat-<id>-thread` | oklch, ver abajo | Etiqueta e hilo de cada categoría |
 
 ### Categorías
@@ -122,8 +124,10 @@ usa `<em>`.
   para campos y chips, `rounded-sheet` (12px) para hojas y
   tarjetas-objeto, `rounded-full` para acciones. Nada intermedio: las
   clases `rounded-sm` a `rounded-4xl` colapsan en esos valores.
-- Superficies: papel (base), pistacho (`bg-paper-2`), tinta inversa
-  (`bg-inverse-bg text-inverse-fg`). Sin más niveles.
+- Superficies: papel (base), pistacho (`bg-paper-2`, carro, agrupaciones,
+  botón secundario), tinta inversa con la utilidad `surface-inverse`, que
+  además cambia el color de foco a lima. Las hojas van sobre papel y se
+  distinguen por la sombra y el velo, no por el color. Sin más niveles.
 - Sombra: solo `shadow-sheet`, para hojas y diálogos que flotan de verdad.
   Nada más tiene sombra.
 
@@ -138,16 +142,17 @@ Tokens en `globals.css` (`--motion-*`) y espejados en
 | `--motion-ease-in-out` (`ease-in-out`, `ease-cinematic`) | `cubic-bezier(0.65, 0.05, 0, 1)` | Movimientos largos |
 | `duration-instant` / `fast` / `base` / `slow` / `cinematic` | 120 / 200 / 320 / 600 / 900 ms | Pressed y foco / hover / marcar y hojas / vistas / momentos |
 | `--motion-stagger` | 35 ms | Entre elementos de una lista que entra |
-| `--motion-shift` | 8px, 0 con movimiento reducido | Desplazamiento de las entradas |
+| `--motion-shift` | 8px | Desplazamiento de las entradas |
 
 Primitivas en `src/components/motion` (Motion for React, ADR 0009):
 
 - `MotionProvider` en el layout raíz: `reducedMotion="user"` y transición
-  base. Con movimiento reducido desaparecen desplazamientos y cambios de
-  altura; quedan los fundidos.
-- `Enter` (entrada suelta, `delay` opcional), `Stagger` + `StaggerItem`
-  (listas coreografiadas), `Collapse` (bloques que aparecen y desaparecen,
-  como el banner de conexión).
+  base. Con movimiento reducido las primitivas quitan desplazamientos,
+  retrasos, escalonado y cambios de altura; quedan los fundidos. Esto se
+  resuelve en JavaScript (`useReducedMotion`), no en CSS.
+- `Enter` (entrada suelta, `delay` opcional), `Stagger` (con
+  `delayChildren`) + `StaggerItem` (listas coreografiadas), `Collapse`
+  (bloques que aparecen y desaparecen, como el banner de conexión).
 - Transiciones y variantes reutilizables: `transitions`, `enterVariants`.
 
 Reglas: solo `transform` y `opacity` en interacciones frecuentes; las
@@ -167,8 +172,8 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | `Button` | Toda acción | Píldora. Variantes `default` (lima sobre tinta), `secondary` (pistacho), `outline`, `ghost`, `danger`, `link`. Tamaños `sm`, `touch` (por defecto), `touch-lg`, `icon-touch`, `icon-touch-lg`. `asChild` para enlaces |
 | `Input` + `Field` | Campos de texto | `Field` pone etiqueta visible, ayuda o error (con `role="alert"`) y le pasa a `Input` id, `aria-describedby` y `aria-invalid` por contexto |
 | `Eyebrow` | Metadatos en mayúsculas | `tone="ink"` cuando es título; `as` para la etiqueta |
-| `Chip` / `CategoryChip` | Etiquetas cortas / categoría con tinte e icono | `CategoryChip interactive` es un botón con `aria-pressed` para el selector; `hideIcon` quita el icono |
-| `CheckCircle` | Marca visual de "hecho" | Solo presentación; el control accesible lo pone `ListRow` |
+| `Chip` / `CategoryChip` | Etiquetas cortas / categoría con tinte e icono | `CategoryChip interactive` es un botón con `aria-pressed` y un área táctil de 44px alrededor de sus 28px visibles; `hideIcon` quita el icono |
+| `CheckCircle` | Marca visual de "hecho" | Disco con el par de acción: tinta con check lima en claro, lima con check tinta en oscuro. Solo presentación; el control accesible lo pone `ListRow` |
 | `ListRow` | Fila de la lista | 56px, checkbox accesible de 44px, tachado animado, `note`, `quantity` en mono, `highlighted` para el pulso remoto, `onPress` para editar |
 | `Section` + `SectionEmpty` | Agrupación | `thread` pone el hilo de categoría, `icon` el icono junto al título, `count` en mono |
 | `EmptyState` | Estado vacío de una sección | Ilustración en tinta 2 a la izquierda, texto a la derecha. Es una invitación a actuar |
@@ -205,7 +210,10 @@ interfaz: todo texto viene de `src/lib/texts.ts`.
 hidratar y la lista queda con `visibility: hidden` (atributo
 `data-welcome-hide`) hasta que la bienvenida termina; `<html>` lleva
 `suppressHydrationWarning` por ese estilo inline. Termina sola a los 2,6 s
-o con un toque, Enter o Escape.
+o con un toque, Enter o Escape; cualquier tecla o foco dentro cancela el
+reloj, y con movimiento reducido no hay cierre automático. Al terminar el
+foco pasa al campo de añadir. Si la bienvenida no llega a montarse, la
+lista reaparece sola a los 6 s por una animación CSS de respaldo.
 
 Los e2e arrancan como un dispositivo que ya la vio (`storageState` en
 `playwright.config.ts`); `e2e/welcome.spec.ts` y el test de movimiento
@@ -215,7 +223,8 @@ reducido de `visual.spec.ts` lo desactivan.
 
 - Contraste AA garantizado por test para cada par de tokens.
 - Objetivos táctiles de 44px como mínimo; 52px para la acción principal.
-- Foco visible global con `:focus-visible` en el color de foco del modo.
+- Foco visible global con `:focus-visible` en el color de foco del modo,
+  y lima dentro de la superficie inversa (`surface-inverse`).
 - `prefers-reduced-motion` respetado por `MotionProvider` y por los
   tokens (`--motion-shift` y `--motion-stagger` a 0).
 - Etiquetas visibles en los campos, errores asociados por
@@ -232,9 +241,14 @@ reducido de `visual.spec.ts` lo desactivan.
   con movimiento reducido, y comprueba invariantes deterministas (fondo
   igual al token papel, `color-scheme` correcto, sin desbordamiento
   horizontal a 375px, hoja sobre papel, filas sin translate con movimiento
-  reducido). No compara píxeles: las fuentes se rasterizan distinto en
+  reducido), familia, tamaño y peso computados en wordmark, botón y
+  encabezado, la media query real del modo y 44px mínimos en todo control
+  de la lista. No compara píxeles: las fuentes se rasterizan distinto en
   cada sistema. Las capturas quedan en `test-results/` y suben como
   artefacto en CI.
+- `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
+  tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
+  configuración borra `text-label` cuando sigue un `text-ink`.
 - Verificación manual obligatoria antes de cada PR visual: renderizado a
   375px en claro y oscuro (y la coreografía si hay motion).
 

@@ -98,10 +98,7 @@ export function ListRow({
       {quantity ? (
         <span
           data-numeric
-          className={cn(
-            "text-label shrink-0 pl-3 font-mono",
-            checked ? "text-ink-3" : "text-ink-2",
-          )}
+          className={cn("text-label shrink-0 pl-3 font-mono", "text-ink-2")}
         >
           {quantity}
         </span>

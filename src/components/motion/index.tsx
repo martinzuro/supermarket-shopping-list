@@ -43,13 +43,20 @@ export const enterVariants: Variants = {
   exit: { opacity: 0, y: t.shift },
 };
 
-const staggerVariants: Variants = {
-  hidden: {},
-  show: { transition: { staggerChildren: t.stagger } },
-  exit: {
-    transition: { staggerChildren: t.stagger / 2, staggerDirection: -1 },
-  },
-};
+/**
+ * Variantes del contenedor escalonado. Se construyen por instancia porque
+ * Motion toma la transición de la variante y descarta la del prop, y con
+ * movimiento reducido el escalonado y el retraso inicial son 0.
+ */
+function staggerVariants(stagger: number, delay: number): Variants {
+  return {
+    hidden: {},
+    show: { transition: { staggerChildren: stagger, delayChildren: delay } },
+    exit: {
+      transition: { staggerChildren: stagger / 2, staggerDirection: -1 },
+    },
+  };
+}
 
 const tags = {
   div: motion.div,
@@ -81,26 +88,48 @@ export function Enter({
   ...props
 }: EnterProps) {
   const Tag = tags[as] as typeof motion.div;
+  // Con movimiento reducido la coreografía se aplana: todo funde a la vez.
+  const reduced = useReducedMotion();
   return (
     <Tag
       variants={enterVariants}
       initial="hidden"
       animate="show"
       exit="exit"
-      transition={{ ...transitions.base, delay, ...transition }}
+      transition={{
+        ...transitions.base,
+        delay: reduced ? 0 : delay,
+        ...transition,
+      }}
       {...props}
     />
   );
 }
 
-type StaggerProps = Omit<HTMLMotionProps<"ul">, "variants"> & { as?: Tag };
+type StaggerProps = Omit<HTMLMotionProps<"ul">, "variants"> & {
+  as?: Tag;
+  /** Retraso en segundos antes del primer hijo. */
+  delayChildren?: number;
+};
 
-/** Contenedor cuyos <StaggerItem> entran escalonados con el token de stagger. */
-export function Stagger({ as = "ul", ...props }: StaggerProps) {
+/**
+ * Contenedor cuyos <StaggerItem> entran escalonados con el token de
+ * stagger. Con movimiento reducido entran todos a la vez y sin retraso.
+ */
+export function Stagger({
+  as = "ul",
+  delayChildren = 0,
+  ...props
+}: StaggerProps) {
   const Tag = tags[as] as typeof motion.ul;
+  const reduced = useReducedMotion();
+  const variants = React.useMemo(
+    () => staggerVariants(reduced ? 0 : t.stagger, reduced ? 0 : delayChildren),
+    [reduced, delayChildren],
+  );
   return (
     <Tag
-      variants={staggerVariants}
+      variants={variants}
       initial="hidden"
       animate="show"
       exit="exit"

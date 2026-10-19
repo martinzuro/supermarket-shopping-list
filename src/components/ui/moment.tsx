@@ -34,7 +34,7 @@ export function Moment({
       as="section"
       data-slot="moment"
       className={cn(
-        "bg-inverse-bg text-inverse-fg rounded-sheet px-6 py-10 md:px-10 md:py-14",
+        "surface-inverse rounded-sheet px-6 py-10 md:px-10 md:py-14",
         className,
       )}
     >

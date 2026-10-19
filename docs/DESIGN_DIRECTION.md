@@ -115,10 +115,11 @@ no sirve sobre lima.
 | Papel (fondo) | `#F6F3EC` | `#121814` | Crema cálido, nunca blanco puro ni negro puro |
 | Tinta (texto principal) | `#1B2A1F` | `#EEEBE2` | Verde casi negro, da calidez sin leerse como "verde" |
 | Tinta secundaria | `#56655A` | `#9BA69C` | Metadatos, eyebrows, borde de campo |
+| Superficie inversa | `#1B2A1F` sobre marfil `#EEEBE2` | igual | Bienvenida y momentos editoriales: tinta verde en los dos modos, con foco lima |
 | Regla (bordes) | tinta al 12% | tinta al 12% | Líneas de 1px, el separador por defecto |
-| Pistacho (superficie 2) | `#DCE9C8` | `#1F2B22` | Carro, hojas, agrupaciones, botón secundario |
+| Pistacho (superficie 2) | `#DCE9C8` | `#1F2B22` | Carro, agrupaciones, botón secundario. Las hojas van sobre papel con la sombra |
 | Verde bosque (marca) | `#2F4A3A` | `#8FB89B` | Marca, foco en claro |
-| Lima (acento activo) | `#C9F04A` | `#C9F04A` | Acción primaria y "hecho". Texto sobre lima: siempre `on-lime` |
+| Lima (acento activo) | `#C9F04A` | `#C9F04A` | Acción primaria y "hecho". Texto sobre lima: siempre `on-lime`. Sobre papel claro no se usa como relleno: el disco de "hecho" es tinta con check lima |
 | Naranja cítrico (acento 2) | `#F26B1D` | `#FF8A47` | Atención, cambios de otros. Para texto, `citrus-text` |
 | Tomate (error) | `#D9432B` | `#F06A52` | Único rojo. Para texto, `tomato-text` |
 
