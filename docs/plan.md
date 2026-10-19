@@ -416,9 +416,10 @@ escritura (ver 2.3). Los e2e con Supabase local (`E2E_SUPABASE=1`) cubren
 cada flujo, incluido el criterio de salida de la 2a en
 `e2e/phase-2a.spec.ts`. Cambio de alcance, a pedido del usuario: la
 "agrupación y asignación automática desde el catálogo", que estaba en la
-Fase 3, se adelantó a la 2a. Pendiente: ningún e2e que usa Supabase corre en
-CI (no hay Supabase allí), solo en local; el selector manual de categoría
-sigue en la Fase 3.
+Fase 3, se adelantó a la 2a. Desde el 2026-10-19 esos e2e también corren en
+CI: el job "E2E" levanta el stack local con `npx supabase start` (sin los
+servicios que los tests no usan) y compila contra sus claves. El selector
+manual de categoría sigue en la Fase 3.
 
 **2b. Tiempo real (0,5 a 1 día).** Canal Realtime por lista,
 invalidación o parche de caché al recibir cambios. Test e2e con dos

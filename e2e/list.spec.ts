@@ -309,7 +309,7 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-// CI has no Supabase: these run only against the local stack.
+// These need the local stack: `npm run db:start` locally; the CI E2E job starts it.
 test.describe("list with the local Supabase stack", () => {
   test.skip(
     process.env.E2E_SUPABASE !== "1",

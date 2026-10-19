@@ -59,7 +59,7 @@ test("without Supabase the shell renders with the offline banner", async ({
   expect(errors).toEqual([]);
 });
 
-// CI has no Supabase: these run only against the local stack.
+// These need the local stack: `npm run db:start` locally; the CI E2E job starts it.
 test.describe("with the local Supabase stack", () => {
   test.skip(
     process.env.E2E_SUPABASE !== "1",

@@ -23,6 +23,19 @@ function rgb(hex: string) {
   return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
 }
 
+/**
+ * Supabase Auth inalcanzable para la página. page.route no ve los pedidos de
+ * un service worker: la página corre como en un navegador sin ellos.
+ */
+async function cutSupabase(page: Page) {
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(Navigator.prototype, "serviceWorker");
+  });
+  await page.route("**/auth/v1/**", (route) =>
+    route.abort("internetdisconnected"),
+  );
+}
+
 async function settle(page: Page) {
   await page.evaluate(() => document.fonts.ready);
   // Entradas coreografiadas: la más larga (bienvenida) dura menos de 2 s.
@@ -151,6 +164,20 @@ for (const mode of modes) {
       await settle(page);
       await expectTypographyRoles(page);
       await expectTouchTargets(page);
+    });
+
+    // Con Supabase (local y CI) la lista carga; sin conexión queda el
+    // aviso. Se corta Auth para cubrir también esa pantalla.
+    test(`lista offline: banner on paper and touch targets`, async ({
+      page,
+    }, testInfo) => {
+      await cutSupabase(page);
+      await page.goto("/");
+      await expect(page.getByTestId("connection-banner")).toBeVisible();
+      await settle(page);
+      await expectSystemInvariants(page, mode);
+      await expectTouchTargets(page);
+      await capture(page, testInfo, `lista-offline-${mode}`);
     });
 
     test(`menu sheet: floats on paper`, async ({ page }, testInfo) => {

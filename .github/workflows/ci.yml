@@ -49,11 +49,6 @@ jobs:
     name: E2E
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      # No Supabase in CI: placeholder values so the client builds. The app
-      # cannot reach them, so the e2e run exercises the offline path.
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54331
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
     steps:
       - uses: actions/checkout@v7
 
@@ -64,6 +59,28 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Stack local de Supabase (CLI de devDependencies, la misma versión que
+      # en local) con solo lo que usan los e2e: Postgres, Auth, PostgREST,
+      # Realtime (Fase 2b) y Kong, que expone la API en el puerto 54331.
+      - name: Start Supabase
+        run: >
+          npx supabase start
+          -x imgproxy,studio,edge-runtime,logflare,vector,supavisor,storage-api,postgres-meta,mailpit
+
+      # Las claves del stack local se incrustan en el build (NEXT_PUBLIC_) y
+      # la secreta queda solo en Node, para e2e/supabase-admin.ts.
+      - name: Export Supabase keys
+        run: |
+          status="$(npx supabase status -o json 2>/dev/null)"
+          secret="$(jq -r .SECRET_KEY <<<"$status")"
+          echo "::add-mask::$secret"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(jq -r .API_URL <<<"$status")"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(jq -r .PUBLISHABLE_KEY <<<"$status")"
+            echo "E2E_SUPABASE=1"
+            echo "E2E_SUPABASE_SECRET_KEY=$secret"
+          } >> "$GITHUB_ENV"
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
