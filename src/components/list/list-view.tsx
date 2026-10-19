@@ -32,6 +32,7 @@ import {
   useEmptyCart,
   useItems,
   useListRealtime,
+  useRemoteChanges,
   useRemoveItem,
   useToggleItem,
   type Item,
@@ -142,6 +143,9 @@ export function ListView() {
   const items = useItems(userId, listId);
   // The other members' changes reach the cache through this channel.
   useListRealtime(userId, listId);
+  // The rows they just added, edited or checked pulse while this set holds
+  // their id (never the user's own changes).
+  const remote = useRemoteChanges(userId, listId);
   const toggle = useToggleItem(userId ?? "", listId ?? "");
   const edit = useEditItem(userId ?? "", listId ?? "");
   const remove = useRemoveItem(userId ?? "", listId ?? "");
@@ -311,6 +315,7 @@ export function ListView() {
           quantity={formatQuantity(item.quantity, item.unit)}
           note={item.note ?? undefined}
           checked={item.checked}
+          highlighted={remote.has(item.id)}
           onCheckedChange={(next) => handleCheckedChange(item, next)}
           onPress={() => setEditingId(item.id)}
         />

@@ -48,6 +48,7 @@ export function ListRow({
     <Root
       data-slot="list-row"
       data-checked={checked}
+      data-highlighted={highlighted || undefined}
       className={cn(
         "border-rule text-row min-h-row flex items-center gap-1 border-b transition-colors",
         highlighted

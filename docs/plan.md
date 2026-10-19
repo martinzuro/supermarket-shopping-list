@@ -90,7 +90,34 @@ actualizaciones optimistas.** [ADR 0003](decisions/0003-online-only.md)
     un insert choca con su propio id (`23505`, se perdió la respuesta), se
     recupera la fila ya guardada.
 - Supabase Realtime mantiene la caché al día con los cambios de otros
-  miembros de la lista.
+  miembros de la lista (`src/lib/queries/realtime.ts` y el final de
+  `items.ts`):
+  - Un canal por lista (`useListRealtime`, montado una vez en `ListView`)
+    con `postgres_changes` de ítems y categorías filtrado por `list_id`.
+    Hace `setAuth()` antes de unirse y usa un topic distinto por apertura
+    (lo exige StrictMode). Se cierra al cambiar la lista o el usuario y al
+    desmontar; si el servidor lo cierra, se reabre con backoff (1, 2, 5 y
+    10 s). Los errores y timeouts los reintenta la librería.
+  - La versión de una fila es `updated_at`: el trigger `set_updated_at`
+    usa `clock_timestamp()`, así que crece con cada cambio confirmado. Un
+    evento que no es más nuevo que la fila en caché no cambia nada: es el
+    eco de una escritura propia o un evento tardío.
+  - Mientras hay una escritura propia del ítem en cola o en vuelo gana el
+    estado optimista y el evento queda para el refetch de `settle`.
+  - Una lectura en vuelo cuando llega un cambio se cancela, y sigue una
+    sola lectura 100 ms después por ráfaga, solo si no hay escrituras
+    pendientes (`readItemsAgain`).
+  - Una fila archivada queda marcada en la caché hasta el próximo refetch.
+    Un UPDATE nunca crea una fila que falta: pide una lectura. Los DELETE
+    traen solo el id. Un insert remoto entra en el orden del servidor.
+  - Las categorías se invalidan con cualquier evento, el catálogo con
+    altas y renombres remotos.
+  - Recuperación: cada `SUBSCRIBED` vuelve a leer ítems, categorías y
+    catálogo con las mismas reglas. El foco y la reconexión releen la
+    lista aunque esté fresca, salvo que haya una escritura pendiente.
+  - Pulso: la fila que otro miembro añade, edita, marca o devuelve se
+    ilumina (`useRemoteChanges`). Nunca por cambios propios, ecos,
+    borrados, archivados ni refetches (ver `DESIGN_SYSTEM.md`, sección 5).
 - Sin red: banner persistente "sin conexión", las mutaciones en curso se
   reintentan con backoff mientras la pestaña siga abierta, el texto del
   input de añadir se conserva. No se garantiza nada más.
@@ -424,6 +451,28 @@ manual de categoría sigue en la Fase 3.
 **2b. Tiempo real (0,5 a 1 día).** Canal Realtime por lista,
 invalidación o parche de caché al recibir cambios. Test e2e con dos
 contextos de navegador.
+
+Estado al 2026-10-19: la 2b está en `main` (PR 32 y el cierre de fase). Un
+canal Realtime por lista mantiene la caché al día con los cambios de los
+otros miembros sin romper el patrón optimista, con las reglas de 2.3:
+versión por `updated_at` (migración `monotonic_updated_at`, que pasa el
+trigger a `clock_timestamp()`), el estado optimista gana mientras hay
+escrituras pendientes, una sola relectura por ráfaga y recuperación completa
+en cada `SUBSCRIBED`, además de relectura al volver el foco o la red. La
+fila que otro miembro añade, edita, marca o devuelve pulsa un segundo en
+total (400 ms encendida y fundido de `duration-slow`); nunca pulsan los
+cambios propios. Los tests unitarios de `realtime.test.tsx` cubren el ciclo
+de vida del canal, los casos límite de la reconciliación, las ráfagas y la
+recuperación. `e2e/phase-2b.spec.ts` abre dos contextos (dos miembros de una
+lista, con la membresía puesta por el rol de servicio porque compartir es la
+2c), en claro y oscuro a 375px: mide cada paso en menos de 1 s (añadir,
+marcar, editar, añadir, borrar, vaciar el carro), comprueba que el pulso
+solo aparece en las filas del otro miembro, sin pulso ni parpadeo en las
+propias, y corre en CI con el resto. Limitaciones conocidas: el mismo
+usuario en otro dispositivo ve pulsar sus propios cambios, porque los UPDATE
+no traen autor (haría falta `updated_by`); y un INSERT que llega después de
+una lectura hecha tras archivar la fila la muestra hasta que el evento de
+archivado, que llega a continuación y en orden, la oculta.
 
 **2c. Compartir (1,5 días).** Enlace de invitación, aceptación,
 conversión de cuenta anónima, lista de miembros, salir de la lista, dueño

@@ -8,17 +8,18 @@ Desarrollar una web app para gestionar listas de compras de supermercado.
 
 ## Estado actual
 
-Fase 1 (fundaciones) casi completa y Fase 2a (la lista con ítems reales)
-entregada el 2026-10-19, ver el estado fechado en `docs/plan.md`. En
-`main`: tooling (Prettier, Vitest, Playwright, CI), PWA, esquema de
-Supabase con RLS y triggers en `supabase/migrations/`, tipos generados en
+Fase 1 (fundaciones) casi completa; Fase 2a (la lista con ítems reales) y
+2b (tiempo real) entregadas el 2026-10-19, ver el estado fechado en
+`docs/plan.md`. En `main`: tooling
+(Prettier, Vitest, Playwright, CI), PWA, esquema de Supabase con RLS y
+triggers en `supabase/migrations/`, tipos generados en
 `src/lib/supabase/database.types.ts`, helpers puros en `src/lib/domain/`,
-auth anónima con conversión por código, capa de queries con TanStack Query,
-y el sistema de diseño Fresh Editorial construido y aplicado a las
-pantallas (`docs/DESIGN_SYSTEM.md`, página interna `/design`). La lista ya
-guarda ítems: añadir (con cantidad y unidad del texto), marcar, editar,
-borrar, agrupar por categoría y vaciar el carro, todo optimista. Lo
-siguiente es la 2b (tiempo real).
+auth anónima con conversión por código, capa de queries con TanStack Query
+y canal Realtime por lista, y el sistema de diseño Fresh Editorial
+construido y aplicado a las pantallas (`docs/DESIGN_SYSTEM.md`, página
+interna `/design`). La lista guarda ítems (añadir, marcar, editar, borrar,
+agrupar por categoría, vaciar el carro), todo optimista, y refleja los
+cambios de otros miembros. Lo siguiente es la 2c (compartir).
 
 ## Decisiones tomadas
 
