@@ -397,7 +397,8 @@ function SignedInAccount({
     <div className="flex flex-col gap-4">
       <p className="text-pretty">
         {texts.account.signedIn.label}{" "}
-        <span className="font-medium break-all">{user.email}</span>
+        {/* En su propia línea: un correo largo se parte solo si no entra. */}
+        <span className="block font-medium break-words">{user.email}</span>
       </p>
       <p className="text-ink-2 text-pretty">
         {texts.account.signedIn.description}
