@@ -368,7 +368,7 @@ export function ListView() {
             variant="outline"
             size="touch"
             onClick={() => (listFailed ? currentList.retry() : items.refetch())}
-            disabled={items.isFetching}
+            disabled={listFailed ? currentList.isRetrying : items.isFetching}
           >
             {texts.list.loadError.retry}
           </Button>

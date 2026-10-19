@@ -11,18 +11,19 @@ import { newId } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/database.types";
 import { texts } from "@/lib/texts";
+import { unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
 
 export type List = Tables<"lists">;
 
 async function fetchLists(): Promise<List[]> {
-  const { data, error } = await createClient()
-    .from("lists")
-    .select("*")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return data;
+  return unwrap(
+    await createClient()
+      .from("lists")
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true }),
+  );
 }
 
 /** Lists the user is a member of (RLS does the filtering). */
@@ -47,13 +48,15 @@ function optimisticList(id: string, userId: string): List {
 }
 
 async function insertList(id: string, name: string): Promise<List> {
-  const { data, error } = await createClient()
-    .from("lists")
-    .insert({ id, name })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  // Through unwrap, so a lost answer (status 0) is retried like every write.
+  return unwrap(
+    await createClient()
+      .from("lists")
+      .insert({ id, name })
+      .select()
+      .abortSignal(writeSignal())
+      .single(),
+  );
 }
 
 function setLists(
@@ -137,6 +140,8 @@ export function useCurrentList(userId: string | null) {
     list,
     isPending: lists.isPending || (needsList && createList.isPending),
     error: lists.error ?? createList.error,
+    /** A retry is running: the lists are loading again or the list is being created. */
+    isRetrying: lists.isFetching || createList.isPending,
     retry,
   };
 }

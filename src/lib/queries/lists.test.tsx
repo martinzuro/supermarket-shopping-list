@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shouldRetryMutation } from "./errors";
 import { queryKeys } from "./keys";
 import { useCurrentList } from "./lists";
 import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
@@ -125,5 +126,30 @@ describe("useCurrentList", () => {
       await result.current.retry();
     });
     await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(2));
+  });
+
+  it("retries the first creation when the answer is lost", async () => {
+    read.mockResolvedValue({ data: [], error: null });
+    write
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "TypeError: Failed to fetch", code: "" },
+        status: 0,
+      } as never)
+      .mockImplementationOnce(async (row) => ({
+        data: { ...(row as object), created_by: USER, deleted_at: null },
+        error: null,
+      }));
+    const queryClient = makeTestQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      mutations: { retry: shouldRetryMutation, retryDelay: 0 },
+    });
+    const { result } = renderHook(() => useCurrentList(USER), {
+      wrapper: makeWrapper(queryClient),
+    });
+    await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    expect(result.current.error).toBeNull();
   });
 });
