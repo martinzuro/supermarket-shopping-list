@@ -43,10 +43,12 @@ export function makeTable(handlers: {
     for (const method of ["select", "is", "order", "single", "abortSignal"]) {
       chain[method] = vi.fn(() => chain);
     }
-    chain.eq = vi.fn((column: string, value: unknown) => {
-      filters.push([column, value]);
-      return chain;
-    });
+    for (const method of ["eq", "in", "is"]) {
+      chain[method] = vi.fn((column: string, value: unknown) => {
+        filters.push([column, value]);
+        return chain;
+      });
+    }
     chain.insert = vi.fn((row: unknown) => {
       payload = row;
       operation = "insert";

@@ -5,8 +5,13 @@
 export const queryKeys = {
   all: (userId: string) => ["user", userId] as const,
   lists: (userId: string) => ["user", userId, "lists"] as const,
+  /** Everything under one list: items, categories, catalog. */
+  list: (userId: string, listId: string) =>
+    ["user", userId, "list", listId] as const,
   items: (userId: string, listId: string) =>
     ["user", userId, "list", listId, "items"] as const,
   categories: (userId: string, listId: string) =>
     ["user", userId, "list", listId, "categories"] as const,
+  catalog: (userId: string, listId: string) =>
+    ["user", userId, "list", listId, "catalog"] as const,
 };

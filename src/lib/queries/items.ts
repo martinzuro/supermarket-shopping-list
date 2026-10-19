@@ -47,17 +47,24 @@ export type NewItem = {
   name: string;
   quantity: number | null;
   unit: string | null;
+  /** Chosen by the caller from the catalog (see suggestCategory). */
+  category_id: string | null;
 };
 
 export function newItem(
   name: string,
-  details: { quantity?: number | null; unit?: string | null } = {},
+  details: {
+    quantity?: number | null;
+    unit?: string | null;
+    categoryId?: string | null;
+  } = {},
 ): NewItem {
   return {
     id: newId(),
     name: name.trim(),
     quantity: details.quantity ?? null,
     unit: details.unit ?? null,
+    category_id: details.categoryId ?? null,
   };
 }
 
@@ -76,7 +83,7 @@ function optimisticItem(
     quantity: input.quantity,
     unit: input.unit,
     note: null,
-    category_id: null,
+    category_id: input.category_id,
     estimated_price: null,
     currency: "UYU",
     checked: false,
@@ -125,6 +132,7 @@ async function insertItem(
           name: input.name,
           quantity: input.quantity,
           unit: input.unit,
+          category_id: input.category_id,
           position,
         })
         .select()
@@ -214,9 +222,12 @@ function isLastWriteTo(queryClient: QueryClient, listId: string, id: string) {
   const scope = listScope(listId).id;
   const pending = queryClient.getMutationCache().findAll({
     status: "pending",
-    predicate: (mutation) =>
-      mutation.options.scope?.id === scope &&
-      (mutation.state.variables as { id?: string } | undefined)?.id === id,
+    predicate: (mutation) => {
+      if (mutation.options.scope?.id !== scope) return false;
+      const variables = mutation.state.variables as
+        { id?: string; ids?: readonly string[] } | undefined;
+      return variables?.id === id || variables?.ids?.includes(id) === true;
+    },
   });
   return pending.length <= 1;
 }
@@ -228,7 +239,13 @@ function isLastWriteTo(queryClient: QueryClient, listId: string, id: string) {
  */
 function settle(queryClient: QueryClient, key: readonly unknown[]) {
   if (queryClient.isMutating({ mutationKey: key }) > 1) return;
-  return queryClient.invalidateQueries({ queryKey: key });
+  // The catalog changes with adds and renames (database triggers); the next
+  // add reads it to pick the category.
+  const catalogKey = [...key.slice(0, -1), "catalog"];
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: key }),
+    queryClient.invalidateQueries({ queryKey: catalogKey }),
+  ]);
 }
 
 /** Mutation keys of the item writes, under the items query key. */
@@ -242,6 +259,8 @@ export const itemMutationKeys = {
     [...queryKeys.items(userId, listId), "edit"] as const,
   remove: (userId: string, listId: string) =>
     [...queryKeys.items(userId, listId), "remove"] as const,
+  emptyCart: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "empty-cart"] as const,
 };
 
 /**
@@ -488,6 +507,88 @@ export function useRemoveItem(userId: string, listId: string) {
     onSuccess: (removed) => {
       if (!removed || !isLastWriteTo(queryClient, listId, removed.id)) return;
       patchItem(queryClient, key, removed.id, () => removed);
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+export type EmptyCart = {
+  /** The items in the cart when the user emptied it. */
+  ids: readonly string[];
+  /** One archive time for the whole emptying, kept across retries. */
+  deletedAt: string;
+};
+
+async function archiveItems(
+  ids: readonly string[],
+  deletedAt: string,
+): Promise<Item[]> {
+  return unwrap(
+    await createClient()
+      .from("items")
+      .update({ deleted_at: deletedAt })
+      .in("id", [...ids])
+      .is("deleted_at", null)
+      // Only what is in the cart on the server: a row whose check was
+      // rejected meanwhile, or that someone unchecked, stays on the list.
+      .eq("checked", true)
+      .select()
+      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS)),
+  );
+}
+
+/**
+ * Empties the cart at the end of the shopping: the checked items are
+ * archived (deleted_at, plan 3.2), all with one timestamp and one request.
+ * Only the ids the user saw in the cart, and only while still checked: not a
+ * row checked meanwhile by someone else, nor one whose check was rejected or
+ * undone (it stays hidden until the refetch of settle brings it back as
+ * pending). A rejection brings back the rows still marked with this
+ * emptying's timestamp.
+ */
+export function useEmptyCart(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId, listId);
+
+  return useMutation({
+    mutationKey: itemMutationKeys.emptyCart(userId, listId),
+    scope: listScope(listId),
+    mutationFn: async ({ ids, deletedAt }: EmptyCart) => {
+      // Only rows still marked by this emptying: one whose insert was
+      // rejected meanwhile is gone, and that is not an error.
+      const items = queryClient.getQueryData<Item[]>(key) ?? [];
+      const ours = items
+        .filter((item) => ids.includes(item.id))
+        .filter((item) => item.deleted_at === deletedAt && item.checked)
+        .map((item) => item.id);
+      if (ours.length === 0) return [];
+      return archiveItems(ours, deletedAt);
+    },
+    onMutate: async ({ ids, deletedAt }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      setItems(queryClient, key, (items) =>
+        items.map((item) =>
+          ids.includes(item.id) && item.deleted_at === null
+            ? { ...item, deleted_at: deletedAt }
+            : item,
+        ),
+      );
+    },
+    onError: (_error, { ids, deletedAt }) => {
+      setItems(queryClient, key, (items) =>
+        items.map((item) =>
+          ids.includes(item.id) && item.deleted_at === deletedAt
+            ? { ...item, deleted_at: null }
+            : item,
+        ),
+      );
+    },
+    onSuccess: (archived) => {
+      for (const row of archived) {
+        if (isLastWriteTo(queryClient, listId, row.id)) {
+          patchItem(queryClient, key, row.id, () => row);
+        }
+      }
     },
     onSettled: () => settle(queryClient, key),
   });

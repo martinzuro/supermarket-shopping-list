@@ -584,6 +584,25 @@ export default function DesignPage() {
           >
             <SectionEmpty>{t.states.section.empty}</SectionEmpty>
           </UiSection>
+          <div>
+            <p className="eyebrow mb-1">{t.states.section.groupNote}</p>
+            <UiSection
+              id="design-section-group"
+              level={3}
+              title={t.states.section.groupTitle}
+              count={t.states.section.groupCount}
+              thread="lacteos"
+              icon={<CategoryIcon category="lacteos" />}
+            >
+              <ul className="border-rule border-t">
+                <ListRow
+                  name={t.states.section.groupItem}
+                  checked={false}
+                  toggleLabel={t.states.section.groupItem}
+                />
+              </ul>
+            </UiSection>
+          </div>
         </div>
 
         <p className="eyebrow mt-10">{t.states.sheets}</p>

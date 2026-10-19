@@ -9,12 +9,14 @@ import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseItemInput } from "@/lib/domain";
+import { parseItemInput, suggestCategory } from "@/lib/domain";
 import {
   itemMutationKeys,
   newItem,
   queryKeys,
   useAddItem,
+  useCatalog,
+  useCategories,
   useItems,
   useLists,
   type EditItem,
@@ -36,7 +38,8 @@ export const MAX_NAME_LENGTH = 200;
 type Notice = { key: string; at: number; title: string; body: string };
 
 /**
- * Cambios sobre ítems existentes (marcar, editar, borrar) que el servidor
+ * Cambios sobre ítems existentes (marcar, editar, borrar, vaciar el carro)
+ * que el servidor
  * rechazó, como avisos. Los del alta los pone el propio formulario, que
  * además devuelve el texto al campo.
  */
@@ -60,6 +63,14 @@ function useWriteFailures(userId: string, listId: string): Notice[] {
             ? texts.itemErrors.check(name)
             : texts.itemErrors.uncheck(name),
           body: texts.itemErrors.toggleBody,
+        };
+      }
+      if (kind === "empty-cart") {
+        return {
+          key,
+          at,
+          title: texts.itemErrors.emptyCart,
+          body: texts.itemErrors.emptyCartBody,
         };
       }
       const { name } = mutation.state.variables as EditItem | RemoveItem;
@@ -106,6 +117,8 @@ export function AddItemBar() {
   // Solo lee la lista: crearla en el primer uso es cosa de ListView.
   const listId = useLists(userId).data?.[0]?.id ?? null;
   const items = useItems(userId, listId);
+  const categories = useCategories(userId, listId);
+  const catalog = useCatalog(userId, listId);
   // Mientras la lista se crea, el servidor todavía no la conoce: un ítem
   // agregado en ese momento lo rechazaría la RLS.
   const creatingList =
@@ -117,6 +130,10 @@ export function AddItemBar() {
     userId !== null &&
     listId !== null &&
     items.data !== undefined &&
+    // The category comes from them. If either fails to load, the item goes
+    // without category, which the list shows under "Otros".
+    (categories.data !== undefined || categories.isError) &&
+    (catalog.data !== undefined || catalog.isError) &&
     !creatingList;
   const add = useAddItem(userId ?? "", listId ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +166,14 @@ export function AddItemBar() {
 
     field.value = "";
     if (notice) dismiss(notice.at);
-    const item = newItem(parsed.name, parsed);
+    const item = newItem(parsed.name, {
+      ...parsed,
+      categoryId: suggestCategory(
+        parsed.name,
+        catalog.data ?? [],
+        categories.data ?? [],
+      ),
+    });
     const at = Date.now();
     add.mutateAsync(item).catch(() => {
       // El ítem ya salió de la lista (rollback de useAddItem). Lo escrito

@@ -39,6 +39,31 @@ vi.mock("@/components/session-provider", () => ({
   useSession: () => ({ status: "ready", user: { id: USER } }),
 }));
 
+const VEGETABLES = "00000000-0000-7000-8000-0000000000c1";
+const OTHERS = "00000000-0000-7000-8000-0000000000c9";
+const CATEGORIES = [
+  {
+    id: VEGETABLES,
+    list_id: LIST,
+    name: "Frutas y verduras",
+    position: 0,
+    is_default: true,
+    created_at: "",
+    updated_at: "",
+    deleted_at: null,
+  },
+  {
+    id: OTHERS,
+    list_id: LIST,
+    name: "Otros",
+    position: 9,
+    is_default: true,
+    created_at: "",
+    updated_at: "",
+    deleted_at: null,
+  },
+];
+
 const rejection = {
   data: null,
   error: { message: "new row violates row-level security", code: "42501" },
@@ -69,6 +94,10 @@ async function renderBar({ itemsLoaded = true } = {}) {
     { id: LIST, name: "Mi lista" },
   ]);
   if (itemsLoaded) queryClient.setQueryData(queryKeys.items(USER, LIST), []);
+  queryClient.setQueryData(queryKeys.categories(USER, LIST), CATEGORIES);
+  queryClient.setQueryData(queryKeys.catalog(USER, LIST), [
+    { name_normalized: "tomates", last_category_id: VEGETABLES },
+  ]);
   render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
   const field = screen.getByRole<HTMLInputElement>("textbox", {
     name: texts.addItem.label,
@@ -297,5 +326,28 @@ describe("AddItemBar", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(title);
     expect(alert).toHaveTextContent(body);
+  });
+
+  it("puts the item in the category the catalog remembers, or in Otros", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field, queryClient } = await renderBar();
+
+    type(field, "2 kg Tomates{Enter}");
+    type(field, "Yerba{Enter}");
+
+    await waitFor(() =>
+      expect(items.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Tomates", category_id: VEGETABLES }),
+      ),
+    );
+    // Yerba is unknown to the catalog: no category (the list shows it under
+    // Otros), so the catalog does not learn "Otros" as a choice.
+    const cached = queryClient.getQueryData<
+      { name: string; category_id: string }[]
+    >(queryKeys.items(USER, LIST));
+    expect(cached?.map((item) => [item.name, item.category_id])).toEqual([
+      ["Tomates", VEGETABLES],
+      ["Yerba", null],
+    ]);
   });
 });
