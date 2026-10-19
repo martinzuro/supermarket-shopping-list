@@ -126,9 +126,17 @@ export function useCurrentList(userId: string | null) {
     createList.mutate({ id: newId() });
   }, [needsList, userId, createList]);
 
+  /** After an error: read the lists again and, if still none, create one. */
+  function retry() {
+    requested.current = null;
+    createList.reset();
+    return lists.refetch();
+  }
+
   return {
     list,
     isPending: lists.isPending || (needsList && createList.isPending),
     error: lists.error ?? createList.error,
+    retry,
   };
 }

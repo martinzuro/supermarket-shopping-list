@@ -102,4 +102,28 @@ describe("useCurrentList", () => {
       ).toBeUndefined(),
     );
   });
+
+  it("retries a failed first creation on demand", async () => {
+    read.mockResolvedValue({ data: [], error: null });
+    write
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "bad gateway", code: "" },
+        status: 502,
+      } as never)
+      .mockImplementationOnce(async (row) => ({
+        data: { ...(row as object), created_by: USER, deleted_at: null },
+        error: null,
+      }));
+    const { result } = renderHook(() => useCurrentList(USER), {
+      wrapper: makeWrapper(makeTestQueryClient()),
+    });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.list).toBeNull();
+
+    await act(async () => {
+      await result.current.retry();
+    });
+    await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(2));
+  });
 });

@@ -40,7 +40,7 @@ describe("shouldRetryMutation", () => {
     ["a missing row", missing, false],
     ["no answer (status 0)", noAnswer, true],
     ["a server error (5xx)", serverError, true],
-    ["an unknown error", new Error("boom"), true],
+    ["an error that is not a request (a bug)", new Error("boom"), false],
   ])("on %s retries: %s", (_label, error, expected) => {
     expect(shouldRetryMutation(0, error)).toBe(expected);
   });

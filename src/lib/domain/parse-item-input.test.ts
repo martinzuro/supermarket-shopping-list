@@ -26,6 +26,7 @@ describe("parseItemInput", () => {
       ["2 kg. tomates", "tomates", 2, "kg"],
       ["2 Lechuga", "Lechuga", 2, null],
       ["2 leche 3", "leche 3", 2, null],
+      ["1000 g de jamón", "jamón", 1000, "g"],
       ["1/4 de queso", "queso", 0.25, null],
       ["2 de leche", "leche", 2, null],
     ])("parses %j", (...args) => check(args));
@@ -34,6 +35,8 @@ describe("parseItemInput", () => {
   describe("trailing form", () => {
     it.each<Case>([
       ["tomates 2 kg", "tomates", 2, "kg"],
+      ["Jamón 1000 g", "Jamón", 1000, "g"],
+      ["Agua 1500 ml", "Agua", 1500, "ml"],
       ["Tomates perita, 2 kg", "Tomates perita", 2, "kg"],
       ["leche; 3", "leche", 3, null],
       ["tomates 2kg", "tomates", 2, "kg"],

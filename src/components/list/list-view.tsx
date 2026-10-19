@@ -351,7 +351,11 @@ export function ListView() {
     );
   }
 
-  if (items.isError && !items.data) {
+  // Nothing to show and nothing coming: the lists or the first list's
+  // creation failed (after their retries), or the items did. Without this the
+  // titles would sit over nothing and the add bar would ignore Enter.
+  const listFailed = list === null && currentList.error !== null;
+  if (listFailed || (items.isError && !items.data)) {
     return (
       <Banner
         tone="error"
@@ -363,7 +367,7 @@ export function ListView() {
           <Button
             variant="outline"
             size="touch"
-            onClick={() => items.refetch()}
+            onClick={() => (listFailed ? currentList.retry() : items.refetch())}
             disabled={items.isFetching}
           >
             {texts.list.loadError.retry}
@@ -373,8 +377,14 @@ export function ListView() {
     );
   }
 
+  const t = texts.moments.cartEmptied;
   return (
     <>
+      {/* The focus lands on the moment's action, whose name alone would not
+          say what happened: the moment is read out once as it appears. */}
+      <div aria-live="polite" className="sr-only">
+        {emptied !== null ? `${t.lead} ${t.em}. ${t.body}` : ""}
+      </div>
       <ListSection
         id="pending"
         title={texts.list.pending.title}

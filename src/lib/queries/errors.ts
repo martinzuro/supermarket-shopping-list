@@ -37,6 +37,9 @@ const MAX_MUTATION_RETRIES = 3;
  */
 export function shouldRetryMutation(failureCount: number, error: unknown) {
   if (failureCount >= MAX_MUTATION_RETRIES) return false;
-  if (!(error instanceof RequestError)) return true;
+  // Every network failure comes back from postgrest-js as a RequestError
+  // with status 0. Anything else is a bug in the write itself: retrying
+  // would only delay the rollback.
+  if (!(error instanceof RequestError)) return false;
   return error.status === 0 || error.status >= 500;
 }

@@ -103,7 +103,7 @@ describe("EditItemSheet", () => {
   it("shows the errors and keeps the sheet open", () => {
     const { onSave, onClose } = renderSheet();
     change(t.name, " ");
-    change(t.quantity, "1000");
+    change(t.quantity, "100000");
     save();
     expect(screen.getByText(t.errors.name)).toBeInTheDocument();
     expect(screen.getByText(t.errors.quantity)).toBeInTheDocument();

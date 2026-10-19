@@ -21,7 +21,11 @@ async function fetchItems(listId: string): Promise<Item[]> {
       .select("*")
       .eq("list_id", listId)
       .is("deleted_at", null)
-      .order("position", { ascending: true }),
+      // Two members adding at once can write the same position: the
+      // creation time, then the id, keep the order stable across fetches.
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
   );
 }
 
@@ -103,6 +107,16 @@ function optimisticItem(
  */
 const WRITE_TIMEOUT_MS = 10_000;
 
+/** AbortSignal.timeout is missing before Safari 16 and Chrome 103. */
+function writeSignal(): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(WRITE_TIMEOUT_MS);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), WRITE_TIMEOUT_MS);
+  return controller.signal;
+}
+
 /** Postgres unique_violation. */
 const DUPLICATE_KEY = "23505";
 
@@ -112,7 +126,7 @@ async function fetchItem(id: string): Promise<Item> {
       .from("items")
       .select("*")
       .eq("id", id)
-      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+      .abortSignal(writeSignal())
       .single(),
   );
 }
@@ -136,7 +150,7 @@ async function insertItem(
           position,
         })
         .select()
-        .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+        .abortSignal(writeSignal())
         .single(),
     );
   } catch (error) {
@@ -169,7 +183,7 @@ async function updateItem(id: string, changes: ItemChanges): Promise<Item> {
       .update(changes)
       .eq("id", id)
       .select()
-      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+      .abortSignal(writeSignal())
       .single(),
   );
 }
@@ -533,7 +547,7 @@ async function archiveItems(
       // rejected meanwhile, or that someone unchecked, stays on the list.
       .eq("checked", true)
       .select()
-      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS)),
+      .abortSignal(writeSignal()),
   );
 }
 

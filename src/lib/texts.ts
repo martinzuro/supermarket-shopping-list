@@ -47,7 +47,7 @@ export const texts = {
     confirmRemove: "Tocá otra vez para borrar",
     errors: {
       name: "Escribí el nombre del producto.",
-      quantity: "Usá un número mayor que 0 y hasta 999, como 2 o 1,5.",
+      quantity: "Usá un número mayor que 0, como 2, 1,5 o 500.",
     },
   },
   /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
