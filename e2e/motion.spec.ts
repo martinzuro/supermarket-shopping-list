@@ -12,10 +12,11 @@ test.describe("with reduced motion", () => {
     await expect(dialog).toBeVisible();
     // MotionConfig reducedMotion="user" drops the translate: only the fade
     // remains, so the panel never sits off-screen while it settles.
-    const transform = await dialog.evaluate(
-      (element) => getComputedStyle(element).transform,
-    );
-    expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
+    await expect
+      .poll(() =>
+        dialog.evaluate((element) => getComputedStyle(element).transform),
+      )
+      .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
 
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);

@@ -29,10 +29,20 @@ test.describe("first use", () => {
     page,
   }) => {
     await page.goto("/");
-    await expect(page.getByTestId("welcome")).toBeVisible();
-    await expect(page.getByTestId("welcome")).toHaveCount(0, {
-      timeout: 3500,
-    });
+    const welcome = page.getByTestId("welcome");
+    await expect(welcome).toBeVisible();
+    const shownAt = Date.now();
+
+    // Still there at 1 s: it did not vanish instantly.
+    await page.waitForTimeout(1000);
+    await expect(welcome).toBeVisible();
+
+    // Auto-finish at 2.6 s plus the 0.32 s exit: gone within 3.5 s of showing.
+    await expect
+      .poll(async () => await welcome.count(), {
+        timeout: Math.max(500, 3500 - (Date.now() - shownAt)),
+      })
+      .toBe(0);
     await expect(page.locator("h1")).toBeVisible();
   });
 });

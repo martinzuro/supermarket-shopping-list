@@ -51,12 +51,6 @@ function SheetTrigger({
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
 }
 
-function SheetClose({
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Close>) {
-  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
-}
-
 const sideClasses = {
   right: "inset-y-0 right-0 h-full w-[88vw] max-w-sm rounded-l-sheet",
   left: "inset-y-0 left-0 h-full w-[88vw] max-w-sm rounded-r-sheet",
@@ -198,7 +192,6 @@ function SheetDescription({
 export {
   Sheet,
   SheetTrigger,
-  SheetClose,
   SheetContent,
   SheetHeader,
   SheetBody,
