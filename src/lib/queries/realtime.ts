@@ -8,11 +8,13 @@ import type {
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { motionTokens } from "@/lib/design/motion";
 import { createClient } from "@/lib/supabase/client";
+import { texts } from "@/lib/texts";
 import {
   applyRemoteItem,
   readItemsAgain,
   type Item,
   type RemoteItemChange,
+  type RemoteItemOutcome,
 } from "./items";
 import { queryKeys } from "./keys";
 
@@ -66,10 +68,13 @@ function openListChannel(
         previous: payload.eventType === "UPDATE" ? payload.old : undefined,
       };
     }
-    const pulses = applyRemoteItem(queryClient, userId, listId, change);
-    if (pulses && change.type !== "DELETE") {
-      pulse(pulsesOf(queryClient, userId, listId), change.row.id);
+    const told = applyRemoteItem(queryClient, userId, listId, change);
+    if (!told) return;
+    // A row that left the list has nothing to light up.
+    if (told.kind !== "removed") {
+      pulse(pulsesOf(queryClient, userId, listId), told.id);
     }
+    announce(announcementsOf(queryClient, userId, listId), told);
   }
 
   /**
@@ -219,5 +224,135 @@ export function useRemoteChanges(
     subscribe,
     () => store?.ids ?? EMPTY,
     () => EMPTY,
+  );
+}
+
+/** How long an announcement waits for the rest of a burst of changes. */
+const ANNOUNCE_AFTER_MS = 700;
+/** How long it stays in the live region, where a screen reader can find it. */
+const ANNOUNCE_FOR_MS = 5_000;
+
+/**
+ * The text for the live region, and a number that changes with every
+ * announcement: a region whose content is replaced is read again even when
+ * the text is the same as last time.
+ */
+export type Announcement = { text: string; seq: number };
+
+type Announcements = {
+  burst: Map<string, RemoteItemOutcome>;
+  timer: ReturnType<typeof setTimeout> | undefined;
+  clear: ReturnType<typeof setTimeout> | undefined;
+  current: Announcement;
+  listeners: Set<() => void>;
+};
+
+const SILENT: Announcement = { text: "", seq: 0 };
+
+const announcementStores = new WeakMap<
+  QueryClient,
+  Map<string, Announcements>
+>();
+
+function announcementsOf(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+) {
+  let lists = announcementStores.get(queryClient);
+  if (!lists) {
+    lists = new Map();
+    announcementStores.set(queryClient, lists);
+  }
+  const key = `${userId}:${listId}`;
+  let store = lists.get(key);
+  if (!store) {
+    store = {
+      burst: new Map(),
+      timer: undefined,
+      clear: undefined,
+      current: SILENT,
+      listeners: new Set(),
+    };
+    lists.set(key, store);
+  }
+  return store;
+}
+
+/**
+ * Collects another member's change into the burst being told. A row added
+ * and then changed within one burst is still news as an add; one added and
+ * removed within it was never seen: nothing is said about it.
+ */
+function announce(store: Announcements, told: RemoteItemOutcome) {
+  const earlier = store.burst.get(told.id);
+  if (earlier?.kind === "added") {
+    if (told.kind === "removed") store.burst.delete(told.id);
+    else store.burst.set(told.id, { ...told, kind: "added" });
+  } else {
+    store.burst.set(told.id, told);
+  }
+  if (store.timer) return;
+  store.timer = setTimeout(() => {
+    store.timer = undefined;
+    const text = describeRemoteChanges([...store.burst.values()]);
+    store.burst.clear();
+    if (!text) return;
+    const notify = () => store.listeners.forEach((listener) => listener());
+    store.current = { text, seq: store.current.seq + 1 };
+    notify();
+    clearTimeout(store.clear);
+    store.clear = setTimeout(() => {
+      store.current = { text: "", seq: store.current.seq };
+      notify();
+    }, ANNOUNCE_FOR_MS);
+  }, ANNOUNCE_AFTER_MS);
+}
+
+/**
+ * One sentence for a burst of other members' changes: the row by name when
+ * there is one, a count when they are all of a kind, the number of changes
+ * otherwise. Empty when there is nothing to tell.
+ */
+export function describeRemoteChanges(
+  changes: readonly RemoteItemOutcome[],
+): string {
+  const [first] = changes;
+  if (!first) return "";
+  if (changes.length === 1)
+    return texts.remoteChanges.one[first.kind](first.name);
+  return changes.every((change) => change.kind === first.kind)
+    ? texts.remoteChanges.many[first.kind](changes.length)
+    : texts.remoteChanges.mixed(changes.length);
+}
+
+/**
+ * What screen readers are told about the rows other members just changed
+ * (the pulse alone is colour). For one polite live region on the list
+ * screen. Never the user's own changes (see applyRemoteItem).
+ */
+export function useRemoteAnnouncement(
+  userId: string | null,
+  listId: string | null,
+): Announcement {
+  const queryClient = useQueryClient();
+  const store =
+    userId === null || listId === null
+      ? null
+      : announcementsOf(queryClient, userId, listId);
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!store) return () => {};
+      store.listeners.add(listener);
+      return () => {
+        store.listeners.delete(listener);
+      };
+    },
+    [store],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => store?.current ?? SILENT,
+    () => SILENT,
   );
 }

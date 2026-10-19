@@ -658,6 +658,16 @@ export type RemoteItemChange =
     }
   | { type: "DELETE"; id: string };
 
+/**
+ * What another member did to a row the user sees, as applyRemoteItem tells
+ * it: the row pulses unless it left the list, and screen readers hear it.
+ */
+export type RemoteItemOutcome = {
+  kind: "added" | "checked" | "unchecked" | "edited" | "removed";
+  id: string;
+  name: string;
+};
+
 /** Fields the list shows: a change to any of them pulses the row. */
 const VISIBLE_FIELDS = [
   "name",
@@ -763,43 +773,41 @@ function fetchAgain(queryClient: QueryClient, key: readonly unknown[]) {
  *   insert was missed. A late insert does create it, but the events of a
  *   row come in order, and the archive that follows hides it again.
  *
- * Returns true when another member added, edited, checked or brought back
- * a row the user sees: that row pulses (DESIGN_DIRECTION.md, section 8),
- * also when a read showed the change before its event arrived. Echoes, late
- * events, deletions and rows with a write of ours pending never do.
+ * Returns what another member did to a row the user sees (added, checked,
+ * unchecked, edited or removed it), also when a read showed the change
+ * before its event arrived: the row pulses (DESIGN_DIRECTION.md, section 8)
+ * unless it left the list, and the change is announced to screen readers.
+ * Echoes, late events and rows with a write of ours pending return null.
  */
 export function applyRemoteItem(
   queryClient: QueryClient,
   userId: string,
   listId: string,
   change: RemoteItemChange,
-): boolean {
+): RemoteItemOutcome | null {
   const key = queryKeys.items(userId, listId);
   // The channel filters by list; this only guards against a stray event.
-  if (change.type !== "DELETE" && change.row.list_id !== listId) return false;
+  if (change.type !== "DELETE" && change.row.list_id !== listId) return null;
   const items = queryClient.getQueryData<Item[]>(key);
   if (items === undefined) {
     readItemsAgain(queryClient, userId, listId);
-    return false;
+    return null;
   }
   const id = change.type === "DELETE" ? change.id : change.row.id;
   const cached = items.find((item) => item.id === id);
-  if (change.type === "DELETE" && !cached) return false;
+  if (change.type === "DELETE" && !cached) return null;
   const own =
     change.type !== "DELETE" && isOwnVersion(queryClient, listId, change.row);
   if (change.type !== "DELETE" && cached) {
     const order = compareTimestamps(change.row.updated_at, cached.updated_at);
-    if (order < 0) return false;
+    if (order < 0) return null;
     // The cache shows this very version already: nothing to apply. If it is
-    // not ours, a read brought it first, unannounced: it pulses now.
+    // not ours, a read brought it first, unannounced: it is told now.
     if (order === 0) {
-      return (
-        !own &&
-        pendingWritesTo(queryClient, listId, id) === 0 &&
-        showsChange(
-          change.row,
-          change.type === "INSERT" ? undefined : (change.previous ?? {}),
-        )
+      if (own || pendingWritesTo(queryClient, listId, id) > 0) return null;
+      return outcome(
+        change.row,
+        change.type === "INSERT" ? undefined : (change.previous ?? {}),
       );
     }
   }
@@ -809,21 +817,28 @@ export function applyRemoteItem(
   if (queryClient.isFetching({ queryKey: key, exact: true }) > 0) {
     readItemsAgain(queryClient, userId, listId);
   }
-  if (pendingWritesTo(queryClient, listId, id) > 0) return false;
+  if (pendingWritesTo(queryClient, listId, id) > 0) return null;
 
   if (change.type === "DELETE") {
     setItems(queryClient, key, (items) =>
       items.filter((item) => item.id !== id),
     );
-    return false;
+    return cached!.deleted_at === null
+      ? { kind: "removed", id, name: cached!.name }
+      : null;
   }
   const row = change.row;
   if (!cached) {
     if (change.type === "UPDATE") {
-      if (row.deleted_at === null) readItemsAgain(queryClient, userId, listId);
-      return false;
+      if (row.deleted_at === null) {
+        readItemsAgain(queryClient, userId, listId);
+        return null;
+      }
+      // Archived before the cache had it, or after a read already dropped
+      // it: told only if the event says it was on the list until now.
+      return own ? null : outcome(row, change.previous ?? {});
     }
-    if (row.deleted_at !== null) return false;
+    if (row.deleted_at !== null) return null;
     // In its place in the server's order, so the next refetch moves nothing.
     setItems(queryClient, key, (items) => {
       const next = items.findIndex((item) => compareServerOrder(row, item) < 0);
@@ -841,19 +856,33 @@ export function applyRemoteItem(
       queryKey: queryKeys.catalog(userId, listId),
     });
   }
-  return !own && showsChange(row, cached);
+  return own ? null : outcome(row, cached);
 }
 
 /**
- * Whether a change shows on the list, against the row as it was before it:
- * none (a new row), or one that may lack fields (an event's old record),
- * which then count as unknown, never as changed.
+ * What another member's change did to a row the user sees, against the row
+ * as it was before it: none (a new row), or one that may lack fields (an
+ * event's old record), which then count as unknown, never as changed.
  */
-function showsChange(row: Item, before: Partial<Item> | undefined) {
-  if (row.deleted_at !== null) return false;
-  if (!before) return true;
-  if (before.deleted_at != null) return true;
+function outcome(
+  row: Item,
+  before: Partial<Item> | undefined,
+): RemoteItemOutcome | null {
+  const told = (kind: RemoteItemOutcome["kind"]) => ({
+    kind,
+    id: row.id,
+    name: row.name,
+  });
+  if (row.deleted_at !== null) {
+    return before?.deleted_at === null ? told("removed") : null;
+  }
+  if (!before || before.deleted_at != null) return told("added");
+  if ("checked" in before && before.checked !== row.checked) {
+    return told(row.checked ? "checked" : "unchecked");
+  }
   return VISIBLE_FIELDS.some(
     (field) => field in before && before[field] !== row[field],
-  );
+  )
+    ? told("edited")
+    : null;
 }
