@@ -233,7 +233,7 @@ const CHECKED = [
   "aceite de girasol",
 ];
 
-// CI has no Supabase: this runs only against the local stack.
+// This needs the local stack: `npm run db:start` locally; the CI E2E job starts it.
 test.describe("phase 2a exit criterion", () => {
   test.skip(
     process.env.E2E_SUPABASE !== "1",

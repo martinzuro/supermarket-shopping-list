@@ -284,8 +284,9 @@ reducido de `visual.spec.ts` lo desactivan.
 
 - `npm test`: tokens de color y motion contra el CSS, contraste AA,
   conversión oklch.
-- `npm run test:e2e`: `visual.spec.ts` captura la lista, `/design` y la
-  página sin conexión en claro y oscuro, la hoja del menú y la bienvenida
+- `npm run test:e2e`: `visual.spec.ts` captura la lista, la lista sin
+  conexión (Auth cortado con `page.route`), `/design` y la página sin
+  conexión en claro y oscuro, la hoja del menú y la bienvenida
   con movimiento reducido, y comprueba invariantes deterministas (fondo
   igual al token papel, `color-scheme` correcto, sin desbordamiento
   horizontal a 375px, hoja sobre papel, filas sin translate con movimiento
@@ -296,7 +297,8 @@ reducido de `visual.spec.ts` lo desactivan.
   artefacto en CI.
 - `e2e/list.spec.ts` y `e2e/phase-2a.spec.ts` ejercitan la lista contra el
   Supabase local y necesitan `E2E_SUPABASE=1` y `npm run db:start`; sin eso
-  se saltean, como en CI, que no tiene Supabase. Adjuntan capturas a 375px
+  se saltean. En CI corren siempre: el job "E2E" levanta el stack local y
+  exporta sus claves antes del build. Adjuntan capturas a 375px
   en claro y oscuro (lista, lista agrupada, momento de carro vaciado,
   aviso de rechazo, hoja de edición y confirmación de borrado).
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
