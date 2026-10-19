@@ -174,6 +174,7 @@ Network y navegar a una ruta no visitada.
 - [docs/plan.md](docs/plan.md): plan completo del proyecto (decisiones, arquitectura, fases, despliegue).
 - [docs/roadmap.md](docs/roadmap.md): funcionalidades previstas para fases futuras.
 - [docs/decisions/](docs/decisions/): registro de decisiones de arquitectura (ADR).
+- [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md): referencia de implementación del sistema de diseño.
 - [docs/DESIGN_DIRECTION.md](docs/DESIGN_DIRECTION.md): dirección de diseño "Fresh Editorial".
 - [docs/DESIGN_REFERENCES.md](docs/DESIGN_REFERENCES.md): análisis de referencias visuales.
 - [CLAUDE.md](CLAUDE.md): contexto e instrucciones para sesiones de Claude Code.

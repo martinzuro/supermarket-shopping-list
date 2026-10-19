@@ -28,3 +28,4 @@ Estado: Aceptado | Reemplazado por NNNN
 | [0006](0006-currency-per-item.md) | Moneda por ítem, UYU por defecto |
 | [0007](0007-spanish-only.md) | Solo español, textos centralizados |
 | [0008](0008-design-direction.md) | Dirección de diseño Fresh Editorial y sus diez decisiones |
+| [0009](0009-motion-for-react.md) | Motion for React para el movimiento |
