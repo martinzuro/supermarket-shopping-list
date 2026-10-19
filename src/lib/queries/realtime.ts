@@ -141,6 +141,7 @@ function openListChannel(
     clearTimeout(timer);
     if (channel) void supabase.removeChannel(channel);
     channel = null;
+    silence(announcementsOf(queryClient, userId, listId));
   };
 }
 
@@ -239,8 +240,11 @@ const ANNOUNCE_FOR_MS = 5_000;
  */
 export type Announcement = { text: string; seq: number };
 
+type Kind = RemoteItemOutcome["kind"];
+
 type Announcements = {
-  burst: Map<string, RemoteItemOutcome>;
+  /** Per row in the burst: its latest name and everything done to it. */
+  burst: Map<string, { name: string; kinds: Kind[] }>;
   timer: ReturnType<typeof setTimeout> | undefined;
   clear: ReturnType<typeof setTimeout> | undefined;
   current: Announcement;
@@ -280,39 +284,78 @@ function announcementsOf(
 }
 
 /**
- * Collects another member's change into the burst being told. A row added
- * and then changed within one burst is still news as an add; one added and
- * removed within it was never seen: nothing is said about it.
+ * What a burst did to one row, all told: added (and still there), removed,
+ * moved to or out of the cart (a check undone within the burst is nothing),
+ * or edited. Null when it ends as it started, as far as the user can tell.
  */
+export function netKind(kinds: readonly Kind[]): Kind | null {
+  const last = kinds.at(-1);
+  if (kinds[0] === "removed") return last === "removed" ? "removed" : null;
+  if (kinds.includes("added")) return last === "removed" ? null : "added";
+  if (last === "removed") return "removed";
+  const toggles = kinds.filter(
+    (kind) => kind === "checked" || kind === "unchecked",
+  );
+  const net = toggles.reduce(
+    (sum, kind) => sum + (kind === "checked" ? 1 : -1),
+    0,
+  );
+  if (net !== 0) return toggles.at(-1)!;
+  return kinds.includes("edited") ? "edited" : null;
+}
+
+/** Collects another member's change into the burst being told. */
 function announce(store: Announcements, told: RemoteItemOutcome) {
-  const earlier = store.burst.get(told.id);
-  if (earlier?.kind === "added") {
-    if (told.kind === "removed") store.burst.delete(told.id);
-    else store.burst.set(told.id, { ...told, kind: "added" });
-  } else {
-    store.burst.set(told.id, told);
-  }
+  const row = store.burst.get(told.id);
+  store.burst.set(told.id, {
+    name: told.name,
+    kinds: [...(row?.kinds ?? []), told.kind],
+  });
   if (store.timer) return;
   store.timer = setTimeout(() => {
     store.timer = undefined;
-    const text = describeRemoteChanges([...store.burst.values()]);
+    const changes: RemoteItemOutcome[] = [];
+    for (const [id, { name, kinds }] of store.burst) {
+      const kind = netKind(kinds);
+      if (kind) changes.push({ kind, id, name });
+    }
     store.burst.clear();
+    const text = describeRemoteChanges(changes);
     if (!text) return;
-    const notify = () => store.listeners.forEach((listener) => listener());
     store.current = { text, seq: store.current.seq + 1 };
-    notify();
+    notify(store);
     clearTimeout(store.clear);
     store.clear = setTimeout(() => {
       store.current = { text: "", seq: store.current.seq };
-      notify();
+      notify(store);
     }, ANNOUNCE_FOR_MS);
   }, ANNOUNCE_AFTER_MS);
 }
 
+function notify(store: Announcements) {
+  store.listeners.forEach((listener) => listener());
+}
+
+/**
+ * The channel closed (another list, another user, the screen gone): what
+ * was about to be said, or still sits in the region, no longer applies.
+ */
+function silence(store: Announcements) {
+  clearTimeout(store.timer);
+  clearTimeout(store.clear);
+  store.timer = undefined;
+  store.clear = undefined;
+  store.burst.clear();
+  if (store.current.text) {
+    store.current = { text: "", seq: store.current.seq };
+    notify(store);
+  }
+}
+
 /**
  * One sentence for a burst of other members' changes: the row by name when
- * there is one, a count when they are all of a kind, the number of changes
- * otherwise. Empty when there is nothing to tell.
+ * there is one, a count when they are all of a kind, the number of rows
+ * changed otherwise. Empty when there is nothing to tell.
  */
 export function describeRemoteChanges(
   changes: readonly RemoteItemOutcome[],

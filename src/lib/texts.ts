@@ -86,7 +86,7 @@ export const texts = {
       edited: (count: number) => `Cambiaron ${count} productos`,
       removed: (count: number) => `Sacaron ${count} productos de la lista`,
     },
-    mixed: (count: number) => `Hubo ${count} cambios en la lista`,
+    mixed: (count: number) => `Hubo cambios en ${count} productos`,
   },
   sheet: {
     close: "Cerrar",

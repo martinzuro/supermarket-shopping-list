@@ -14,6 +14,7 @@ import {
 import { queryKeys } from "./keys";
 import {
   describeRemoteChanges,
+  netKind,
   useListRealtime,
   useRemoteAnnouncement,
   useRemoteChanges,
@@ -1171,7 +1172,59 @@ describe("what screen readers are told", () => {
     ).toBe("Sacaron 2 productos de la lista");
     expect(
       describeRemoteChanges([told("added", "Leche"), told("checked", "Pan")]),
-    ).toBe("Hubo 2 cambios en la lista");
+    ).toBe("Hubo cambios en 2 productos");
+  });
+
+  it("tells what a burst did to a row, all told", () => {
+    expect(netKind(["checked"])).toBe("checked");
+    // Checked and then edited: the move to the cart is the news.
+    expect(netKind(["checked", "edited"])).toBe("checked");
+    expect(netKind(["edited", "unchecked"])).toBe("unchecked");
+    // A check undone within the burst leaves the row as it was...
+    expect(netKind(["checked", "unchecked"])).toBeNull();
+    // ...unless it was also edited.
+    expect(netKind(["checked", "edited", "unchecked"])).toBe("edited");
+    expect(netKind(["checked", "unchecked", "checked"])).toBe("checked");
+    expect(netKind(["added", "checked", "edited"])).toBe("added");
+    expect(netKind(["added", "removed"])).toBeNull();
+    expect(netKind(["edited", "removed"])).toBe("removed");
+    // Removed and brought back: where it was.
+    expect(netKind(["removed", "added"])).toBeNull();
+  });
+
+  it("says nothing of an archived row the list no longer shows", async () => {
+    const bread = serverRow({ id: "bread", name: "Pan" });
+    const { result, channel } = await renderList([bread]);
+    const milk = serverRow({ id: "milk", name: "Leche", position: 1 });
+    // A read already dropped it, or it was never loaded: its archive says
+    // it was live, but nothing says the user ever saw it.
+    channel.emit("items", {
+      eventType: "UPDATE",
+      new: { ...milk, deleted_at: at(3), updated_at: at(3) },
+      old: milk,
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(result.current.announcement.text).toBe("");
+  });
+
+  it("drops what was about to be said when the list changes", async () => {
+    const { result, channel, rerender } = await renderList([]);
+    channel.emit(
+      "items",
+      inserted(
+        serverRow({
+          id: "milk",
+          name: "Leche",
+          created_by: MEMBER,
+          created_at: at(5),
+          updated_at: at(5),
+        }),
+      ),
+    );
+    rerender({ userId: USER, listId: OTHER_LIST });
+    rerender({ userId: USER, listId: LIST });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(result.current.announcement.text).toBe("");
   });
 
   it("tells another member's add, check and emptied cart, once per burst", async () => {

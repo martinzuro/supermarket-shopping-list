@@ -834,9 +834,10 @@ export function applyRemoteItem(
         readItemsAgain(queryClient, userId, listId);
         return null;
       }
-      // Archived before the cache had it, or after a read already dropped
-      // it: told only if the event says it was on the list until now.
-      return own ? null : outcome(row, change.previous ?? {});
+      // Archived, and the cache no longer has it (a read dropped it first)
+      // or never had it: nothing to apply, and nothing told, since nothing
+      // says the user ever saw the row.
+      return null;
     }
     if (row.deleted_at !== null) return null;
     // In its place in the server's order, so the next refetch moves nothing.

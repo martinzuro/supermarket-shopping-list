@@ -125,7 +125,10 @@ actualizaciones optimistas.** [ADR 0003](decisions/0003-online-only.md)
     evento dice qué cambió). Nunca por cambios propios, ecos, borrados ni
     archivados (ver `DESIGN_SYSTEM.md`, sección 5). Los lectores de
     pantalla reciben una frase por ráfaga en una región cortés
-    (`useRemoteAnnouncement`), sin autor y nunca de cambios propios.
+    (`useRemoteAnnouncement`), sin autor y nunca de cambios propios: lo
+    que la ráfaga dejó en cada fila (marcar y desmarcar se anulan). Una
+    baja que una lectura mostró antes que su evento no se anuncia, porque
+    nada dice que el usuario haya visto la fila.
 - Sin red: banner persistente "sin conexión", las mutaciones en curso se
   reintentan con backoff mientras la pestaña siga abierta, el texto del
   input de añadir se conserva. No se garantiza nada más.
