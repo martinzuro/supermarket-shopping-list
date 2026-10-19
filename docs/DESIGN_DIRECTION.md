@@ -4,10 +4,11 @@ Visión creativa, principios visuales y direcciones posibles para la app.
 Este documento se consulta antes de cualquier trabajo de interfaz, junto
 con [DESIGN_REFERENCES.md](DESIGN_REFERENCES.md).
 
-Estado: **aprobado el 2026-10-17**, incluidas las diez decisiones de la
-sección 10 ([ADR 0008](decisions/0008-design-direction.md)). No define
-pantallas, componentes ni código: el siguiente paso es el sistema de
-diseño (sección 12).
+Estado: **aprobado el 2026-10-17** (diez decisiones de la sección 10,
+[ADR 0008](decisions/0008-design-direction.md)) y **sistema de diseño
+construido el 2026-10-18**. La referencia de lo que existe en el código y
+de cómo usarlo está en [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md); este
+documento conserva la visión y los principios, que siguen vigentes.
 
 ---
 
@@ -100,30 +101,33 @@ pistacho aparece solo como superficie secundaria (carro, hojas); los
 cítricos solo en acción primaria y estado hecho. El color expresivo de C
 queda para los dos o tres momentos cinematográficos, nunca para la lista.
 
-### Tokens candidatos
+### Tokens finales
 
-Valores de partida para explorar, no definitivos. Todos pendientes de
-validación de contraste y de prueba en pantalla real bajo luz de
-supermercado.
+Implementados en `src/app/globals.css` y validados por contraste en cada
+`npm test` ([DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), sección 2). Respecto a
+los candidatos iniciales cambiaron dos cosas al medir: la tinta secundaria
+se oscureció a `#56655a` para cumplir 4.5:1 sobre pistacho, y apareció el
+token `on-lime` (`#1b2a1f` en ambos modos) porque la tinta del modo oscuro
+no sirve sobre lima.
 
 | Rol | Claro | Oscuro | Nota |
 | --- | ----- | ------ | ---- |
-| Papel (fondo) | `#F6F3EC` | `#13181480` sobre `#121814` | Crema cálido, nunca blanco puro ni negro puro |
+| Papel (fondo) | `#F6F3EC` | `#121814` | Crema cálido, nunca blanco puro ni negro puro |
 | Tinta (texto principal) | `#1B2A1F` | `#EEEBE2` | Verde casi negro, da calidez sin leerse como "verde" |
-| Tinta secundaria | `#5B6A5E` | `#9BA69C` | Para metadatos, eyebrows |
-| Regla (bordes) | tinta al 12% | marfil al 14% | Líneas de 1px |
-| Pistacho (superficie 2) | `#DCE9C8` | `#1F2B22` | Carro, hojas, agrupaciones |
-| Verde bosque (marca) | `#2F4A3A` | `#8FB89B` | Logotipo, acentos de marca |
-| Lima (acento activo) | `#C9F04A` | `#C9F04A` | Acción primaria, "hecho". Solo sobre tinta o bosque, nunca como fondo de texto claro |
-| Naranja cítrico (acento 2) | `#F26B1D` | `#FF8A47` | Atención, cambios de otros miembros, precios destacados |
-| Tomate (error) | `#D9432B` | `#F06A52` | Único rojo del sistema |
+| Tinta secundaria | `#56655A` | `#9BA69C` | Metadatos, eyebrows, borde de campo |
+| Regla (bordes) | tinta al 12% | tinta al 12% | Líneas de 1px, el separador por defecto |
+| Pistacho (superficie 2) | `#DCE9C8` | `#1F2B22` | Carro, hojas, agrupaciones, botón secundario |
+| Verde bosque (marca) | `#2F4A3A` | `#8FB89B` | Marca, foco en claro |
+| Lima (acento activo) | `#C9F04A` | `#C9F04A` | Acción primaria y "hecho". Texto sobre lima: siempre `on-lime` |
+| Naranja cítrico (acento 2) | `#F26B1D` | `#FF8A47` | Atención, cambios de otros. Para texto, `citrus-text` |
+| Tomate (error) | `#D9432B` | `#F06A52` | Único rojo. Para texto, `tomato-text` |
 
-Categorías: diez tintes derivados de una misma saturación y luminosidad,
-para que convivan sin pelear. Se aplican en la etiqueta de categoría y en
-un hilo de 2px al lado de la agrupación, no como fondo de fila.
+Categorías: diez tintes en oklch con la misma luminosidad y croma,
+aplicados en la etiqueta y en un hilo de 2px junto a la agrupación, nunca
+como fondo de fila.
 
-Modo oscuro: desde el inicio en los tokens, aunque la prioridad de pulido
-sea el modo claro. El supermercado es un lugar iluminado.
+Modo oscuro: en los tokens desde el inicio, con el pulido fino hecho
+primero en claro. El supermercado es un lugar iluminado.
 
 ## 5. Tipografía
 
@@ -232,7 +236,7 @@ pasar). Nunca decora.
 | `--dur-cinematic` | 900 ms | Momentos editoriales, una vez por sesión como mucho |
 | `--stagger` | 35 ms | Entre elementos de una lista que entra |
 
-### Coreografías clave (a diseñar, no definidas aquí)
+### Coreografías clave
 
 - **Añadir ítem**: el ítem aparece en su categoría con un leve
   desplazamiento vertical y fade, el input se vacía sin parpadeo, el foco
@@ -257,9 +261,10 @@ pasar). Nunca decora.
   es parte de la velocidad percibida.
 - Sin animaciones en bucle visibles en la lista. Un indicador de
   sincronización puede pulsar; nada más.
-- Librerías: Motion for React como candidata principal por animaciones de
-  layout y gestos con soporte de reduced motion. GSAP solo si un momento
-  cinematográfico lo justifica. Ninguna se instala hasta implementar.
+- Librería: Motion for React ([ADR 0009](decisions/0009-motion-for-react.md)),
+  con las primitivas `Enter`, `Stagger`, `StaggerItem` y `Collapse` en
+  `src/components/motion`. GSAP solo si un momento cinematográfico lo
+  justifica; hoy ninguno lo hace.
 
 ## 9. Direcciones posibles
 
@@ -319,10 +324,18 @@ Del brief, confirmado por las referencias:
 - Interfaces sobrecargadas de tarjetas.
 - Scroll secuestrado, preloaders largos, bloqueos por orientación.
 
-## 12. Siguiente paso
+## 12. Lo construido
 
-Con las decisiones de la sección 10 tomadas, el siguiente paso es el
-sistema de diseño: tokens de color, tipografía, espaciado, radios,
-superficies, motion y estados de interacción como variables CSS, más una
-página de muestra interna con los componentes base en sus estados. Solo
-después se diseñan pantallas.
+El sistema de diseño está implementado y verificado (PR 13 a 20, 2026-10-17
+y 2026-10-18): tokens en claro y oscuro con test de contraste, tres
+fuentes, escala tipográfica fluida, espaciado, radios, superficies y la
+única sombra, motion con Motion for React, los componentes base con sus
+estados, los diez iconos de categoría, tres ilustraciones, la bienvenida
+del primer uso, el restyle de las pantallas existentes, el icono PWA y las
+capturas automáticas. Todo se ve en `/design` y está documentado en
+[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
+
+Queda por diseñar lo que las fases 2 y 3 del plan traigan de nuevo:
+autocompletado, selector de categoría en contexto, totales por moneda,
+compartir e invitación. Se diseñan con este sistema, sin añadir tokens ni
+componentes hasta que una pantalla real los pida.

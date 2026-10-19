@@ -114,8 +114,12 @@ subordinan a ella.
 - **Primitivas accesibles sin estilo** (shadcn/ui o Base UI) solo por su
   comportamiento: diálogos, hojas, menús. La apariencia es siempre propia;
   nunca se entrega el estilo por defecto.
-- **lucide-react** para iconos de interfaz con stroke ajustado, hasta que
-  exista un set propio. Iconos de categoría propios.
+- **lucide-react** para iconos de interfaz con stroke 1.5; iconos de
+  categoría e ilustraciones propios en `src/components/icons` e
+  `src/components/illustrations`.
+- **Motion for React** para el movimiento ([ADR 0009](decisions/0009-motion-for-react.md)).
+- Referencia de implementación del sistema de diseño:
+  [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
 - **TanStack Query** como única capa de estado de servidor. Estado de UI
   efímero en React. Sin store global.
 - Sin librería de formularios. Validación con **zod** en los límites
@@ -358,9 +362,11 @@ con RLS y triggers verificado contra el stack local, tipos generados,
 helpers de dominio, auth (usuario anónimo, conversión por código o enlace,
 cierre de sesión), capa de queries con TanStack Query y el patrón de
 mutación optimista testeado, y deploy continuo en Vercel con variables
-hacia Supabase staging. Pendiente de la Fase 1: instalación probada en
-iOS y Android (dispositivo real) y el pase visual según
-`docs/DESIGN_DIRECTION.md` cuando se apruebe la dirección. Limitación
+hacia Supabase staging. Estado al 2026-10-18: el sistema de diseño Fresh
+Editorial está construido y las pantallas existentes lo usan (PR 13 a 20,
+ver `docs/DESIGN_SYSTEM.md`). Pendiente de la Fase 1: instalación probada
+en iOS y Android (dispositivo real) y la revisión cruzada del sistema por
+un modelo distinto al que lo construyó. Limitación
 conocida: en staging los correos solo traen el enlace, no el código,
 hasta configurar Resend (plan gratuito de Supabase).
 

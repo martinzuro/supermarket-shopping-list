@@ -8,12 +8,15 @@ Desarrollar una web app para gestionar listas de compras de supermercado.
 
 ## Estado actual
 
-Fase 1 (fundaciones) en curso, ver el estado fechado en `docs/plan.md`.
-En `main`: tooling (Prettier, Vitest, Playwright, CI), tokens de diseño y
-layout vacío de la lista en `src/app/(app)/`, PWA, esquema de Supabase con
-RLS y triggers en `supabase/migrations/`, tipos generados en
-`src/lib/supabase/database.types.ts`, helpers puros en `src/lib/domain/`.
-Sin funcionalidades de negocio todavía.
+Fase 1 (fundaciones) casi completa, ver el estado fechado en
+`docs/plan.md`. En `main`: tooling (Prettier, Vitest, Playwright, CI), PWA,
+esquema de Supabase con RLS y triggers en `supabase/migrations/`, tipos
+generados en `src/lib/supabase/database.types.ts`, helpers puros en
+`src/lib/domain/`, auth anónima con conversión por código, capa de queries
+con TanStack Query, y el sistema de diseño Fresh Editorial construido y
+aplicado a las pantallas existentes (`docs/DESIGN_SYSTEM.md`, página
+interna `/design`). Sin funcionalidades de negocio todavía: la lista no
+guarda ítems hasta la Fase 2a.
 
 ## Decisiones tomadas
 
@@ -56,9 +59,11 @@ componente por defecto.
 Antes de cualquier trabajo de interfaz (tokens, componentes, pantallas,
 animaciones, iconos, estados vacíos, textos visibles), leer en este orden:
 
-1. `docs/DESIGN_DIRECTION.md`: concepto "Fresh Editorial", principios
-   visuales, paleta, tipografía, layout, motion y decisiones pendientes.
-2. `docs/DESIGN_REFERENCES.md`: análisis de las cinco referencias y los
+1. `docs/DESIGN_SYSTEM.md`: qué existe en el código (tokens, tipografía,
+   componentes, motion, iconos, ilustraciones, pruebas) y cómo se extiende.
+2. `docs/DESIGN_DIRECTION.md`: concepto "Fresh Editorial", principios
+   visuales y las decisiones aprobadas (ADR 0008).
+3. `docs/DESIGN_REFERENCES.md`: análisis de las cinco referencias y los
    principios que se trasladan y los que no.
 
 Reglas que se derivan de esos documentos y se aplican siempre:
@@ -72,12 +77,14 @@ Reglas que se derivan de esos documentos y se aplican siempre:
 - Todo movimiento usa los tokens de duración y curva del sistema, solo
   anima `transform` y `opacity` en interacciones frecuentes y respeta
   `prefers-reduced-motion`.
-- El sistema de diseño (tokens y componentes base) se construye antes que
-  cualquier pantalla. La dirección está **aprobada** (ADR 0008, con las
-  diez decisiones de la sección 10 de `docs/DESIGN_DIRECTION.md`). Los
-  tokens y primitivas provisionales de `src/app/globals.css` y
-  `src/components/ui/` tienen la apariencia por defecto de shadcn y se
-  reemplazan, no se extienden.
+- Las pantallas se construyen con los tokens y componentes existentes
+  (`src/app/globals.css`, `src/components/ui`, `src/components/motion`).
+  No se añaden tokens ni componentes hasta que una pantalla real los pida,
+  y cuando se añaden siguen la sección 11 de `docs/DESIGN_SYSTEM.md`:
+  dos modos, test de contraste, muestra en `/design`.
+- Toda pieza visual se verifica renderizada a 375px en claro y oscuro
+  antes de abrir el PR. `e2e/visual.spec.ts` captura las pantallas
+  principales y comprueba invariantes del sistema en CI.
 
 ## Stack
 
@@ -97,9 +104,15 @@ Reglas que se derivan de esos documentos y se aplican siempre:
 ## Estructura
 
 ```
-src/app/         Rutas, layouts y páginas
+src/app/         Rutas, layouts y páginas (`/design` es la muestra interna)
 src/components/  Componentes reutilizables
+src/components/ui/            Componentes base del sistema de diseño
+src/components/motion/        Primitivas de Motion for React
+src/components/icons/         Iconos de categoría propios
+src/components/illustrations/ Ilustraciones monolínea
+src/components/welcome/       Bienvenida del primer uso
 src/lib/         Utilidades y lógica compartida
+src/lib/design/  Tokens en TypeScript, contraste y su test
 src/lib/domain/  Funciones puras (normalización, totales, orden), con tests
 src/lib/supabase/ Clientes y tipos generados (`database.types.ts`)
 src/types/       Tipos de TypeScript compartidos
@@ -124,7 +137,10 @@ npm run db:start   # Supabase local (db:stop, db:reset, db:types)
 ```
 
 Antes de dar por terminado un cambio, ejecutar `npm run lint`,
-`npm run typecheck`, `npm run format:check`, `npm test` y `npm run build`.
+`npm run typecheck`, `npm run format:check`, `npm test`, `npm run test:e2e`
+y por último `npm run build`. Los e2e van antes del build: `next build`
+con `next dev` abierto deja el dev server sirviendo CSS viejo (si pasa,
+parar la preview, borrar `.next/dev` y relanzar).
 Si cambia el esquema: migración nueva con `npx supabase migration new`,
 `npm run db:reset` y `npm run db:types`; las migraciones mergeadas no se
 editan.
