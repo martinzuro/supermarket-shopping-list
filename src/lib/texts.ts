@@ -26,6 +26,16 @@ export const texts = {
     placeholder: "Leche, pan, tomates…",
     submit: "Agregar",
   },
+  /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
+  itemErrors: {
+    add: (name: string) => `No se guardó “${name}”`,
+    addRestored: "Lo escrito volvió al campo para que pruebes de nuevo.",
+    addLost: "Probá agregarlo de nuevo en un rato.",
+    check: (name: string) => `No se marcó “${name}”`,
+    uncheck: (name: string) => `No se desmarcó “${name}”`,
+    toggleBody: "Volvió a donde estaba. Probá de nuevo en un rato.",
+    dismiss: "Cerrar aviso",
+  },
   sheet: {
     close: "Cerrar",
   },

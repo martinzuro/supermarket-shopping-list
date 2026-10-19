@@ -1,20 +1,34 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "./keys";
-import { useAddItem, useItems, newItem, type Item } from "./items";
+import {
+  useAddItem,
+  useItems,
+  useToggleItem,
+  newItem,
+  type Item,
+} from "./items";
 import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
 
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
 
-const read = vi.fn<() => Promise<{ data: unknown; error: unknown }>>();
-const write =
-  vi.fn<(row: unknown) => Promise<{ data: unknown; error: unknown }>>();
-const items = makeTable({ read, write });
+type Result = { data: unknown; error: unknown };
+
+const read = vi.fn<() => Promise<Result>>();
+const write = vi.fn<(row: unknown) => Promise<Result>>();
+const update =
+  vi.fn<(changes: unknown, filters: [string, unknown][]) => Promise<Result>>();
+const items = makeTable({ read, write, update });
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({ from: () => items.builder() }),
 }));
+
+const rejection = {
+  data: null,
+  error: { message: "new row violates row-level security", code: "42501" },
+};
 
 function serverRow(partial: Partial<Item> & Pick<Item, "id" | "name">): Item {
   return {
@@ -47,24 +61,39 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+async function renderItems(initial: Item[]) {
+  read.mockResolvedValue({ data: initial, error: null });
+  const queryClient = makeTestQueryClient();
+  const hook = renderHook(
+    () => ({
+      list: useItems(USER, LIST),
+      add: useAddItem(USER, LIST),
+      toggle: useToggleItem(USER, LIST),
+    }),
+    { wrapper: makeWrapper(queryClient) },
+  );
+  await waitFor(() => expect(hook.result.current.list.isSuccess).toBe(true));
+  read.mockClear();
+  return { ...hook, queryClient };
+}
+
+function cached(queryClient: ReturnType<typeof makeTestQueryClient>) {
+  return queryClient.getQueryData<Item[]>(queryKeys.items(USER, LIST)) ?? [];
+}
+
+beforeEach(() => {
+  read.mockReset();
+  write.mockReset();
+  update.mockReset();
+  items.insert.mockClear();
+  items.update.mockClear();
+});
+
 describe("useAddItem (optimistic mutation pattern)", () => {
-  beforeEach(() => {
-    read.mockReset();
-    write.mockReset();
-    items.insert.mockClear();
-  });
-
   it("shows the item at once, then replaces it with the server row", async () => {
-    read.mockResolvedValue({ data: [], error: null });
-    const pending = deferred<{ data: unknown; error: unknown }>();
+    const { result, queryClient } = await renderItems([]);
+    const pending = deferred<Result>();
     write.mockReturnValue(pending.promise);
-
-    const queryClient = makeTestQueryClient();
-    const { result } = renderHook(
-      () => ({ list: useItems(USER, LIST), add: useAddItem(USER, LIST) }),
-      { wrapper: makeWrapper(queryClient) },
-    );
-    await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
 
     const input = newItem("  Leche entera ");
     act(() => result.current.add.mutate(input));
@@ -82,6 +111,8 @@ describe("useAddItem (optimistic mutation pattern)", () => {
       id: input.id,
       list_id: LIST,
       name: "Leche entera",
+      quantity: null,
+      unit: null,
       position: 0,
     });
 
@@ -90,31 +121,262 @@ describe("useAddItem (optimistic mutation pattern)", () => {
     read.mockResolvedValue({ data: [created], error: null });
     await act(async () => pending.resolve({ data: created, error: null }));
     await waitFor(() => expect(result.current.add.isSuccess).toBe(true));
-    expect(
-      queryClient.getQueryData<Item[]>(queryKeys.items(USER, LIST)),
-    ).toEqual([created]);
+    expect(cached(queryClient)).toEqual([created]);
   });
 
-  it("rolls the cache back when the server rejects the insert", async () => {
-    const existing = serverRow({ id: "existing", name: "Pan" });
-    read.mockResolvedValue({ data: [existing], error: null });
-    const pending = deferred<{ data: unknown; error: unknown }>();
-    write.mockReturnValue(pending.promise);
+  it("sends and shows quantity and unit", async () => {
+    const { result } = await renderItems([]);
+    write.mockReturnValue(new Promise(() => {}));
 
-    const queryClient = makeTestQueryClient();
-    const { result } = renderHook(
-      () => ({ list: useItems(USER, LIST), add: useAddItem(USER, LIST) }),
-      { wrapper: makeWrapper(queryClient) },
+    const input = newItem("Tomates", { quantity: 1.5, unit: "kg" });
+    act(() => result.current.add.mutate(input));
+
+    await waitFor(() => expect(result.current.list.data).toHaveLength(1));
+    expect(result.current.list.data![0]).toMatchObject({
+      quantity: 1.5,
+      unit: "kg",
+    });
+    await waitFor(() =>
+      expect(items.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ quantity: 1.5, unit: "kg" }),
+      ),
     );
-    await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
+  });
 
-    act(() => result.current.add.mutate(newItem("Tomates")));
+  it("drops only the rejected row, keeping a later add still in flight", async () => {
+    const existing = serverRow({ id: "existing", name: "Pan" });
+    const { result, queryClient } = await renderItems([existing]);
+    const first = deferred<Result>();
+    const second = deferred<Result>();
+    write
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const tomatoes = newItem("Tomates");
+    const rice = newItem("Arroz");
+    act(() => result.current.add.mutate(tomatoes));
+    act(() => result.current.add.mutate(rice));
+    await waitFor(() => expect(cached(queryClient)).toHaveLength(3));
+    expect(cached(queryClient).map((i) => i.position)).toEqual([0, 1, 2]);
+    // Writes to a list run in series: the second waits for the first.
+    expect(write).toHaveBeenCalledTimes(1);
+
+    // 2. Rejected: only that row goes; the second add stays on screen.
+    await act(async () => first.resolve(rejection));
+    await waitFor(() =>
+      expect(cached(queryClient).map((i) => i.name)).toEqual(["Pan", "Arroz"]),
+    );
+    expect(read).not.toHaveBeenCalled();
+
+    const created = serverRow({ id: rice.id, name: "Arroz", position: 2 });
+    read.mockResolvedValue({ data: [existing, created], error: null });
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+    await act(async () => second.resolve({ data: created, error: null }));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(cached(queryClient)).toEqual([existing, created]),
+    );
+  });
+
+  it("refetches once, after the last write in flight settles", async () => {
+    const { result } = await renderItems([]);
+    const first = deferred<Result>();
+    const second = deferred<Result>();
+    write
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const a = newItem("Café");
+    const b = newItem("Yerba");
+    act(() => result.current.add.mutate(a));
+    act(() => result.current.add.mutate(b));
     await waitFor(() => expect(result.current.list.data).toHaveLength(2));
-    expect(result.current.list.data![1].position).toBe(1);
 
-    // 2. Rejected: the snapshot comes back.
-    await act(async () => pending.reject(new Error("rls")));
-    await waitFor(() => expect(result.current.add.isError).toBe(true));
-    expect(result.current.list.data).toEqual([existing]);
+    await act(async () =>
+      first.resolve({
+        data: serverRow({ id: a.id, name: "Café" }),
+        error: null,
+      }),
+    );
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+    expect(read).not.toHaveBeenCalled();
+    expect(result.current.list.data).toHaveLength(2);
+
+    read.mockResolvedValue({ data: [], error: null });
+    await act(async () =>
+      second.resolve({
+        data: serverRow({ id: b.id, name: "Yerba", position: 1 }),
+        error: null,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("useToggleItem", () => {
+  it("moves the item to the cart at once and keeps the server row", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    const pending = deferred<Result>();
+    update.mockReturnValue(pending.promise);
+
+    act(() =>
+      result.current.toggle.mutate({
+        id: "milk",
+        name: "Leche",
+        checked: true,
+      }),
+    );
+    await waitFor(() => expect(cached(queryClient)[0].checked).toBe(true));
+    const checkedAt = cached(queryClient)[0].checked_at;
+    expect(checkedAt).not.toBeNull();
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith(
+        { checked: true, checked_at: checkedAt },
+        [["id", "milk"]],
+      ),
+    );
+
+    const confirmed = { ...milk, checked: true, checked_at: checkedAt };
+    read.mockResolvedValue({ data: [confirmed], error: null });
+    await act(async () => pending.resolve({ data: confirmed, error: null }));
+    await waitFor(() => expect(result.current.toggle.isSuccess).toBe(true));
+    expect(cached(queryClient)).toEqual([confirmed]);
+  });
+
+  it("unchecks with a null check time", async () => {
+    const bread = serverRow({
+      id: "bread",
+      name: "Pan",
+      checked: true,
+      checked_at: "2026-10-18T10:00:00.000Z",
+    });
+    const { result, queryClient } = await renderItems([bread]);
+    update.mockReturnValue(new Promise(() => {}));
+
+    act(() =>
+      result.current.toggle.mutate({
+        id: "bread",
+        name: "Pan",
+        checked: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(cached(queryClient)[0]).toMatchObject({
+        checked: false,
+        checked_at: null,
+      }),
+    );
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith(
+        { checked: false, checked_at: null },
+        [["id", "bread"]],
+      ),
+    );
+  });
+
+  it("puts the item back where it was when the server rejects", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    update.mockResolvedValue(rejection);
+
+    act(() =>
+      result.current.toggle.mutate({
+        id: "milk",
+        name: "Leche",
+        checked: true,
+      }),
+    );
+    await waitFor(() => expect(result.current.toggle.isError).toBe(true));
+    expect(cached(queryClient)).toEqual([milk]);
+  });
+
+  it("keeps a later toggle when an earlier one is rejected", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    const first = deferred<Result>();
+    const second = deferred<Result>();
+    update
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    act(() =>
+      result.current.toggle.mutate({
+        id: "milk",
+        name: "Leche",
+        checked: true,
+      }),
+    );
+    act(() =>
+      result.current.toggle.mutate({
+        id: "milk",
+        name: "Leche",
+        checked: false,
+      }),
+    );
+    await waitFor(() => expect(cached(queryClient)[0].checked).toBe(false));
+
+    await act(async () => first.resolve(rejection));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(cached(queryClient)[0].checked).toBe(false);
+    expect(update.mock.calls[1][0]).toEqual({
+      checked: false,
+      checked_at: null,
+    });
+  });
+
+  it("waits for the insert of a new item, and the insert does not undo it", async () => {
+    const { result, queryClient } = await renderItems([]);
+    const insert = deferred<Result>();
+    const toggle = deferred<Result>();
+    write.mockReturnValue(insert.promise);
+    update.mockReturnValue(toggle.promise);
+
+    const input = newItem("Huevos");
+    act(() => result.current.add.mutate(input));
+    act(() =>
+      result.current.toggle.mutate({
+        id: input.id,
+        name: "Huevos",
+        checked: true,
+      }),
+    );
+    await waitFor(() => expect(cached(queryClient)[0]?.checked).toBe(true));
+    expect(update).not.toHaveBeenCalled();
+
+    // The insert answers with the unchecked row; the pending toggle wins.
+    await act(async () =>
+      insert.resolve({
+        data: serverRow({ id: input.id, name: "Huevos" }),
+        error: null,
+      }),
+    );
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(cached(queryClient)[0].checked).toBe(true);
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("does nothing on the server when the insert it waited for was rejected", async () => {
+    const { result, queryClient } = await renderItems([]);
+    const insert = deferred<Result>();
+    write.mockReturnValue(insert.promise);
+
+    const input = newItem("Huevos");
+    act(() => result.current.add.mutate(input));
+    act(() =>
+      result.current.toggle.mutate({
+        id: input.id,
+        name: "Huevos",
+        checked: true,
+      }),
+    );
+    await waitFor(() => expect(cached(queryClient)).toHaveLength(1));
+
+    read.mockResolvedValue({ data: [], error: null });
+    await act(async () => insert.resolve(rejection));
+    await waitFor(() => expect(result.current.toggle.isSuccess).toBe(true));
+    expect(update).not.toHaveBeenCalled();
+    expect(result.current.toggle.isError).toBe(false);
+    expect(cached(queryClient)).toEqual([]);
   });
 });

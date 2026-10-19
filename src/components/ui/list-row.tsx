@@ -19,6 +19,11 @@ type ListRowProps = {
   /** Acción al tocar el nombre (editar). Sin ella el nombre es texto. */
   onPress?: () => void;
   trailing?: React.ReactNode;
+  /**
+   * Etiqueta raíz. `li` por defecto; `div` cuando el `li` lo pone un
+   * envoltorio (por ejemplo un elemento de motion) y no puede anidarse.
+   */
+  as?: "li" | "div";
   className?: string;
 };
 
@@ -37,12 +42,13 @@ export function ListRow({
   highlighted = false,
   onPress,
   trailing,
+  as: Root = "li",
   className,
 }: ListRowProps) {
   const NameTag = onPress ? "button" : "span";
 
   return (
-    <li
+    <Root
       data-slot="list-row"
       data-checked={checked}
       className={cn(
@@ -104,6 +110,6 @@ export function ListRow({
         </span>
       ) : null}
       {trailing}
-    </li>
+    </Root>
   );
 }
