@@ -340,13 +340,14 @@ describe("AddItemBar", () => {
         expect.objectContaining({ name: "Tomates", category_id: VEGETABLES }),
       ),
     );
-    // Yerba waits in the write queue; its optimistic row is already in Otros.
+    // Yerba is unknown to the catalog: no category (the list shows it under
+    // Otros), so the catalog does not learn "Otros" as a choice.
     const cached = queryClient.getQueryData<
       { name: string; category_id: string }[]
     >(queryKeys.items(USER, LIST));
     expect(cached?.map((item) => [item.name, item.category_id])).toEqual([
       ["Tomates", VEGETABLES],
-      ["Yerba", OTHERS],
+      ["Yerba", null],
     ]);
   });
 });

@@ -646,6 +646,8 @@ describe("useEmptyCart", () => {
     await waitFor(() =>
       expect(items.update).toHaveBeenCalledWith({ deleted_at: AT }, [
         ["id", ["milk", "bread"]],
+        ["deleted_at", null],
+        ["checked", true],
       ]),
     );
     expect(update).toHaveBeenCalledTimes(1);
@@ -703,6 +705,43 @@ describe("useEmptyCart", () => {
     expect(cached(queryClient)[0].deleted_at).toBe(AT);
   });
 
+  it("does not archive a row whose check was rejected while the emptying waited", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const bread = serverRow({ id: "bread", name: "Pan", position: 1 });
+    const { result, queryClient } = await renderItems([milk, bread]);
+    const toggle = deferred<Result>();
+    update
+      .mockReturnValueOnce(toggle.promise)
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    act(() =>
+      result.current.toggle.mutate({ id: "bread", name: "Pan", checked: true }),
+    );
+    act(() =>
+      result.current.emptyCart.mutate({
+        ids: ["milk", "bread"],
+        deletedAt: AT,
+      }),
+    );
+    await act(async () => toggle.resolve(rejection));
+
+    // Only Leche goes; Pan is pending again, hidden until the refetch.
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(update.mock.calls[1]).toEqual([
+      { deleted_at: AT },
+      [
+        ["id", ["milk"]],
+        ["deleted_at", null],
+        ["checked", true],
+      ],
+    ]);
+    expect(
+      cached(queryClient).find((item) => item.id === "bread"),
+    ).toMatchObject({
+      checked: false,
+    });
+  });
+
   it("skips rows whose insert was rejected", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", ...checked });
     const { result } = await renderItems([milk]);
@@ -723,6 +762,8 @@ describe("useEmptyCart", () => {
     await waitFor(() =>
       expect(items.update).toHaveBeenCalledWith({ deleted_at: AT }, [
         ["id", ["milk"]],
+        ["deleted_at", null],
+        ["checked", true],
       ]),
     );
   });

@@ -149,6 +149,10 @@ export function ListView() {
   // on purpose: the moment shows once per emptying, so after a dismiss or a
   // reload there is nothing to remember.
   const [emptied, setEmptied] = useState<string | null>(null);
+  // Whether the cart has been seen empty during this moment. The optimistic
+  // archive lands a moment after the tap (onMutate awaits), so only a cart
+  // that fills up again after that ends the moment.
+  const [cartCleared, setCartCleared] = useState(false);
   const fresh = useFreshIds(items.data?.map((item) => item.id));
   const { lingering, hold } = useLingering();
   // While the first list is being created the add bar waits too (the server
@@ -225,16 +229,27 @@ export function ListView() {
     if (momentShown) momentAction.current?.focus();
   }, [momentShown]);
 
-  // A rejected emptying hides the moment and brings the rows back; the focus
-  // returns to the button that started it, which remounts with them.
-  const emptiedNow = useRef<string | null>(null);
-  const restoreEmptyFocus = useRef(false);
+  // Whatever lands in the cart while the moment shows (a rejected emptying
+  // bringing its rows back, a check that was still in its hold, a rolled
+  // back uncheck) ends the moment: nothing may hide behind it. Adjusted
+  // during render, so the rows and the cart's header show in the same pass.
+  // The focus, if it was lost with the moment's button, goes to "Vaciar el
+  // carro" again.
+  const [refocusEmpty, setRefocusEmpty] = useState(0);
+  if (emptied !== null && cart.length === 0 && !cartCleared) {
+    setCartCleared(true);
+  }
+  if (emptied !== null && cartCleared && cart.length > 0) {
+    setEmptied(null);
+    setCartCleared(false);
+    setRefocusEmpty((count) => count + 1);
+  }
+  const handledRefocusEmpty = useRef(0);
   useLayoutEffect(() => {
-    emptiedNow.current = emptied;
-    if (!restoreEmptyFocus.current || emptied !== null) return;
+    if (refocusEmpty === handledRefocusEmpty.current) return;
     const button = document.getElementById(EMPTY_CART_BUTTON_ID);
     if (!button) return;
-    restoreEmptyFocus.current = false;
+    handledRefocusEmpty.current = refocusEmpty;
     const active = document.activeElement;
     if (!active || active === document.body) {
       button.focus({ preventScroll: true });
@@ -248,15 +263,9 @@ export function ListView() {
     if (ids.length === 0) return;
     const deletedAt = new Date().toISOString();
     setEmptied(deletedAt);
-    emptyCart.mutate(
-      { ids, deletedAt },
-      {
-        onError: () => {
-          restoreEmptyFocus.current = emptiedNow.current === deletedAt;
-          setEmptied((current) => (current === deletedAt ? null : current));
-        },
-      },
-    );
+    setCartCleared(false);
+    // A rejection brings the rows back, and that ends the moment (above).
+    emptyCart.mutate({ ids, deletedAt });
   }
 
   function dismissMoment() {
@@ -267,7 +276,6 @@ export function ListView() {
   function handleCheckedChange(item: Item, next: boolean) {
     fresh.settle();
     freshGroups.settle();
-    restoreEmptyFocus.current = false;
     // Something is in the cart again: the emptying is over.
     if (next) setEmptied(null);
     hold(item.id, placeOf(item));

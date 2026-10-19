@@ -130,9 +130,9 @@ export function AddItemBar() {
     userId !== null &&
     listId !== null &&
     items.data !== undefined &&
-    // The category comes from them: without the categories there is no
-    // "Otros"; without the catalog (if it fails) everything goes to "Otros".
-    categories.data !== undefined &&
+    // The category comes from them. If either fails to load, the item goes
+    // without category, which the list shows under "Otros".
+    (categories.data !== undefined || categories.isError) &&
     (catalog.data !== undefined || catalog.isError) &&
     !creatingList;
   const add = useAddItem(userId ?? "", listId ?? "");

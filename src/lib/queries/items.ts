@@ -529,6 +529,9 @@ async function archiveItems(
       .update({ deleted_at: deletedAt })
       .in("id", [...ids])
       .is("deleted_at", null)
+      // Only what is in the cart on the server: a row whose check was
+      // rejected meanwhile, or that someone unchecked, stays on the list.
+      .eq("checked", true)
       .select()
       .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS)),
   );
@@ -537,9 +540,11 @@ async function archiveItems(
 /**
  * Empties the cart at the end of the shopping: the checked items are
  * archived (deleted_at, plan 3.2), all with one timestamp and one request.
- * Only the ids the user saw in the cart are archived, never a row checked
- * meanwhile by someone else. A rejection brings back the rows still marked
- * with this emptying's timestamp.
+ * Only the ids the user saw in the cart, and only while still checked: not a
+ * row checked meanwhile by someone else, nor one whose check was rejected or
+ * undone (it stays hidden until the refetch of settle brings it back as
+ * pending). A rejection brings back the rows still marked with this
+ * emptying's timestamp.
  */
 export function useEmptyCart(userId: string, listId: string) {
   const queryClient = useQueryClient();
@@ -554,7 +559,7 @@ export function useEmptyCart(userId: string, listId: string) {
       const items = queryClient.getQueryData<Item[]>(key) ?? [];
       const ours = items
         .filter((item) => ids.includes(item.id))
-        .filter((item) => item.deleted_at === deletedAt)
+        .filter((item) => item.deleted_at === deletedAt && item.checked)
         .map((item) => item.id);
       if (ours.length === 0) return [];
       return archiveItems(ours, deletedAt);

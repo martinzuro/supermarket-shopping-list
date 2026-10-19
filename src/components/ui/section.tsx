@@ -47,7 +47,10 @@ export function Section({
   return (
     <section
       id={id}
-      aria-labelledby={headingId}
+      // Named only at level 2: a named <section> is a region landmark, and
+      // ten category groups would crowd the landmarks list. The h3 still
+      // shows in heading navigation.
+      aria-labelledby={level === 2 ? headingId : undefined}
       data-slot="section"
       style={
         thread ? { borderColor: `var(--cat-${thread}-thread)` } : undefined

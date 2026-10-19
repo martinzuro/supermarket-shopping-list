@@ -677,9 +677,9 @@ test.describe("list with the local Supabase stack", () => {
       const posted = await addAndPost(page, "Pan", "Pan");
       await addWithEnter(page, "Leche x3", "Leche");
 
-      // The insert carries the list's own "Otros".
-      const categories = await categoryIds(posted.list_id);
-      expect(posted.category_id).toBe(categories.get("Otros"));
+      // Unknown to the catalog: no category, shown under "Otros", so the
+      // catalog does not learn "Otros" as if it had been chosen.
+      expect(posted.category_id).toBeNull();
 
       await expect(groupTitles(page)).toHaveText([
         texts.list.pending.uncategorized,
@@ -927,6 +927,9 @@ test.describe("list with the local Supabase stack", () => {
       );
       await expect(count(cart(page))).toHaveText("2");
       await expect(emptyAction(page)).toBeVisible();
+      // The moment's button is gone: the focus is back on the one that
+      // started the emptying.
+      await expect(emptyAction(page)).toBeFocused();
       await expect(
         pending(page).getByText(texts.list.pending.empty),
       ).toBeVisible();

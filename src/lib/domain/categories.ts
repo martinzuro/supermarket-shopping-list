@@ -29,21 +29,26 @@ export function categoryKind(category: Pick<Category, "name">): CategoryId {
   return KINDS[normalizeName(category.name)] ?? "otros";
 }
 
-/** The "Otros" category of the list, where everything unknown goes. */
+/**
+ * The "Otros" category of the list, where items without category are shown.
+ * By name, not by kind: any custom category also looks like "otros".
+ */
 export function fallbackCategory<C extends Category>(
   categories: readonly C[],
 ): C | null {
   return (
     categories.find(
       (category) =>
-        category.deleted_at == null && categoryKind(category) === "otros",
+        category.deleted_at == null && normalizeName(category.name) === "otros",
     ) ?? null
   );
 }
 
 /**
  * Category for a new item: the one the catalog remembers for that product,
- * if it still exists, or "Otros".
+ * if it still exists, or null, which the list shows under "Otros". Not the
+ * Otros id itself: the catalog trigger would then remember "Otros" as if it
+ * had been chosen, and a later remembered category could be overwritten.
  */
 export function suggestCategory(
   name: string,
@@ -57,7 +62,7 @@ export function suggestCategory(
   const live = categories.find(
     (category) => category.id === remembered && category.deleted_at == null,
   );
-  return live?.id ?? fallbackCategory(categories)?.id ?? null;
+  return live?.id ?? null;
 }
 
 export type ItemGroup<I extends Item = Item, C extends Category = Category> = {

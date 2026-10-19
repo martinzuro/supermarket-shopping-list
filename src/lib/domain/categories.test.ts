@@ -84,6 +84,11 @@ describe("fallbackCategory", () => {
     expect(fallbackCategory(categories)).toBe(otros);
   });
 
+  it("is the one named Otros, not another category that looks like it", () => {
+    const custom = category("c-pets", "Mascotas", 8, { is_default: false });
+    expect(fallbackCategory([custom, otros])).toBe(otros);
+  });
+
   it("skips a deleted Otros", () => {
     expect(
       fallbackCategory([verduras, { ...otros, deleted_at: NOW }]),
@@ -106,12 +111,8 @@ describe("suggestCategory", () => {
     ["a product the catalog does not know", "Pan"],
     ["a remembered category that no longer exists", "Lavandina"],
     ["a catalog entry without category", "Yerba"],
-  ])("falls back to Otros for %s", (_label, name) => {
-    expect(suggestCategory(name, catalog, categories)).toBe("c-other");
-  });
-
-  it("is null when there is not even Otros", () => {
-    expect(suggestCategory("Pan", [], [verduras])).toBeNull();
+  ])("is null (shown under Otros) for %s", (_label, name) => {
+    expect(suggestCategory(name, catalog, categories)).toBeNull();
   });
 });
 
