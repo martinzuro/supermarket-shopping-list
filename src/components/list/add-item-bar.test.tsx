@@ -18,7 +18,7 @@ import { AddItemBar } from "./add-item-bar";
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
 
-type Result = { data: unknown; error: unknown };
+type Result = { data: unknown; error: unknown; status?: number };
 
 const write = vi.fn<(row: unknown) => Promise<Result>>();
 const lists = makeTable({
@@ -227,6 +227,55 @@ describe("AddItemBar", () => {
       screen.getByRole("button", { name: texts.itemErrors.dismiss }),
     );
     act(() => queryClient.getMutationCache().remove(mutation));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("keeps adding after a failed background refetch", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field, queryClient } = await renderBar();
+    // The refetch fails: the query turns to error but keeps its data.
+    readItems.mockResolvedValue({
+      data: null,
+      error: { message: "TypeError: Failed to fetch", code: "" },
+      status: 0,
+    });
+    await act(async () => {
+      await queryClient
+        .refetchQueries({ queryKey: queryKeys.items(USER, LIST) })
+        .catch(() => {});
+    });
+    expect(queryClient.getQueryState(queryKeys.items(USER, LIST))?.status).toBe(
+      "error",
+    );
+
+    type(field, "Tomates{Enter}");
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+  });
+
+  it("closing a notice does not bring back the older one it replaced", async () => {
+    write.mockResolvedValue(rejection);
+    const { field, queryClient } = await renderBar();
+
+    type(field, "Leche{Enter}");
+    await screen.findByRole("alert");
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: [...queryKeys.items(USER, LIST), "toggle"],
+      mutationFn: (): Promise<unknown> => Promise.reject(new Error("denied")),
+    });
+    await act(async () => {
+      await mutation
+        .execute({ id: "pan", name: "Pan", checked: true })
+        .catch(() => {});
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        texts.itemErrors.check("Pan"),
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.itemErrors.dismiss }),
+    );
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 });

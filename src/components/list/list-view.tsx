@@ -120,24 +120,29 @@ export function ListView() {
   const { lingering, hold } = useLingering();
   // While the first list is being created the add bar waits too (the server
   // does not know the list yet): nothing below the titles until both are in.
-  const loading = !items.isSuccess || currentList.isPending;
+  // "Has data", not isSuccess: a failed background refetch keeps the data but
+  // turns the status to error, and the rows must stay on screen.
+  const loading = items.data === undefined || currentList.isPending;
 
   // The checkbox the user just used, to give it the focus back once its row
   // has moved: the old element is gone, and the focus would fall to <body>.
   const refocus = useRef<string | null>(null);
   useLayoutEffect(() => {
     const id = refocus.current;
-    if (id === null) return;
+    if (id === null || lingering.has(id)) return;
+    // The hold is over: the row moved, or stayed (a rejected toggle).
+    refocus.current = null;
     const checkbox = document.querySelector<HTMLElement>(
       `[data-item-id="${id}"] [role="checkbox"]`,
     );
     const active = document.activeElement;
-    // Still the same element: the row has not moved yet.
-    if (checkbox && checkbox === active) return;
-    refocus.current = null;
     // Only when the focus was lost with the old row, never stolen from
     // somewhere the user moved it to (the add field, for instance).
-    if (checkbox && (!active || active === document.body)) {
+    if (
+      checkbox &&
+      checkbox !== active &&
+      (!active || active === document.body)
+    ) {
       checkbox.focus({ preventScroll: true });
     }
   });

@@ -87,14 +87,18 @@ function useToggleFailures(userId: string, listId: string): Notice[] {
   });
 }
 
-/** El aviso más reciente que no se cerró. */
+/**
+ * El aviso más reciente, si es posterior al último cerrado. Cerrar uno cierra
+ * también los anteriores que tapaba: las escrituras de la lista van en cola,
+ * así que un fallo nunca llega antes que otro enviado después.
+ */
 function latestNotice(
   notices: readonly (Notice | null)[],
-  dismissed: ReadonlySet<string>,
+  dismissedAt: number,
 ): Notice | null {
   let latest: Notice | null = null;
   for (const notice of notices) {
-    if (!notice || dismissed.has(notice.key)) continue;
+    if (!notice || notice.at <= dismissedAt) continue;
     if (!latest || notice.at >= latest.at) latest = notice;
   }
   return latest;
@@ -119,28 +123,30 @@ export function AddItemBar() {
     useIsMutating({ mutationKey: queryKeys.lists(userId ?? "") }) > 0;
   // Antes de que lleguen los ítems, la posición del nuevo chocaría con la de
   // uno existente y la lista mostraría solo el nuevo.
+  // "Has data": a failed background refetch keeps it and must not block.
   const ready =
-    userId !== null && listId !== null && items.isSuccess && !creatingList;
+    userId !== null &&
+    listId !== null &&
+    items.data !== undefined &&
+    !creatingList;
   const add = useAddItem(userId ?? "", listId ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [addFailure, setAddFailure] = useState<Notice | null>(null);
   const toggleFailures = useToggleFailures(userId ?? "", listId ?? "");
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const notice = latestNotice([addFailure, ...toggleFailures], dismissed);
+  const [dismissedAt, setDismissedAt] = useState(0);
+  const notice = latestNotice([addFailure, ...toggleFailures], dismissedAt);
 
-  function dismiss(key: string) {
-    setDismissed((current) => new Set(current).add(key));
+  function dismiss(at: number) {
+    setDismissedAt((current) => Math.max(current, at));
   }
 
-  const noticeKey = notice?.key ?? null;
+  const noticeAt = notice?.at ?? null;
   useEffect(() => {
-    if (noticeKey === null) return;
-    const timer = setTimeout(() => dismiss(noticeKey), NOTICE_MS);
+    if (noticeAt === null) return;
+    const timer = setTimeout(() => dismiss(noticeAt), NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [noticeKey]);
+  }, [noticeAt]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,7 +159,7 @@ export function AddItemBar() {
     if (!parsed.name || !ready) return;
 
     field.value = "";
-    if (notice) dismiss(notice.key);
+    if (notice) dismiss(notice.at);
     const item = newItem(parsed.name, parsed);
     const at = Date.now();
     add.mutateAsync(item).catch(() => {
@@ -194,7 +200,7 @@ export function AddItemBar() {
                 variant="ghost"
                 size="icon-touch"
                 aria-label={texts.itemErrors.dismiss}
-                onClick={() => dismiss(notice.key)}
+                onClick={() => dismiss(notice.at)}
               >
                 <XIcon aria-hidden strokeWidth={1.5} />
               </Button>

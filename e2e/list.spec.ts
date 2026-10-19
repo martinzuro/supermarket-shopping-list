@@ -88,14 +88,17 @@ async function rejectItems(page: Page, method: "POST" | "PATCH") {
 }
 
 /**
- * Promesa de la respuesta al próximo `method` sobre ítems. Las escrituras de
- * una lista van en cola, así que la última respondida implica todas.
+ * Promesa de la respuesta a un `method` sobre ítems, opcionalmente el que
+ * lleva `name` en el cuerpo. Las escrituras de una lista van en cola, así
+ * que la del último cambio respondida implica todas las anteriores.
  */
-function nextWrite(page: Page, method: "POST" | "PATCH") {
+function nextWrite(page: Page, method: "POST" | "PATCH", name?: string) {
   return page.waitForResponse(
     (response) =>
       response.url().includes("/rest/v1/items") &&
-      response.request().method() === method,
+      response.request().method() === method &&
+      (name === undefined ||
+        (response.request().postData() ?? "").includes(`"${name}"`)),
   );
 }
 
@@ -175,7 +178,7 @@ test.describe("list with the local Supabase stack", () => {
     await openList(page);
     await addWithEnter(page, "2 kg de tomates", "tomates");
     await addWithEnter(page, "Leche x3", "Leche");
-    const saved = nextWrite(page, "POST");
+    const saved = nextWrite(page, "POST", "Pan");
     await addWithEnter(page, "Pan", "Pan");
 
     // Que el servidor ya los tenga: el reload no puede depender de la caché.
