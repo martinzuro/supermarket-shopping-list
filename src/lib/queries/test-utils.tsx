@@ -20,39 +20,63 @@ export function makeWrapper(queryClient: QueryClient) {
   };
 }
 
-type Result = { data: unknown; error: unknown };
+type Result = { data: unknown; error: unknown; status?: number };
 
 /**
  * Minimal stand-in for a PostgREST query builder: every method chains and
- * the builder resolves to the result of `read` or, after `insert`, `write`.
+ * the builder resolves to the result of `read` or, after `insert`, `write`,
+ * or, after `update`, `update`. The status defaults to 200, or 400 when the
+ * result carries an error (a rejection, as PostgREST reports it).
  */
 export function makeTable(handlers: {
   read: () => Promise<Result>;
   write: (row: unknown) => Promise<Result>;
+  update?: (changes: unknown, filters: [string, unknown][]) => Promise<Result>;
 }) {
   const insert = vi.fn();
+  const update = vi.fn();
   function builder() {
-    let inserted: unknown;
-    let hasInsert = false;
+    let payload: unknown;
+    let operation: "read" | "insert" | "update" = "read";
+    const filters: [string, unknown][] = [];
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "is", "eq", "order", "single"]) {
+    for (const method of ["select", "is", "order", "single", "abortSignal"]) {
       chain[method] = vi.fn(() => chain);
     }
+    chain.eq = vi.fn((column: string, value: unknown) => {
+      filters.push([column, value]);
+      return chain;
+    });
     chain.insert = vi.fn((row: unknown) => {
-      inserted = row;
-      hasInsert = true;
+      payload = row;
+      operation = "insert";
       insert(row);
+      return chain;
+    });
+    chain.update = vi.fn((changes: unknown) => {
+      payload = changes;
+      operation = "update";
       return chain;
     });
     chain.then = (
       onFulfilled: (value: Result) => unknown,
       onRejected?: (reason: unknown) => unknown,
-    ) =>
-      (hasInsert ? handlers.write(inserted) : handlers.read()).then(
-        onFulfilled,
-        onRejected,
-      );
+    ) => {
+      if (operation === "update") update(payload, filters);
+      const result =
+        operation === "insert"
+          ? handlers.write(payload)
+          : operation === "update"
+            ? (handlers.update ?? handlers.write)(payload, filters)
+            : handlers.read();
+      return result
+        .then((value) => ({
+          ...value,
+          status: value.status ?? (value.error ? 400 : 200),
+        }))
+        .then(onFulfilled, onRejected);
+    };
     return chain;
   }
-  return { builder, insert };
+  return { builder, insert, update };
 }

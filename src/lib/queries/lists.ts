@@ -75,6 +75,7 @@ export function useCreateList(userId: string) {
   const queryClient = useQueryClient();
   const key = queryKeys.lists(userId);
   return useMutation({
+    mutationKey: [...key, "create"],
     mutationFn: ({ id }: { id: string }) =>
       insertList(id, texts.list.defaultName),
     onMutate: async ({ id }) => {

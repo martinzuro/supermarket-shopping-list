@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   CartIllustration,
   EmptyBagIllustration,
@@ -10,18 +11,32 @@ type ListSectionProps = {
   id: string;
   title: string;
   emptyText: string;
+  /** Cantidad de filas. Con 0 se muestra el estado vacío. */
+  count?: number;
+  /**
+   * Mientras las filas no llegaron no se muestra nada debajo del título: el
+   * estado vacío diría "nada pendiente" antes de saberlo.
+   */
+  loading?: boolean;
   /** El carro va sobre pistacho: es la superficie secundaria del sistema. */
   surface?: "paper" | "cart";
   className?: string;
+  /** Las filas (`ListRow`), cada una dentro de su propio `li`. */
+  children?: ReactNode;
 };
 
 export function ListSection({
   id,
   title,
   emptyText,
+  count = 0,
+  loading = false,
   surface = "paper",
   className,
+  children,
 }: ListSectionProps) {
+  const hasItems = count > 0;
+
   return (
     <div
       className={cn(
@@ -29,13 +44,21 @@ export function ListSection({
         className,
       )}
     >
-      <Section id={id} title={title}>
-        <EmptyState
-          illustration={
-            surface === "cart" ? <CartIllustration /> : <EmptyBagIllustration />
-          }
-          body={emptyText}
-        />
+      <Section id={id} title={title} count={hasItems ? count : undefined}>
+        {loading ? null : hasItems ? (
+          <ul className="border-rule border-t">{children}</ul>
+        ) : (
+          <EmptyState
+            illustration={
+              surface === "cart" ? (
+                <CartIllustration />
+              ) : (
+                <EmptyBagIllustration />
+              )
+            }
+            body={emptyText}
+          />
+        )}
       </Section>
     </div>
   );

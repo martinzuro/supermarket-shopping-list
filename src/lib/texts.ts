@@ -20,11 +20,26 @@ export const texts = {
       title: "En el carro",
       empty: "Lo que marques como comprado baja acá.",
     },
+    loadError: {
+      title: "No pudimos cargar tu lista",
+      body: "Revisá tu conexión y probá de nuevo.",
+      retry: "Reintentar",
+    },
   },
   addItem: {
     label: "Producto para agregar",
     placeholder: "Leche, pan, tomates…",
     submit: "Agregar",
+  },
+  /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
+  itemErrors: {
+    add: (name: string) => `No se guardó “${name}”`,
+    addRestored: "Lo escrito volvió al campo para que pruebes de nuevo.",
+    addLost: "Probá agregarlo de nuevo.",
+    check: (name: string) => `No se marcó “${name}”`,
+    uncheck: (name: string) => `No se desmarcó “${name}”`,
+    toggleBody: "Volvió a donde estaba. Probá de nuevo.",
+    dismiss: "Cerrar aviso",
   },
   sheet: {
     close: "Cerrar",
