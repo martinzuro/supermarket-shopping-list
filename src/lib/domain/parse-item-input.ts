@@ -103,6 +103,15 @@ function parseQuantity(token: string): number | null {
     : null;
 }
 
+const WHOLE_QUANTITY = new RegExp(`^${QTY}$`, "u");
+
+// A text that is a quantity and nothing else ("2", "1,5", "1/2", "½"), with
+// the same rules and range as inside an item name. null when it is not one.
+export function parseQuantityText(text: string): number | null {
+  const match = WHOLE_QUANTITY.exec(text.trim());
+  return match ? parseQuantity(match[1]) : null;
+}
+
 // Returns the canonical unit (null for a bare count), or undefined when the
 // word is not a unit.
 function parseUnit(word: string): string | null | undefined {

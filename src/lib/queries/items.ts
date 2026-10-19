@@ -141,10 +141,20 @@ async function insertItem(
   }
 }
 
-async function updateItem(
-  id: string,
-  changes: Partial<Pick<Item, "checked" | "checked_at">>,
-): Promise<Item> {
+type ItemChanges = Partial<
+  Pick<
+    Item,
+    | "name"
+    | "quantity"
+    | "unit"
+    | "note"
+    | "checked"
+    | "checked_at"
+    | "deleted_at"
+  >
+>;
+
+async function updateItem(id: string, changes: ItemChanges): Promise<Item> {
   return unwrap(
     await createClient()
       .from("items")
@@ -228,6 +238,10 @@ export const itemMutationKeys = {
     [...queryKeys.items(userId, listId), "add"] as const,
   toggle: (userId: string, listId: string) =>
     [...queryKeys.items(userId, listId), "toggle"] as const,
+  edit: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "edit"] as const,
+  remove: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "remove"] as const,
 };
 
 /**
@@ -350,6 +364,130 @@ export function useToggleItem(userId: string, listId: string) {
     onSuccess: (updated) => {
       if (!updated || !isLastWriteTo(queryClient, listId, updated.id)) return;
       patchItem(queryClient, key, updated.id, () => updated);
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+export type EditableFields = Pick<Item, "name" | "quantity" | "unit" | "note">;
+
+export type EditItem = {
+  id: string;
+  /** Name before the edit, for the notice if the server rejects it. */
+  name: string;
+  /** Only the fields that changed. */
+  changes: Partial<EditableFields>;
+};
+
+function withChanges(item: Item, changes: Partial<EditableFields>): Item {
+  return {
+    ...item,
+    ...changes,
+    name_normalized:
+      changes.name === undefined
+        ? item.name_normalized
+        : normalizeName(changes.name),
+  };
+}
+
+/** True when the item still shows every value this write put there. */
+function stillShows(item: Item, changes: Partial<EditableFields>) {
+  return (Object.keys(changes) as (keyof EditableFields)[]).every(
+    (field) => item[field] === changes[field],
+  );
+}
+
+/**
+ * Edits name, quantity, unit and note. Same pattern as useToggleItem: only
+ * the changed fields are sent, and a rejected edit restores them unless a
+ * later edit already replaced them.
+ */
+export function useEditItem(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId, listId);
+
+  return useMutation({
+    mutationKey: itemMutationKeys.edit(userId, listId),
+    scope: listScope(listId),
+    mutationFn: async ({ id, changes }: EditItem) => {
+      // Gone (its insert was rejected): nothing to update.
+      if (!findItem(queryClient, key, id)) return null;
+      return updateItem(id, changes);
+    },
+    onMutate: async ({ id, changes }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = findItem(queryClient, key, id);
+      if (previous) {
+        patchItem(queryClient, key, id, (item) => withChanges(item, changes));
+      }
+      return { previous };
+    },
+    onError: (_error, { id, changes }, context) => {
+      const previous = context?.previous;
+      if (!previous) return;
+      const restore = Object.fromEntries(
+        Object.keys(changes).map((field) => [
+          field,
+          previous[field as keyof EditableFields],
+        ]),
+      ) as Partial<EditableFields>;
+      patchItem(queryClient, key, id, (item) =>
+        stillShows(item, changes) ? withChanges(item, restore) : item,
+      );
+    },
+    onSuccess: (updated) => {
+      if (!updated || !isLastWriteTo(queryClient, listId, updated.id)) return;
+      patchItem(queryClient, key, updated.id, () => updated);
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+export type RemoveItem = {
+  id: string;
+  /** For the notice if the server rejects it. */
+  name: string;
+};
+
+/**
+ * Deletes an item. It is a soft delete (deleted_at, plan 3.2): the row stays
+ * in the cache marked as deleted, so every view drops it at once, and a
+ * rejection only has to clear the mark to bring it back in its place.
+ */
+export function useRemoveItem(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId, listId);
+
+  return useMutation({
+    mutationKey: itemMutationKeys.remove(userId, listId),
+    scope: listScope(listId),
+    mutationFn: async ({ id }: RemoveItem) => {
+      const item = findItem(queryClient, key, id);
+      if (!item) return null;
+      return updateItem(id, {
+        deleted_at: item.deleted_at ?? new Date().toISOString(),
+      });
+    },
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      if (!findItem(queryClient, key, id)) return { deletedAt: null };
+      const deletedAt = new Date().toISOString();
+      patchItem(queryClient, key, id, (item) => ({
+        ...item,
+        deleted_at: deletedAt,
+      }));
+      return { deletedAt };
+    },
+    onError: (_error, { id }, context) => {
+      const deletedAt = context?.deletedAt;
+      if (!deletedAt) return;
+      patchItem(queryClient, key, id, (item) =>
+        item.deleted_at === deletedAt ? { ...item, deleted_at: null } : item,
+      );
+    },
+    onSuccess: (removed) => {
+      if (!removed || !isLastWriteTo(queryClient, listId, removed.id)) return;
+      patchItem(queryClient, key, removed.id, () => removed);
     },
     onSettled: () => settle(queryClient, key),
   });

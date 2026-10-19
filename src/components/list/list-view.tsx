@@ -1,8 +1,10 @@
 "use client";
 
+import { useIsMutating } from "@tanstack/react-query";
 import { CircleAlert } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { EditItemSheet } from "@/components/list/edit-item-sheet";
 import { ListSection } from "@/components/list/list-section";
 import { Enter, transitions } from "@/components/motion";
 import { useSession } from "@/components/session-provider";
@@ -12,8 +14,11 @@ import { ListRow } from "@/components/ui/list-row";
 import { motionTokens } from "@/lib/design/motion";
 import { formatQuantity, splitByChecked } from "@/lib/domain";
 import {
+  queryKeys,
   useCurrentList,
+  useEditItem,
   useItems,
+  useRemoveItem,
   useToggleItem,
   type Item,
 } from "@/lib/queries";
@@ -116,13 +121,21 @@ export function ListView() {
   const listId = list?.id ?? null;
   const items = useItems(userId, listId);
   const toggle = useToggleItem(userId ?? "", listId ?? "");
+  const edit = useEditItem(userId ?? "", listId ?? "");
+  const remove = useRemoveItem(userId ?? "", listId ?? "");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const fresh = useFreshIds(items.data);
   const { lingering, hold } = useLingering();
   // While the first list is being created the add bar waits too (the server
   // does not know the list yet): nothing below the titles until both are in.
   // "Has data", not isSuccess: a failed background refetch keeps the data but
   // turns the status to error, and the rows must stay on screen.
-  const loading = items.data === undefined || currentList.isPending;
+  // The same condition the add bar waits for, so the empty state never
+  // invites to add while adding would still be ignored.
+  const creatingList =
+    useIsMutating({ mutationKey: queryKeys.lists(userId ?? "") }) > 0;
+  const loading =
+    items.data === undefined || currentList.isPending || creatingList;
 
   // The checkbox the user just used, to give it the focus back once its row
   // has moved: the old element is gone, and the focus would fall to <body>.
@@ -160,6 +173,17 @@ export function ListView() {
   const cart = all.filter((item) => placeOf(item) === "cart").sort(byPosition);
   const ready = userId !== null && listId !== null;
 
+  // The sheet shows the live item. If it is gone (a rejected add, a delete
+  // by someone else), the sheet closes and the id is dropped, so the item
+  // coming back later does not reopen it.
+  const editing =
+    editingId === null
+      ? undefined
+      : items.data?.find((item) => item.id === editingId && !item.deleted_at);
+  if (editingId !== null && items.data !== undefined && !editing) {
+    setEditingId(null);
+  }
+
   function handleCheckedChange(item: Item, next: boolean) {
     fresh.settle();
     hold(item.id, placeOf(item));
@@ -191,6 +215,7 @@ export function ListView() {
           checked={item.checked}
           toggleLabel={item.name}
           onCheckedChange={(next) => handleCheckedChange(item, next)}
+          onPress={() => setEditingId(item.id)}
         />
       </Enter>
     );
@@ -241,6 +266,14 @@ export function ListView() {
       >
         {ready ? cart.map(renderRow) : null}
       </ListSection>
+      <EditItemSheet
+        item={editing}
+        onSave={(item, changes) =>
+          edit.mutate({ id: item.id, name: item.name, changes })
+        }
+        onRemove={(item) => remove.mutate({ id: item.id, name: item.name })}
+        onClose={() => setEditingId(null)}
+      />
     </>
   );
 }
