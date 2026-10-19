@@ -67,7 +67,8 @@ export function CategoryChip(props: CategoryChipProps) {
         style={style}
         className={cn(
           chipBase,
-          "duration-instant border border-transparent transition-[border-color,transform] ease-out active:scale-[0.97]",
+          // Área táctil de 44px alrededor del chip de 28px.
+          "duration-instant relative border border-transparent transition-[border-color,transform] ease-out before:absolute before:-inset-2 before:content-[''] active:scale-[0.97]",
           selected && "border-ink",
           className,
         )}
