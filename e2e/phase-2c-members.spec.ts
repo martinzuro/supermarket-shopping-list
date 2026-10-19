@@ -21,11 +21,14 @@ import {
 import {
   CHANGE_MS,
   clearLogs,
+  framesOfList,
   newPlayer,
   openAndCreateList,
   pending,
+  recordRealtime,
   reloadJoined,
   row,
+  type RealtimeFrame,
   type Step,
 } from "./two-members";
 
@@ -40,6 +43,41 @@ import {
  */
 
 const t = texts;
+
+/**
+ * The page left the list's channel in under a second from the gesture: the
+ * leave it sends to Realtime. A channel left open would keep hearing the ids
+ * of items deleted for good (Realtime does not check RLS on deletes), and
+ * the screen alone cannot show that.
+ */
+async function expectChannelLeft(
+  frames: RealtimeFrame[],
+  listId: string,
+  since: number,
+) {
+  const leave = () =>
+    framesOfList(frames, listId).find(
+      (frame) => frame.sent && frame.event === "phx_leave" && frame.t >= since,
+    );
+  await expect
+    .poll(() => leave()?.t ?? null, { timeout: CHANGE_MS })
+    .not.toBeNull();
+  expect(leave()!.t - since).toBeLessThan(CHANGE_MS);
+}
+
+/** No change of the list reached the page after `since`. */
+function expectNothingHeard(
+  frames: RealtimeFrame[],
+  listId: string,
+  since: number,
+) {
+  expect(
+    framesOfList(frames, listId).filter(
+      (frame) =>
+        !frame.sent && frame.event === "postgres_changes" && frame.t >= since,
+    ),
+  ).toEqual([]);
+}
 
 /** What a person leaving the screen of another must take, in under a second. */
 async function measured(
@@ -157,6 +195,7 @@ for (const scheme of SCHEMES) {
       const steps: Step[] = [];
 
       try {
+        const realtime = recordRealtime(b);
         const { list, email } = await openSharedList(a, b, testInfo, scheme);
 
         // A never reloaded: their sheet was open on the invitation when B
@@ -203,6 +242,7 @@ for (const scheme of SCHEMES) {
 
         // The second tap: B leaves the list from A's gesture in under a
         // second, and A's members stop showing B at once.
+        const removedAt = Date.now();
         await measured(
           "A removes B",
           steps,
@@ -226,6 +266,10 @@ for (const scheme of SCHEMES) {
         await expect(a.getByTestId("members")).toHaveCount(0);
         await expect(shareSheet(a).getByTestId("share-invite")).toBeVisible();
 
+        // And B stops listening to the list: its channel is left (Realtime
+        // does not check RLS on deletes, so an open one would keep hearing).
+        await expectChannelLeft(realtime, list.id, removedAt);
+
         // B is told, neutrally, and is on a list of their own.
         await expectLostList(b, "removed", testInfo, scheme);
         await expect(membershipNotice(b)).not.toContainText(/sacaron/i);
@@ -234,10 +278,12 @@ for (const scheme of SCHEMES) {
         // What A does next never reaches B, who is no longer in the list.
         await a.keyboard.press("Escape");
         await expect(shareSheet(a)).toBeHidden();
+        const addedAt = Date.now();
         await addItems(a, ["Pan"]);
         await b.waitForTimeout(2500);
         await expect(pending(b).getByText("Pan")).toHaveCount(0);
         await expect(pending(b).getByText(t.list.pending.empty)).toBeVisible();
+        expectNothingHeard(realtime, list.id, addedAt);
 
         // The server agrees. A has no members to show, B has their own list.
         expect(await reloadJoined(a)).toBe(list.id);
@@ -268,6 +314,7 @@ for (const scheme of SCHEMES) {
       const steps: Step[] = [];
 
       try {
+        const realtime = recordRealtime(b);
         const { list } = await openSharedList(a, b, testInfo, scheme);
         await expect(memberRows(a)).toHaveCount(2);
 
@@ -282,6 +329,7 @@ for (const scheme of SCHEMES) {
 
         // From B's second tap, A's members stop showing B in under a second
         // (A's sheet is open: nothing reloads).
+        const leftAt = Date.now();
         await measured(
           "B leaves",
           steps,
@@ -294,14 +342,17 @@ for (const scheme of SCHEMES) {
           },
         );
         await expect(membersSheet(b)).toBeHidden();
+        await expectChannelLeft(realtime, list.id, leftAt);
         await expectLostList(b, "left", testInfo, scheme);
         await dismissNotice(b);
 
         await a.keyboard.press("Escape");
         await expect(shareSheet(a)).toBeHidden();
+        const addedAt = Date.now();
         await addItems(a, ["Pan"]);
         await b.waitForTimeout(2500);
         await expect(pending(b).getByText("Pan")).toHaveCount(0);
+        expectNothingHeard(realtime, list.id, addedAt);
         expect(await reloadJoined(b)).not.toBe(list.id);
         await expect(membershipNotice(b)).toHaveCount(0);
         await expect(pending(b).getByText("Pan")).toHaveCount(0);

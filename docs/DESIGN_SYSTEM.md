@@ -310,8 +310,9 @@ reducido de `visual.spec.ts` lo desactivan.
   correo en `text-row` y debajo, en `text-label` tinta 2, "Dueño" y el
   correo propio ("Dueño · ana@correo.com"); "Sin cuenta" para un anónimo.
   Sin tarjetas. Se actualiza en vivo por Realtime.
-- **Confirmación ligera** (`useConfirm`, la misma del borrado de la hoja de
-  edición, con los mismos 350 ms y 4 s): el primer toque en "Sacar" (dueño,
+- **Confirmación ligera** (`useConfirm` en `members-section.tsx`, el mismo
+  patrón del borrado de la hoja de edición, con los mismos 350 ms y 4 s; si
+  aparece un tercer uso, se extrae a `src/components/ui`): el primer toque en "Sacar" (dueño,
   en la fila del miembro) o en "Salir de la lista" (miembro, al pie) pide
   confirmación: el botón pasa a "Tocá otra vez" sobre `--danger-bg` con
   texto en tinta, la fila dice qué pasa ("Va a dejar de ver la lista.") y

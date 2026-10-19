@@ -195,7 +195,7 @@ export function GuestAccount({
       // session will become that account's, so first, while it is still
       // this anonymous user's, leave what this device has for it to bring
       // over (by the code here or by the link, maybe in another tab).
-      await prepareCarryOver();
+      await prepareCarryOver(address);
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: address,
         options: { shouldCreateUser: false, emailRedirectTo: redirectTo },

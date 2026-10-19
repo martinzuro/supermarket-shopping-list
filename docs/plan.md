@@ -335,8 +335,10 @@ input.
 **Marcar comprado.** Toggle optimista, el ítem baja a "en el carro". El
 otro miembro lo ve en menos de un segundo vía Realtime.
 
-**Compartir.** El dueño convierte su cuenta antes de invitar (correo y
-código) y genera un enlace de un solo uso que vence a los 7 días. Quien abre
+**Compartir.** La app le pide al dueño una cuenta antes de invitar (correo
+y código; es una regla de la interfaz: la base deja que un dueño anónimo cree
+invitaciones, porque el carry-over las necesita) y genera un enlace de un
+solo uso que vence a los 7 días. Quien abre
 el enlace lo acepta como usuario anónimo, sin convertir nada: al aceptar se
 inserta en `list_members` y esa lista pasa a ser la que ve (la última a la
 que se unió). Cada miembro ve quiénes comparten la lista (su correo, o "Sin
@@ -348,9 +350,9 @@ descartarlos"), y descartar una lista ajena es salir de ella.
 **Recuperar en otro dispositivo.** Al entrar con correo y código en un
 dispositivo nuevo se cargan las listas donde el usuario es miembro. Si el
 dispositivo tenía una lista anónima con ítems, antes de pedir el código se
-deja un pase (`list_invites` con `purpose = 'carry_over'`, solo un token y
-un conteo en `localStorage`) y, ya dentro de la cuenta, se ofrece traer esos
-ítems a la lista de la cuenta o dejarlos afuera. No hace falta unirse a la
+deja un pase (`list_invites` con `purpose = 'carry_over'`; en `localStorage`
+solo el token, el conteo y el correo de la cuenta) y, ya dentro de esa
+cuenta, se ofrece traer esos ítems a su lista o dejarlos afuera. No hace falta unirse a la
 lista anónima: la RPC copia con el token.
 
 **Pérdida de conexión.** Banner "sin conexión". Las mutaciones pendientes
@@ -528,8 +530,8 @@ fase) y con ella la Fase 2 completa. El PR 35 trajo la capa de datos
 el 36, el enlace y la pantalla de invitación; este, los miembros, los avisos
 de pérdida de lista y las preguntas de "traer lo de otra lista". Decisiones
 que quedaron: quien acepta lo hace como usuario anónimo, sin convertir;
-los enlaces son de un solo uso y duran 7 días; el dueño convierte su cuenta
-antes de invitar; los miembros se reconocen por su correo (no hay perfiles)
+los enlaces son de un solo uso y duran 7 días; la app le pide al dueño una
+cuenta antes de invitar; los miembros se reconocen por su correo (no hay perfiles)
 y "Sin cuenta" si son anónimos; en la v1 se ve una sola lista, la última a
 la que el usuario se unió. Reglas de la fusión (`merge_list`): gana el
 destino por `name_normalized` (lo que ya está no se duplica), los ítems del
@@ -553,7 +555,10 @@ Limitaciones conocidas de la 2c:
 
 - Un miembro anónimo que más tarde entra a otra cuenta que ya existía deja
   de ver la lista compartida (su usuario anónimo, que era el miembro, ya no
-  es el de la sesión).
+  es el de la sesión), y lo que había en ella no se le ofrece traer: el
+  carry-over solo sale de una lista propia que nadie más usa.
+- El carry-over queda atado al correo al que se pidió entrar: si en ese
+  dispositivo entra otra cuenta, no se le ofrece.
 - El dueño de una lista que otros usan, si se une a otra, deja la suya atrás
   y sin verla (la v1 muestra una sola lista): no se le ofrece fusionarla ni
   descartarla, porque descartarla sacaría a los demás.

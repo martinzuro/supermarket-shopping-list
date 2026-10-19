@@ -216,10 +216,15 @@ describe("useCarryOverOffer", () => {
     token: TOKEN,
     listId: OWN,
     fromUserId: ANONYMOUS,
+    forEmail: "cuenta@example.com",
     count: 3,
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
   };
-  const account = { id: USER, is_anonymous: false };
+  const account = {
+    id: USER,
+    is_anonymous: false,
+    email: "cuenta@example.com",
+  };
 
   it("brings the device's items into the current list", async () => {
     window.localStorage.setItem(NOTE_KEY, JSON.stringify(note));
@@ -293,12 +298,17 @@ describe("useCarryOverPreparation", () => {
     });
     let note: CarryOver | null = null;
     await act(async () => {
-      note = await result.current();
+      note = await result.current("cuenta@example.com");
     });
     expect(tables.list_invites.insert).toHaveBeenCalledWith(
       expect.objectContaining({ list_id: OWN, purpose: "carry_over" }),
     );
-    expect(note).toMatchObject({ token: TOKEN, listId: OWN, count: 2 });
+    expect(note).toMatchObject({
+      token: TOKEN,
+      listId: OWN,
+      count: 2,
+      forEmail: "cuenta@example.com",
+    });
   });
 
   it("leaves nothing without a list", async () => {
@@ -306,7 +316,7 @@ describe("useCarryOverPreparation", () => {
       wrapper: makeWrapper(makeTestQueryClient()),
     });
     await act(async () => {
-      expect(await result.current()).toBeNull();
+      expect(await result.current("cuenta@example.com")).toBeNull();
     });
     expect(tables.list_invites.insert).not.toHaveBeenCalled();
   });

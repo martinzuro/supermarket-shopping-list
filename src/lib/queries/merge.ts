@@ -112,14 +112,20 @@ export function useMergeList(userId: string, targetListId: string) {
 
 /**
  * What the device keeps between the anonymous user and the account they
- * sign in to: the carry-over token and how many items the list had. Only a
- * token and a count, never the items (ADR 0003: no local copy of the data).
+ * sign in to: the carry-over token, how many items the list had and which
+ * account it is for. Never the items (ADR 0003: no local copy of the data).
  */
 export type CarryOver = {
   token: string;
   listId: string;
   /** The anonymous user who left it: never offered to them. */
   fromUserId: string;
+  /**
+   * The email of the account it was left for (trimmed, lowercase): only
+   * that account is offered it, not someone else signing in on a shared
+   * device meanwhile.
+   */
+  forEmail: string;
   count: number;
   expiresAt: string;
 };
@@ -142,6 +148,7 @@ function isCarryOver(value: unknown): value is CarryOver {
     typeof note.token === "string" &&
     typeof note.listId === "string" &&
     typeof note.fromUserId === "string" &&
+    typeof note.forEmail === "string" &&
     typeof note.count === "number" &&
     typeof note.expiresAt === "string"
   );
@@ -198,14 +205,15 @@ function saveCarryOver(note: CarryOver) {
 /**
  * Before an anonymous user signs in to an existing account (the session is
  * about to become another user's): if their list is theirs alone and has
- * items, leave a carry-over token for the account. Best effort: a failure
- * leaves the items behind and never blocks the sign-in. Call it while the
- * session is still the anonymous one.
+ * items, leave a carry-over token for the account of `forEmail`. Best
+ * effort: a failure leaves the items behind and never blocks the sign-in.
+ * Call it while the session is still the anonymous one.
  */
 export async function prepareCarryOver(
   userId: string,
   list: Pick<List, "id" | "role" | "member_count">,
   itemCount: number,
+  forEmail: string,
 ): Promise<CarryOver | null> {
   if (list.role !== "owner" || list.member_count > 1 || itemCount === 0) {
     clearCarryOver();
@@ -228,6 +236,7 @@ export async function prepareCarryOver(
       token: invite.token,
       listId: list.id,
       fromUserId: userId,
+      forEmail: normalizeEmail(forEmail),
       count: itemCount,
       expiresAt: invite.expires_at,
     };
@@ -238,14 +247,27 @@ export async function prepareCarryOver(
   }
 }
 
-/** Whether the note is for this session: an account other than its author. */
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+/** The parts of the session user a carry-over is matched against. */
+type SessionUser = {
+  id: string;
+  is_anonymous?: boolean;
+  email?: string | null;
+};
+
+/**
+ * Whether the note is for this session: the account it was left for, which
+ * is not its anonymous author.
+ */
 export function carryOverFor(
   note: CarryOver | null,
-  user: { id: string; is_anonymous?: boolean } | null,
+  user: SessionUser | null,
 ): CarryOver | null {
   if (!note || !user || user.is_anonymous || user.id === note.fromUserId) {
     return null;
   }
+  if (!user.email || normalizeEmail(user.email) !== note.forEmail) return null;
   return note;
 }
 
@@ -263,9 +285,7 @@ function subscribeToCarryOver(listener: () => void) {
  * The carry-over waiting for this session, if any: offer to bring those
  * items or to leave them (clearCarryOver).
  */
-export function useCarryOver(
-  user: { id: string; is_anonymous?: boolean } | null,
-): CarryOver | null {
+export function useCarryOver(user: SessionUser | null): CarryOver | null {
   const note = useSyncExternalStore(
     subscribeToCarryOver,
     useCallback(() => readCarryOver(), []),
@@ -373,7 +393,7 @@ export function useLeftover(userId: string | null) {
  * them (the anonymous list stays behind, as anyone's abandoned one).
  */
 export function useCarryOverOffer(
-  user: { id: string; is_anonymous?: boolean } | null,
+  user: SessionUser | null,
   targetListId: string | null,
 ) {
   const note = useCarryOver(user);
@@ -392,20 +412,24 @@ export function useCarryOverOffer(
 
 /**
  * For the sign-in to an existing account (account section): leaves the
- * carry-over of the list on screen, with the items the cache shows, while
- * the session is still the anonymous one. Await it before asking for the
- * email; it never fails.
+ * carry-over of the list on screen, with the items the cache shows, for the
+ * account of `email`, while the session is still the anonymous one. Await
+ * it before asking for the email; it never fails.
  */
 export function useCarryOverPreparation(userId: string) {
   const queryClient = useQueryClient();
-  return useCallback(async () => {
-    const list = currentListOf(
-      queryClient.getQueryData<List[]>(queryKeys.lists(userId)),
-    );
-    if (!list) return null;
-    const items =
-      queryClient.getQueryData<Item[]>(queryKeys.items(userId, list.id)) ?? [];
-    const count = items.filter((item) => item.deleted_at === null).length;
-    return prepareCarryOver(userId, list, count);
-  }, [queryClient, userId]);
+  return useCallback(
+    async (email: string) => {
+      const list = currentListOf(
+        queryClient.getQueryData<List[]>(queryKeys.lists(userId)),
+      );
+      if (!list) return null;
+      const items =
+        queryClient.getQueryData<Item[]>(queryKeys.items(userId, list.id)) ??
+        [];
+      const count = items.filter((item) => item.deleted_at === null).length;
+      return prepareCarryOver(userId, list, count, email);
+    },
+    [queryClient, userId],
+  );
 }
