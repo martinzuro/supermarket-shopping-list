@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Tables } from "@/lib/supabase/database.types";
-import { splitByChecked } from "./order";
+import { compareServerOrder, splitByChecked } from "./order";
 
 const NOW = "2026-10-17T00:00:00Z";
 
@@ -62,5 +62,22 @@ describe("splitByChecked", () => {
 
   it("handles an empty list", () => {
     expect(splitByChecked([])).toEqual({ pending: [], cart: [] });
+  });
+});
+
+describe("compareServerOrder", () => {
+  it("orders by position, then creation time, then id", () => {
+    const items = [
+      makeItem("d", { position: 1 }),
+      makeItem("c", { position: 0, created_at: "2026-10-17T00:00:01Z" }),
+      makeItem("b", { position: 0 }),
+      makeItem("a", { position: 0 }),
+    ];
+    expect([...items].sort(compareServerOrder).map((i) => i.id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
   });
 });

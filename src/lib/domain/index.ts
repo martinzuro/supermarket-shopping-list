@@ -1,6 +1,7 @@
 export { newId } from "./ids";
 export { normalizeName } from "./normalize-name";
-export { splitByChecked } from "./order";
+export { compareServerOrder, splitByChecked } from "./order";
+export { compareTimestamps } from "./timestamps";
 export { DEFAULT_CURRENCY, formatMoney, totalsByCurrency } from "./totals";
 export type { CurrencyTotal } from "./totals";
 export { formatQuantity } from "./format-quantity";

@@ -24,4 +24,5 @@ export {
   type Category,
   type CatalogEntry,
 } from "./categories";
+export { useListRealtime, useRemoteChanges } from "./realtime";
 export { RequestError } from "./errors";
