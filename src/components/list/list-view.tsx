@@ -32,6 +32,7 @@ import {
   useEmptyCart,
   useItems,
   useListRealtime,
+  useRemoteAnnouncement,
   useRemoteChanges,
   useRemoveItem,
   useToggleItem,
@@ -146,6 +147,8 @@ export function ListView() {
   // The rows they just added, edited or checked pulse while this set holds
   // their id (never the user's own changes).
   const remote = useRemoteChanges(userId, listId);
+  // And what a screen reader is told about them, one sentence per burst.
+  const announcement = useRemoteAnnouncement(userId, listId);
   const toggle = useToggleItem(userId ?? "", listId ?? "");
   const edit = useEditItem(userId ?? "", listId ?? "");
   const remove = useRemoveItem(userId ?? "", listId ?? "");
@@ -392,6 +395,20 @@ export function ListView() {
           say what happened: the moment is read out once as it appears. */}
       <div aria-live="polite" className="sr-only">
         {emptied !== null ? `${t.lead} ${t.em}. ${t.body}` : ""}
+      </div>
+      {/* What other members change is colour for the eyes (the pulse) and one
+          sentence per burst here. Always mounted, like the connection banner's
+          region, so the text is announced when it is set; the child is keyed
+          by the announcement, so a sentence said twice is read twice. Never
+          the user's own changes. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-slot="remote-announcement"
+      >
+        <span key={announcement.seq}>{announcement.text}</span>
       </div>
       <ListSection
         id="pending"

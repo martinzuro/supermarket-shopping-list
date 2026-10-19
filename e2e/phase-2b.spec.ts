@@ -197,6 +197,7 @@ declare global {
     __pulses?: Pulse[];
     __rows?: string[];
     __gestureAt?: number;
+    __said?: string[];
   }
 }
 
@@ -215,6 +216,10 @@ declare global {
  * name changes. A row that flickers (gone and back, back to its old place or
  * state, a note that shows and disappears) leaves more here than the change
  * it should have made.
+ *
+ * `__said`: every non-empty text the screen readers' live region of remote
+ * changes (`[data-slot="remote-announcement"]`) takes, once per time it is set
+ * (the sentence cleared 5 s later is not logged).
  */
 async function recordPulses(context: BrowserContext) {
   await context.addInitScript(() => {
@@ -222,6 +227,8 @@ async function recordPulses(context: BrowserContext) {
     const rows: string[] = [];
     window.__pulses = log;
     window.__rows = rows;
+    const said: string[] = [];
+    window.__said = said;
     // When the page itself saw the first tap or key since the last clear: Playwright's click waits
     // for the target to be stable first, and that wait is not the app's.
     for (const type of ["click", "keydown"]) {
@@ -233,6 +240,24 @@ async function recordPulses(context: BrowserContext) {
         true,
       );
     }
+    new MutationObserver((mutations) => {
+      const regions = new Set<Element>();
+      for (const mutation of mutations) {
+        const node = mutation.target;
+        const region = (
+          node instanceof Element ? node : node.parentElement
+        )?.closest('[data-slot="remote-announcement"]');
+        if (region) regions.add(region);
+      }
+      for (const region of regions) {
+        const text = region.textContent?.trim();
+        if (text) said.push(text);
+      }
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
     const lit = (node: Node) => {
       if (!(node instanceof Element)) return;
       const rows = node.matches("[data-highlighted]")
@@ -338,8 +363,28 @@ async function clearLogs(page: Page) {
   await page.evaluate(() => {
     window.__pulses?.splice(0);
     window.__rows?.splice(0);
+    window.__said?.splice(0);
     window.__gestureAt = undefined;
   });
+}
+
+function saidOf(page: Page) {
+  return page.evaluate(() => window.__said ?? []);
+}
+
+/**
+ * Waits until the region has taken a sentence (it is told 700 ms after the
+ * burst starts), so a slow answer fails here with a clear message and the
+ * step's sleeps do not have to grow.
+ */
+async function waitForSaid(page: Page, label: string) {
+  await page
+    .waitForFunction(() => (window.__said ?? []).length > 0, undefined, {
+      timeout: 3000,
+    })
+    .catch(() => {
+      throw new Error(`${label}: nothing was announced`);
+    });
 }
 
 function rowEventsOf(page: Page) {
@@ -442,7 +487,9 @@ for (const colorScheme of ["light", "dark"] as const) {
          * pulse; the other's pulse only on the rows in `pulses`. Nor do they
          * flicker: the actor's row log is exactly `ownRows`, the one change
          * the step makes to its own rows and nothing else. `whileLit` runs
-         * once the time is taken, with the pulse still on.
+         * once the time is taken, with the pulse still on. The other's
+         * screen reader is told exactly `heard`, one sentence (a removal
+         * does not pulse, but it is told), and the actor's is told nothing.
          */
         async function step(
           label: string,
@@ -450,6 +497,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           other: Page,
           pulses: string[],
           ownRows: string[],
+          heard: string,
           gesture: () => Promise<void>,
           outcome: () => Promise<void>,
           whileLit?: () => Promise<void>,
@@ -475,6 +523,11 @@ for (const colorScheme of ["light", "dark"] as const) {
           await whileLit?.();
 
           await other.waitForTimeout(PULSE_END_MS);
+          await waitForSaid(other, label);
+          expect(await saidOf(other), `${label}: observer hears`).toEqual([
+            heard,
+          ]);
+          expect(await saidOf(actor), `${label}: actor hears`).toEqual([]);
           expect(await pulsedNames(actor), `${label}: actor pulsed`).toEqual(
             [],
           );
@@ -497,6 +550,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           b,
           ["Leche"],
           ["mount Leche pending"],
+          texts.remoteChanges.one.added("Leche"),
           () => field(a).press("Enter"),
           () => row(pending(b), "Leche").waitFor({ timeout: CHANGE_MS }),
           async () => {
@@ -532,6 +586,7 @@ for (const colorScheme of ["light", "dark"] as const) {
             "unmount Leche pending",
             "mount Leche cart",
           ],
+          texts.remoteChanges.one.checked("Leche"),
           () => checkbox(b, "Leche").click(),
           () => row(cart(a), "Leche").waitFor({ timeout: CHANGE_MS }),
         );
@@ -556,6 +611,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           // The row stays and the note shows once: it never goes away again
           // (the server's answer and the echo change nothing).
           ["note Leche Entera"],
+          texts.remoteChanges.one.edited("Leche"),
           () => save.click(),
           () =>
             row(cart(b), "Leche")
@@ -571,6 +627,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           a,
           ["Pan"],
           ["mount Pan pending"],
+          texts.remoteChanges.one.added("Pan"),
           () => field(b).press("Enter"),
           () => row(pending(a), "Pan").waitFor({ timeout: CHANGE_MS }),
         );
@@ -588,6 +645,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           b,
           [],
           ["unmount Pan pending"],
+          texts.remoteChanges.one.removed("Pan"),
           () => remove.click(),
           () =>
             row(pending(b), "Pan").waitFor({
@@ -668,7 +726,20 @@ for (const colorScheme of ["light", "dark"] as const) {
           ).toBeLessThan(CHANGE_MS);
         }
         await a.waitForTimeout(PULSE_END_MS);
+        await Promise.all([
+          waitForSaid(a, "queued A"),
+          waitForSaid(b, "queued B"),
+        ]);
         await a.unroute(itemsApi);
+        // Each hears the other's change, one sentence, and nothing of its
+        // own. B's Huevos was added and checked within one burst: it is told
+        // as an add.
+        expect(await saidOf(a), "queued: A hears").toEqual([
+          texts.remoteChanges.one.added("Yerba"),
+        ]);
+        expect(await saidOf(b), "queued: B hears").toEqual([
+          texts.remoteChanges.one.added("Huevos"),
+        ]);
         expect(await pulsedNames(a), "queued: A pulsed").toEqual(["Yerba"]);
         expect(await pulsedNames(b), "queued: B pulsed").toEqual(["Huevos"]);
         // A's row: the add, the check where it stands, then the move.
@@ -709,6 +780,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           b,
           [],
           ["unmount Leche cart", "unmount Huevos cart"],
+          texts.remoteChanges.many.removed(2),
           () => emptyAction(a).click(),
           () =>
             cart(b)

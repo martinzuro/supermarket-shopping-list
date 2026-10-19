@@ -66,6 +66,28 @@ export const texts = {
     emptyCartBody: "Lo que estaba en el carro volvió. Probá de nuevo.",
     dismiss: "Cerrar aviso",
   },
+  /**
+   * Lo que otro miembro hizo en la lista, para lectores de pantalla (el
+   * pulso de la fila es solo color). Sin autor: todavía no hay perfiles.
+   */
+  remoteChanges: {
+    one: {
+      added: (name: string) => `Agregaron “${name}”`,
+      checked: (name: string) => `Pasaron “${name}” al carro`,
+      unchecked: (name: string) => `Devolvieron “${name}” a pendientes`,
+      edited: (name: string) => `Cambiaron “${name}”`,
+      removed: (name: string) => `Sacaron “${name}” de la lista`,
+    },
+    many: {
+      added: (count: number) => `Agregaron ${count} productos`,
+      checked: (count: number) => `Pasaron ${count} productos al carro`,
+      unchecked: (count: number) =>
+        `Devolvieron ${count} productos a pendientes`,
+      edited: (count: number) => `Cambiaron ${count} productos`,
+      removed: (count: number) => `Sacaron ${count} productos de la lista`,
+    },
+    mixed: (count: number) => `Hubo cambios en ${count} productos`,
+  },
   sheet: {
     close: "Cerrar",
   },

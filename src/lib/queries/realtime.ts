@@ -8,11 +8,13 @@ import type {
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { motionTokens } from "@/lib/design/motion";
 import { createClient } from "@/lib/supabase/client";
+import { texts } from "@/lib/texts";
 import {
   applyRemoteItem,
   readItemsAgain,
   type Item,
   type RemoteItemChange,
+  type RemoteItemOutcome,
 } from "./items";
 import { queryKeys } from "./keys";
 
@@ -66,10 +68,13 @@ function openListChannel(
         previous: payload.eventType === "UPDATE" ? payload.old : undefined,
       };
     }
-    const pulses = applyRemoteItem(queryClient, userId, listId, change);
-    if (pulses && change.type !== "DELETE") {
-      pulse(pulsesOf(queryClient, userId, listId), change.row.id);
+    const told = applyRemoteItem(queryClient, userId, listId, change);
+    if (!told) return;
+    // A row that left the list has nothing to light up.
+    if (told.kind !== "removed") {
+      pulse(pulsesOf(queryClient, userId, listId), told.id);
     }
+    announce(announcementsOf(queryClient, userId, listId), told);
   }
 
   /**
@@ -136,6 +141,7 @@ function openListChannel(
     clearTimeout(timer);
     if (channel) void supabase.removeChannel(channel);
     channel = null;
+    silence(announcementsOf(queryClient, userId, listId));
   };
 }
 
@@ -219,5 +225,177 @@ export function useRemoteChanges(
     subscribe,
     () => store?.ids ?? EMPTY,
     () => EMPTY,
+  );
+}
+
+/** How long an announcement waits for the rest of a burst of changes. */
+const ANNOUNCE_AFTER_MS = 700;
+/** How long it stays in the live region, where a screen reader can find it. */
+const ANNOUNCE_FOR_MS = 5_000;
+
+/**
+ * The text for the live region, and a number that changes with every
+ * announcement: a region whose content is replaced is read again even when
+ * the text is the same as last time.
+ */
+export type Announcement = { text: string; seq: number };
+
+type Kind = RemoteItemOutcome["kind"];
+
+type Announcements = {
+  /** Per row in the burst: its latest name and everything done to it. */
+  burst: Map<string, { name: string; kinds: Kind[] }>;
+  timer: ReturnType<typeof setTimeout> | undefined;
+  clear: ReturnType<typeof setTimeout> | undefined;
+  current: Announcement;
+  listeners: Set<() => void>;
+};
+
+const SILENT: Announcement = { text: "", seq: 0 };
+
+const announcementStores = new WeakMap<
+  QueryClient,
+  Map<string, Announcements>
+>();
+
+function announcementsOf(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+) {
+  let lists = announcementStores.get(queryClient);
+  if (!lists) {
+    lists = new Map();
+    announcementStores.set(queryClient, lists);
+  }
+  const key = `${userId}:${listId}`;
+  let store = lists.get(key);
+  if (!store) {
+    store = {
+      burst: new Map(),
+      timer: undefined,
+      clear: undefined,
+      current: SILENT,
+      listeners: new Set(),
+    };
+    lists.set(key, store);
+  }
+  return store;
+}
+
+/**
+ * What a burst did to one row, all told: added (and still there), removed,
+ * moved to or out of the cart (a check undone within the burst is nothing),
+ * or edited. Null when it ends as it started, as far as the user can tell.
+ */
+export function netKind(kinds: readonly Kind[]): Kind | null {
+  const last = kinds.at(-1);
+  if (kinds[0] === "removed") return last === "removed" ? "removed" : null;
+  if (kinds.includes("added")) return last === "removed" ? null : "added";
+  if (last === "removed") return "removed";
+  const toggles = kinds.filter(
+    (kind) => kind === "checked" || kind === "unchecked",
+  );
+  const net = toggles.reduce(
+    (sum, kind) => sum + (kind === "checked" ? 1 : -1),
+    0,
+  );
+  if (net !== 0) return toggles.at(-1)!;
+  return kinds.includes("edited") ? "edited" : null;
+}
+
+/** Collects another member's change into the burst being told. */
+function announce(store: Announcements, told: RemoteItemOutcome) {
+  const row = store.burst.get(told.id);
+  store.burst.set(told.id, {
+    name: told.name,
+    kinds: [...(row?.kinds ?? []), told.kind],
+  });
+  if (store.timer) return;
+  store.timer = setTimeout(() => {
+    store.timer = undefined;
+    const changes: RemoteItemOutcome[] = [];
+    for (const [id, { name, kinds }] of store.burst) {
+      const kind = netKind(kinds);
+      if (kind) changes.push({ kind, id, name });
+    }
+    store.burst.clear();
+    const text = describeRemoteChanges(changes);
+    if (!text) return;
+    store.current = { text, seq: store.current.seq + 1 };
+    notify(store);
+    clearTimeout(store.clear);
+    store.clear = setTimeout(() => {
+      store.current = { text: "", seq: store.current.seq };
+      notify(store);
+    }, ANNOUNCE_FOR_MS);
+  }, ANNOUNCE_AFTER_MS);
+}
+
+function notify(store: Announcements) {
+  store.listeners.forEach((listener) => listener());
+}
+
+/**
+ * The channel closed (another list, another user, the screen gone): what
+ * was about to be said, or still sits in the region, no longer applies.
+ */
+function silence(store: Announcements) {
+  clearTimeout(store.timer);
+  clearTimeout(store.clear);
+  store.timer = undefined;
+  store.clear = undefined;
+  store.burst.clear();
+  if (store.current.text) {
+    store.current = { text: "", seq: store.current.seq };
+    notify(store);
+  }
+}
+
+/**
+ * One sentence for a burst of other members' changes: the row by name when
+ * there is one, a count when they are all of a kind, the number of rows
+ * changed otherwise. Empty when there is nothing to tell.
+ */
+export function describeRemoteChanges(
+  changes: readonly RemoteItemOutcome[],
+): string {
+  const [first] = changes;
+  if (!first) return "";
+  if (changes.length === 1)
+    return texts.remoteChanges.one[first.kind](first.name);
+  return changes.every((change) => change.kind === first.kind)
+    ? texts.remoteChanges.many[first.kind](changes.length)
+    : texts.remoteChanges.mixed(changes.length);
+}
+
+/**
+ * What screen readers are told about the rows other members just changed
+ * (the pulse alone is colour). For one polite live region on the list
+ * screen. Never the user's own changes (see applyRemoteItem).
+ */
+export function useRemoteAnnouncement(
+  userId: string | null,
+  listId: string | null,
+): Announcement {
+  const queryClient = useQueryClient();
+  const store =
+    userId === null || listId === null
+      ? null
+      : announcementsOf(queryClient, userId, listId);
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!store) return () => {};
+      store.listeners.add(listener);
+      return () => {
+        store.listeners.delete(listener);
+      };
+    },
+    [store],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => store?.current ?? SILENT,
+    () => SILENT,
   );
 }

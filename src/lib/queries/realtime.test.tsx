@@ -12,7 +12,13 @@ import {
   type Item,
 } from "./items";
 import { queryKeys } from "./keys";
-import { useListRealtime, useRemoteChanges } from "./realtime";
+import {
+  describeRemoteChanges,
+  netKind,
+  useListRealtime,
+  useRemoteAnnouncement,
+  useRemoteChanges,
+} from "./realtime";
 import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
 
 const USER = "00000000-0000-7000-8000-000000000001";
@@ -173,6 +179,7 @@ function useList({ userId, listId }: Props) {
     edit: useEditItem(userId ?? "", listId ?? ""),
     emptyCart: useEmptyCart(userId ?? "", listId ?? ""),
     remote: useRemoteChanges(userId, listId),
+    announcement: useRemoteAnnouncement(userId, listId),
   };
 }
 
@@ -1134,5 +1141,202 @@ describe("a change that arrives while the list is being read", () => {
     await waitFor(() => expect(readItems).toHaveBeenCalledTimes(2));
     await act(async () => staleRead.resolve({ data: [checked], error: null }));
     await waitFor(() => expect(cached(queryClient)).toEqual([edited]));
+  });
+});
+
+describe("what screen readers are told", () => {
+  const told = (
+    kind: "added" | "checked" | "unchecked" | "edited" | "removed",
+    name: string,
+  ) => ({ kind, id: name, name });
+
+  it("says one change by name, a burst of one kind by count, a mix by number", () => {
+    expect(describeRemoteChanges([])).toBe("");
+    expect(describeRemoteChanges([told("added", "Leche")])).toBe(
+      "Agregaron “Leche”",
+    );
+    expect(describeRemoteChanges([told("checked", "Leche")])).toBe(
+      "Pasaron “Leche” al carro",
+    );
+    expect(describeRemoteChanges([told("unchecked", "Leche")])).toBe(
+      "Devolvieron “Leche” a pendientes",
+    );
+    expect(describeRemoteChanges([told("edited", "Leche")])).toBe(
+      "Cambiaron “Leche”",
+    );
+    expect(describeRemoteChanges([told("removed", "Leche")])).toBe(
+      "Sacaron “Leche” de la lista",
+    );
+    expect(
+      describeRemoteChanges([told("removed", "Leche"), told("removed", "Pan")]),
+    ).toBe("Sacaron 2 productos de la lista");
+    expect(
+      describeRemoteChanges([told("added", "Leche"), told("checked", "Pan")]),
+    ).toBe("Hubo cambios en 2 productos");
+  });
+
+  it("tells what a burst did to a row, all told", () => {
+    expect(netKind(["checked"])).toBe("checked");
+    // Checked and then edited: the move to the cart is the news.
+    expect(netKind(["checked", "edited"])).toBe("checked");
+    expect(netKind(["edited", "unchecked"])).toBe("unchecked");
+    // A check undone within the burst leaves the row as it was...
+    expect(netKind(["checked", "unchecked"])).toBeNull();
+    // ...unless it was also edited.
+    expect(netKind(["checked", "edited", "unchecked"])).toBe("edited");
+    expect(netKind(["checked", "unchecked", "checked"])).toBe("checked");
+    expect(netKind(["added", "checked", "edited"])).toBe("added");
+    expect(netKind(["added", "removed"])).toBeNull();
+    expect(netKind(["edited", "removed"])).toBe("removed");
+    // Removed and brought back: where it was.
+    expect(netKind(["removed", "added"])).toBeNull();
+  });
+
+  it("says nothing of an archived row the list no longer shows", async () => {
+    const bread = serverRow({ id: "bread", name: "Pan" });
+    const { result, channel } = await renderList([bread]);
+    const milk = serverRow({ id: "milk", name: "Leche", position: 1 });
+    // A read already dropped it, or it was never loaded: its archive says
+    // it was live, but nothing says the user ever saw it.
+    channel.emit("items", {
+      eventType: "UPDATE",
+      new: { ...milk, deleted_at: at(3), updated_at: at(3) },
+      old: milk,
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(result.current.announcement.text).toBe("");
+  });
+
+  it("drops what was about to be said when the list changes", async () => {
+    const { result, channel, rerender } = await renderList([]);
+    channel.emit(
+      "items",
+      inserted(
+        serverRow({
+          id: "milk",
+          name: "Leche",
+          created_by: MEMBER,
+          created_at: at(5),
+          updated_at: at(5),
+        }),
+      ),
+    );
+    rerender({ userId: USER, listId: OTHER_LIST });
+    rerender({ userId: USER, listId: LIST });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(result.current.announcement.text).toBe("");
+  });
+
+  it("tells another member's add, check and emptied cart, once per burst", async () => {
+    const bread = serverRow({
+      id: "bread",
+      name: "Pan",
+      checked: true,
+      checked_at: at(0),
+    });
+    const rice = serverRow({
+      id: "rice",
+      name: "Arroz",
+      position: 1,
+      checked: true,
+      checked_at: at(0),
+    });
+    const { result, channel } = await renderList([bread, rice]);
+    expect(result.current.announcement.text).toBe("");
+
+    const milk = serverRow({
+      id: "milk",
+      name: "Leche",
+      position: 2,
+      created_by: MEMBER,
+      created_at: at(5),
+      updated_at: at(5),
+    });
+    channel.emit("items", inserted(milk));
+    // Checked in the same burst: still news as an add.
+    channel.emit(
+      "items",
+      updated({ ...milk, checked: true, checked_at: at(6), updated_at: at(6) }),
+    );
+    await waitFor(() =>
+      expect(result.current.announcement.text).toBe("Agregaron “Leche”"),
+    );
+
+    for (const row of [bread, rice]) {
+      channel.emit(
+        "items",
+        updated({ ...row, deleted_at: at(7), updated_at: at(7) }),
+      );
+    }
+    await waitFor(() =>
+      expect(result.current.announcement.text).toBe(
+        "Sacaron 2 productos de la lista",
+      ),
+    );
+  });
+
+  it("reads a repeated sentence again, and says nothing of a row added and removed at once", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const bread = serverRow({ id: "bread", name: "Pan", position: 1 });
+    const { result, channel } = await renderList([milk, bread]);
+
+    channel.emit(
+      "items",
+      updated({ ...milk, note: "Entera", updated_at: at(2) }),
+    );
+    await waitFor(() =>
+      expect(result.current.announcement.text).toBe("Cambiaron “Leche”"),
+    );
+    const first = result.current.announcement.seq;
+    channel.emit(
+      "items",
+      updated({ ...milk, note: "Descremada", updated_at: at(3) }),
+    );
+    await waitFor(() =>
+      expect(result.current.announcement.seq).toBe(first + 1),
+    );
+    expect(result.current.announcement.text).toBe("Cambiaron “Leche”");
+
+    const eggs = serverRow({
+      id: "eggs",
+      name: "Huevos",
+      position: 2,
+      created_by: MEMBER,
+      created_at: at(5),
+      updated_at: at(5),
+    });
+    channel.emit("items", inserted(eggs));
+    channel.emit("items", deleted("eggs"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(result.current.announcement.seq).toBe(first + 1);
+
+    // A row deleted for good is told by the name the list showed.
+    channel.emit("items", deleted("bread"));
+    await waitFor(() =>
+      expect(result.current.announcement.text).toBe(
+        "Sacaron “Pan” de la lista",
+      ),
+    );
+  });
+
+  it("never tells the user's own changes", async () => {
+    const { result, channel } = await renderList([]);
+    const write = deferred<Result>();
+    writeItems.mockReturnValue(write.promise);
+    const input = newItem("Yerba");
+    act(() => result.current.add.mutate(input));
+    const created = serverRow({
+      id: input.id,
+      name: "Yerba",
+      created_at: at(5),
+      updated_at: at(5),
+    });
+    channel.emit("items", inserted(created));
+    readItems.mockResolvedValue({ data: [created], error: null });
+    await act(async () => write.resolve({ data: created, error: null }));
+    await waitFor(() => expect(result.current.add.isSuccess).toBe(true));
+    channel.emit("items", inserted(created));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(result.current.announcement).toEqual({ text: "", seq: 0 });
   });
 });
