@@ -37,6 +37,29 @@ const MAX_MUTATION_RETRIES = 3;
  */
 export function shouldRetryMutation(failureCount: number, error: unknown) {
   if (failureCount >= MAX_MUTATION_RETRIES) return false;
-  if (!(error instanceof RequestError)) return true;
+  // Every network failure comes back from postgrest-js as a RequestError
+  // with status 0. Anything else is a bug in the write itself: retrying
+  // would only delay the rollback.
+  if (!(error instanceof RequestError)) return false;
   return error.status === 0 || error.status >= 500;
 }
+
+/**
+ * A write that hangs (signal but no packets) would block the list's queue of
+ * writes for minutes. After this long it is aborted, which postgrest-js
+ * reports as status 0, so it is retried like any lost request.
+ */
+const WRITE_TIMEOUT_MS = 10_000;
+
+/** AbortSignal.timeout is missing before Safari 16 and Chrome 103. */
+export function writeSignal(): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(WRITE_TIMEOUT_MS);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), WRITE_TIMEOUT_MS);
+  return controller.signal;
+}
+
+/** Postgres unique_violation: on an insert retry, the first attempt was saved. */
+export const DUPLICATE_KEY = "23505";

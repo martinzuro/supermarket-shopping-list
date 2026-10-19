@@ -65,7 +65,6 @@ export function RowsDemo() {
             quantity={item.quantity || undefined}
             note={item.note || undefined}
             checked={checked[index]}
-            toggleLabel={t.rowToggle(item.name)}
             onCheckedChange={(next) =>
               setChecked((prev) => prev.map((c, i) => (i === index ? next : c)))
             }

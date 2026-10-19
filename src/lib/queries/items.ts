@@ -9,7 +9,7 @@ import {
 import { newId, normalizeName } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/database.types";
-import { RequestError, unwrap } from "./errors";
+import { DUPLICATE_KEY, RequestError, unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
 
 export type Item = Tables<"items">;
@@ -21,7 +21,11 @@ async function fetchItems(listId: string): Promise<Item[]> {
       .select("*")
       .eq("list_id", listId)
       .is("deleted_at", null)
-      .order("position", { ascending: true }),
+      // Two members adding at once can write the same position: the
+      // creation time, then the id, keep the order stable across fetches.
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
   );
 }
 
@@ -96,23 +100,13 @@ function optimisticItem(
   };
 }
 
-/**
- * A write that hangs (signal but no packets) would block the list's queue of
- * writes for minutes. After this long it is aborted, which postgrest-js
- * reports as status 0, so it is retried like any lost request.
- */
-const WRITE_TIMEOUT_MS = 10_000;
-
-/** Postgres unique_violation. */
-const DUPLICATE_KEY = "23505";
-
 async function fetchItem(id: string): Promise<Item> {
   return unwrap(
     await createClient()
       .from("items")
       .select("*")
       .eq("id", id)
-      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+      .abortSignal(writeSignal())
       .single(),
   );
 }
@@ -136,7 +130,7 @@ async function insertItem(
           position,
         })
         .select()
-        .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+        .abortSignal(writeSignal())
         .single(),
     );
   } catch (error) {
@@ -169,7 +163,7 @@ async function updateItem(id: string, changes: ItemChanges): Promise<Item> {
       .update(changes)
       .eq("id", id)
       .select()
-      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS))
+      .abortSignal(writeSignal())
       .single(),
   );
 }
@@ -533,7 +527,7 @@ async function archiveItems(
       // rejected meanwhile, or that someone unchecked, stays on the list.
       .eq("checked", true)
       .select()
-      .abortSignal(AbortSignal.timeout(WRITE_TIMEOUT_MS)),
+      .abortSignal(writeSignal()),
   );
 }
 

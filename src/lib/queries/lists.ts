@@ -11,18 +11,19 @@ import { newId } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/database.types";
 import { texts } from "@/lib/texts";
+import { DUPLICATE_KEY, RequestError, unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
 
 export type List = Tables<"lists">;
 
 async function fetchLists(): Promise<List[]> {
-  const { data, error } = await createClient()
-    .from("lists")
-    .select("*")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return data;
+  return unwrap(
+    await createClient()
+      .from("lists")
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true }),
+  );
 }
 
 /** Lists the user is a member of (RLS does the filtering). */
@@ -47,13 +48,32 @@ function optimisticList(id: string, userId: string): List {
 }
 
 async function insertList(id: string, name: string): Promise<List> {
-  const { data, error } = await createClient()
-    .from("lists")
-    .insert({ id, name })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  // Through unwrap, so a lost answer (status 0) is retried like every write.
+  try {
+    return unwrap(
+      await createClient()
+        .from("lists")
+        .insert({ id, name })
+        .select()
+        .abortSignal(writeSignal())
+        .single(),
+    );
+  } catch (error) {
+    // A retry after a lost answer: the first attempt was saved (the id is
+    // generated on the client). Read it, so onSuccess runs and resets the
+    // list's queries as for any creation.
+    if (error instanceof RequestError && error.code === DUPLICATE_KEY) {
+      return unwrap(
+        await createClient()
+          .from("lists")
+          .select("*")
+          .eq("id", id)
+          .abortSignal(writeSignal())
+          .single(),
+      );
+    }
+    throw error;
+  }
 }
 
 function setLists(
@@ -126,9 +146,19 @@ export function useCurrentList(userId: string | null) {
     createList.mutate({ id: newId() });
   }, [needsList, userId, createList]);
 
+  /** After an error: read the lists again and, if still none, create one. */
+  function retry() {
+    requested.current = null;
+    createList.reset();
+    return lists.refetch();
+  }
+
   return {
     list,
     isPending: lists.isPending || (needsList && createList.isPending),
     error: lists.error ?? createList.error,
+    /** A retry is running: the lists are loading again or the list is being created. */
+    isRetrying: lists.isFetching || createList.isPending,
+    retry,
   };
 }

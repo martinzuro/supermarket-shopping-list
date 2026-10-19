@@ -26,6 +26,9 @@ export type ParsedItemInput = {
 // number is glued to letters that are not a unit ("7up") or sits in the
 // middle of the name ("Coca 1.5L zero").
 const MAX_QUANTITY = 999;
+// With a unit the number is a measure, and grams or millilitres go well past
+// 999 ("Jamón 1000 g"); a bare 2025 is still a name ("Pinturas 2025").
+export const MAX_MEASURED_QUANTITY = 99_999;
 
 // Canonical unit by lowercase, accent-free spelling. null is a bare count.
 const UNITS: Record<string, string | null> = {
@@ -87,7 +90,7 @@ const TRAILING = new RegExp(`^(.+?)\\s+${QTY}\\s?(?:(\\p{L}+)\\.?)?$`, "u");
 const BARE_WORD = /^(\p{L}+)\.?$/u;
 const SIZE_WORD = /(?:^|\s)(?:talle|talla|n[uú]mero|nro\.?|n°|nº|#)$/iu;
 
-function parseQuantity(token: string): number | null {
+function parseQuantity(token: string, max = MAX_QUANTITY): number | null {
   let value: number;
   if (token in GLYPHS) {
     value = GLYPHS[token];
@@ -98,7 +101,7 @@ function parseQuantity(token: string): number | null {
     value = Number(token.replace(",", "."));
   }
   const rounded = Math.round(value * 1000) / 1000;
-  return Number.isFinite(rounded) && rounded > 0 && rounded <= MAX_QUANTITY
+  return Number.isFinite(rounded) && rounded > 0 && rounded <= max
     ? rounded
     : null;
 }
@@ -107,9 +110,12 @@ const WHOLE_QUANTITY = new RegExp(`^${QTY}$`, "u");
 
 // A text that is a quantity and nothing else ("2", "1,5", "1/2", "½"), with
 // the same rules and range as inside an item name. null when it is not one.
-export function parseQuantityText(text: string): number | null {
+export function parseQuantityText(
+  text: string,
+  max = MAX_QUANTITY,
+): number | null {
   const match = WHOLE_QUANTITY.exec(text.trim());
-  return match ? parseQuantity(match[1]) : null;
+  return match ? parseQuantity(match[1], max) : null;
 }
 
 // Returns the canonical unit (null for a bare count), or undefined when the
@@ -126,7 +132,10 @@ function build(
   qtyToken: string,
   unit: string | null,
 ): ParsedItemInput | null {
-  const quantity = parseQuantity(qtyToken);
+  const quantity = parseQuantity(
+    qtyToken,
+    unit === null ? MAX_QUANTITY : MAX_MEASURED_QUANTITY,
+  );
   // "Tomates, 2 kg": the separator before the quantity is not part of the name.
   const trimmed = name.replace(/[\s,;:]+$/, "");
   if (quantity === null || trimmed === "") return null;

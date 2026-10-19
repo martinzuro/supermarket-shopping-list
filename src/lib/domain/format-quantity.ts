@@ -1,5 +1,8 @@
+// No thousands separator: "1.500 g" would read back as 1,5 g, since the add
+// bar and the edit sheet take the dot as a decimal point.
 const numberFormat = new Intl.NumberFormat("es-UY", {
   maximumFractionDigits: 3,
+  useGrouping: false,
 });
 
 // Quantity shown in mono at the right of a list row, e.g. "1,5 kg". Returns
