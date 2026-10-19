@@ -2,14 +2,9 @@
 
 import { useIsMutating, useMutationState } from "@tanstack/react-query";
 import { Plus, XIcon } from "lucide-react";
-import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type FormEvent,
-} from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Collapse } from "@/components/motion";
+import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
 import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -22,6 +17,8 @@ import {
   useAddItem,
   useItems,
   useLists,
+  type EditItem,
+  type RemoveItem,
   type ToggleItem,
 } from "@/lib/queries";
 import { texts } from "@/lib/texts";
@@ -30,59 +27,55 @@ import { texts } from "@/lib/texts";
 export const ADD_ITEM_INPUT_ID = "add-item-name";
 const INPUT_ID = ADD_ITEM_INPUT_ID;
 
-/*
- * Alto del teclado virtual en iOS, donde el teclado no achica el layout
- * viewport y una barra `fixed; bottom: 0` quedaría tapada. En Android
- * (interactive-widget=resizes-content) y en escritorio vale 0.
- */
-function subscribeToViewport(onChange: () => void) {
-  const viewport = window.visualViewport;
-  viewport?.addEventListener("resize", onChange);
-  viewport?.addEventListener("scroll", onChange);
-  window.addEventListener("resize", onChange);
-  return () => {
-    viewport?.removeEventListener("resize", onChange);
-    viewport?.removeEventListener("scroll", onChange);
-    window.removeEventListener("resize", onChange);
-  };
-}
-
-function getKeyboardInset() {
-  const viewport = window.visualViewport;
-  if (!viewport) return 0;
-  const inset = window.innerHeight - viewport.height - viewport.offsetTop;
-  return Math.max(0, Math.round(inset));
-}
-
-function getServerKeyboardInset() {
-  return 0;
-}
-
 /** El aviso se va solo; para entonces el cambio ya se deshizo a la vista. */
 const NOTICE_MS = 8000;
 
 /** Mismo límite que la columna `items.name`. */
-const MAX_NAME_LENGTH = 200;
+export const MAX_NAME_LENGTH = 200;
 
 type Notice = { key: string; at: number; title: string; body: string };
 
-/** Toques de marcar que el servidor rechazó, como avisos. */
-function useToggleFailures(userId: string, listId: string): Notice[] {
+/**
+ * Cambios sobre ítems existentes (marcar, editar, borrar) que el servidor
+ * rechazó, como avisos. Los del alta los pone el propio formulario, que
+ * además devuelve el texto al campo.
+ */
+function useWriteFailures(userId: string, listId: string): Notice[] {
   return useMutationState({
     filters: {
-      mutationKey: itemMutationKeys.toggle(userId, listId),
+      mutationKey: itemMutationKeys.all(userId, listId),
       status: "error",
+      predicate: (mutation) => mutation.options.mutationKey?.at(-1) !== "add",
     },
     select: (mutation): Notice => {
-      const { name, checked } = mutation.state.variables as ToggleItem;
-      return {
-        key: `toggle:${mutation.mutationId}`,
-        at: mutation.state.submittedAt,
-        title: checked
-          ? texts.itemErrors.check(name)
-          : texts.itemErrors.uncheck(name),
-        body: texts.itemErrors.toggleBody,
-      };
+      const kind = mutation.options.mutationKey?.at(-1);
+      const at = mutation.state.submittedAt;
+      const key = `${String(kind)}:${mutation.mutationId}`;
+      if (kind === "toggle") {
+        const { name, checked } = mutation.state.variables as ToggleItem;
+        return {
+          key,
+          at,
+          title: checked
+            ? texts.itemErrors.check(name)
+            : texts.itemErrors.uncheck(name),
+          body: texts.itemErrors.toggleBody,
+        };
+      }
+      const { name } = mutation.state.variables as EditItem | RemoveItem;
+      return kind === "remove"
+        ? {
+            key,
+            at,
+            title: texts.itemErrors.remove(name),
+            body: texts.itemErrors.removeBody,
+          }
+        : {
+            key,
+            at,
+            title: texts.itemErrors.edit(name),
+            body: texts.itemErrors.editBody,
+          };
     },
   });
 }
@@ -105,11 +98,7 @@ function latestNotice(
 }
 
 export function AddItemBar() {
-  const keyboardInset = useSyncExternalStore(
-    subscribeToViewport,
-    getKeyboardInset,
-    getServerKeyboardInset,
-  );
+  const keyboardInset = useKeyboardInset();
   const keyboardOpen = keyboardInset > 0;
 
   const { user } = useSession();
@@ -133,9 +122,9 @@ export function AddItemBar() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [addFailure, setAddFailure] = useState<Notice | null>(null);
-  const toggleFailures = useToggleFailures(userId ?? "", listId ?? "");
+  const writeFailures = useWriteFailures(userId ?? "", listId ?? "");
   const [dismissedAt, setDismissedAt] = useState(0);
-  const notice = latestNotice([addFailure, ...toggleFailures], dismissedAt);
+  const notice = latestNotice([addFailure, ...writeFailures], dismissedAt);
 
   function dismiss(at: number) {
     setDismissedAt((current) => Math.max(current, at));

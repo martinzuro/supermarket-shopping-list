@@ -5,10 +5,15 @@ export {
   useItems,
   useAddItem,
   useToggleItem,
+  useEditItem,
+  useRemoveItem,
   newItem,
   itemMutationKeys,
   type Item,
   type NewItem,
   type ToggleItem,
+  type EditItem,
+  type EditableFields,
+  type RemoveItem,
 } from "./items";
 export { RequestError } from "./errors";

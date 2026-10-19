@@ -74,11 +74,14 @@ export function ListRow({
       </button>
 
       <NameTag
+        data-slot="list-row-name"
         type={onPress ? "button" : undefined}
+        // Tocar el nombre abre la hoja de edición.
+        aria-haspopup={onPress ? "dialog" : undefined}
         onClick={onPress}
         className={cn(
           "flex min-w-0 flex-1 flex-col items-start gap-0.5 py-2 text-left",
-          onPress && "rounded-field",
+          onPress && "min-h-touch rounded-field justify-center",
         )}
       >
         <span className="relative max-w-full">

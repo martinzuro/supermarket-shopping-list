@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "./keys";
 import {
   useAddItem,
+  useEditItem,
   useItems,
+  useRemoveItem,
   useToggleItem,
   newItem,
   type Item,
@@ -72,6 +74,8 @@ async function renderItems(
       list: useItems(USER, LIST),
       add: useAddItem(USER, LIST),
       toggle: useToggleItem(USER, LIST),
+      edit: useEditItem(USER, LIST),
+      remove: useRemoveItem(USER, LIST),
     }),
     { wrapper: makeWrapper(queryClient) },
   );
@@ -413,4 +417,197 @@ describe("useToggleItem", () => {
     expect(result.current.toggle.isError).toBe(false);
     expect(cached(queryClient)).toEqual([]);
   });
+});
+
+describe("useEditItem", () => {
+  it("shows the edit at once and sends only the changed fields", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    const pending = deferred<Result>();
+    update.mockReturnValue(pending.promise);
+
+    act(() =>
+      result.current.edit.mutate({
+        id: "milk",
+        name: "Leche",
+        changes: {
+          name: "Leche descremada",
+          quantity: 2,
+          note: "La de vidrio",
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(cached(queryClient)[0]).toMatchObject({
+        name: "Leche descremada",
+        name_normalized: "leche descremada",
+        quantity: 2,
+        note: "La de vidrio",
+      }),
+    );
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith(
+        { name: "Leche descremada", quantity: 2, note: "La de vidrio" },
+        [["id", "milk"]],
+      ),
+    );
+
+    const saved = {
+      ...milk,
+      name: "Leche descremada",
+      name_normalized: "leche descremada",
+      quantity: 2,
+      note: "La de vidrio",
+    };
+    read.mockResolvedValue({ data: [saved], error: null });
+    await act(async () => pending.resolve({ data: saved, error: null }));
+    await waitFor(() => expect(result.current.edit.isSuccess).toBe(true));
+    expect(cached(queryClient)).toEqual([saved]);
+  });
+
+  it("restores the previous values when the server rejects", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", unit: "L" });
+    const { result, queryClient } = await renderItems([milk]);
+    update.mockResolvedValue(rejection);
+
+    act(() =>
+      result.current.edit.mutate({
+        id: "milk",
+        name: "Leche",
+        changes: { name: "Yogur", unit: null },
+      }),
+    );
+    await waitFor(() => expect(result.current.edit.isError).toBe(true));
+    expect(cached(queryClient)).toEqual([milk]);
+  });
+
+  it("keeps a later edit when an earlier one is rejected", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    const first = deferred<Result>();
+    update
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    act(() =>
+      result.current.edit.mutate({
+        id: "milk",
+        name: "Leche",
+        changes: { note: "Entera" },
+      }),
+    );
+    act(() =>
+      result.current.edit.mutate({
+        id: "milk",
+        name: "Leche",
+        changes: { note: "Descremada" },
+      }),
+    );
+    await waitFor(() => expect(cached(queryClient)[0].note).toBe("Descremada"));
+
+    await act(async () => first.resolve(rejection));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(cached(queryClient)[0].note).toBe("Descremada");
+  });
+});
+
+describe("useRemoveItem", () => {
+  it("drops the item from the list at once and marks it deleted on the server", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const bread = serverRow({ id: "bread", name: "Pan", position: 1 });
+    const { result, queryClient } = await renderItems([milk, bread]);
+    const pending = deferred<Result>();
+    update.mockReturnValue(pending.promise);
+
+    act(() => result.current.remove.mutate({ id: "milk", name: "Leche" }));
+    await waitFor(() =>
+      expect(
+        cached(queryClient).filter((item) => item.deleted_at === null),
+      ).toEqual([bread]),
+    );
+    const deletedAt = cached(queryClient)[0].deleted_at;
+    expect(deletedAt).not.toBeNull();
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith({ deleted_at: deletedAt }, [
+        ["id", "milk"],
+      ]),
+    );
+
+    // The refetch leaves the deleted row out, as the server query does.
+    read.mockResolvedValue({ data: [bread], error: null });
+    await act(async () =>
+      pending.resolve({
+        data: { ...milk, deleted_at: deletedAt },
+        error: null,
+      }),
+    );
+    await waitFor(() => expect(cached(queryClient)).toEqual([bread]));
+  });
+
+  it("brings the item back in its place when the server rejects", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const bread = serverRow({ id: "bread", name: "Pan", position: 1 });
+    const { result, queryClient } = await renderItems([milk, bread]);
+    update.mockResolvedValue(rejection);
+
+    act(() => result.current.remove.mutate({ id: "milk", name: "Leche" }));
+    await waitFor(() => expect(result.current.remove.isError).toBe(true));
+    expect(cached(queryClient)).toEqual([milk, bread]);
+  });
+
+  it("does nothing on the server for an item whose insert was rejected", async () => {
+    const { result, queryClient } = await renderItems([]);
+    const insert = deferred<Result>();
+    write.mockReturnValue(insert.promise);
+
+    const input = newItem("Huevos");
+    act(() => result.current.add.mutate(input));
+    act(() => result.current.remove.mutate({ id: input.id, name: "Huevos" }));
+    await waitFor(() =>
+      expect(cached(queryClient)[0]?.deleted_at).not.toBeNull(),
+    );
+
+    read.mockResolvedValue({ data: [], error: null });
+    await act(async () => insert.resolve(rejection));
+    await waitFor(() => expect(result.current.remove.isSuccess).toBe(true));
+    expect(update).not.toHaveBeenCalled();
+    expect(cached(queryClient)).toEqual([]);
+  });
+});
+
+describe("writes queued behind an insert", () => {
+  it.each(["remove", "edit"] as const)(
+    "the insert's answer does not undo a queued %s",
+    async (kind) => {
+      const { result, queryClient } = await renderItems([]);
+      const insert = deferred<Result>();
+      write.mockReturnValue(insert.promise);
+      update.mockReturnValue(new Promise(() => {}));
+
+      const input = newItem("Huevos");
+      act(() => result.current.add.mutate(input));
+      act(() =>
+        kind === "remove"
+          ? result.current.remove.mutate({ id: input.id, name: "Huevos" })
+          : result.current.edit.mutate({
+              id: input.id,
+              name: "Huevos",
+              changes: { note: "De campo" },
+            }),
+      );
+
+      // The insert answers with the row as it was created.
+      await act(async () =>
+        insert.resolve({
+          data: serverRow({ id: input.id, name: "Huevos" }),
+          error: null,
+        }),
+      );
+      await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+      const item = cached(queryClient)[0];
+      if (kind === "remove") expect(item.deleted_at).not.toBeNull();
+      else expect(item.note).toBe("De campo");
+      expect(read).not.toHaveBeenCalled();
+    },
+  );
 });

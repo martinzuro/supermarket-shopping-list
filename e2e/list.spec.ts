@@ -102,11 +102,71 @@ function nextWrite(page: Page, method: "POST" | "PATCH", name?: string) {
   );
 }
 
+/**
+ * La fila con la hoja abierta: Radix oculta el resto a los roles de
+ * accesibilidad (aria-hidden), así que se la busca por atributos.
+ */
+function rowBehind(section: Locator, name: string) {
+  return section.locator("li").filter({
+    has: section.page().locator(`[role="checkbox"][aria-label="${name}"]`),
+  });
+}
+
+function rowName(section: Locator, name: string) {
+  return row(section, name).locator('[data-slot="list-row-name"]');
+}
+
+function editor(page: Page) {
+  return page.getByRole("dialog", { name: texts.editItem.title });
+}
+
+function editorField(page: Page, label: string) {
+  return editor(page).getByRole("textbox", { name: label, exact: true });
+}
+
+/** Abre la hoja de edición tocando el nombre de la fila. */
+async function openEditor(page: Page, name: string) {
+  await rowName(pending(page), name).click();
+  await expect(editor(page)).toBeVisible();
+  await expect(editorField(page, texts.editItem.name)).toHaveValue(name);
+}
+
+async function save(page: Page) {
+  await editor(page)
+    .getByRole("button", { name: texts.editItem.save, exact: true })
+    .click();
+}
+
+function removeButton(page: Page) {
+  return editor(page).getByRole("button", {
+    name: new RegExp(
+      `^(${texts.editItem.remove}|${texts.editItem.confirmRemove})$`,
+    ),
+  });
+}
+
+/** Agrega y espera a que el servidor haya respondido al alta. */
+async function addAndSync(page: Page, text: string, name: string) {
+  const saved = nextWrite(page, "POST", name);
+  await addWithEnter(page, text, name);
+  await saved;
+}
+
 async function openList(page: Page) {
   await page.goto("/");
   await expect(field(page)).toBeVisible();
-  // La lista se crea en el primer uso: sin ella el campo no puede agregar.
+  // La lista se crea en el primer uso: el vacío aparece recién cuando el
+  // servidor la tiene y el campo ya puede agregar.
   await expect(pending(page).getByText(texts.list.pending.empty)).toBeVisible();
+  // El HTML del servidor ya trae el campo: un Enter antes de la hidratación
+  // se pierde. React marca sus elementos hidratados con `__reactProps$…`.
+  await page.waitForFunction(() => {
+    const input = document.querySelector("form input");
+    return (
+      input !== null &&
+      Object.keys(input).some((key) => key.startsWith("__reactProps$"))
+    );
+  });
 }
 
 async function settle(page: Page) {
@@ -308,6 +368,186 @@ test.describe("list with the local Supabase stack", () => {
     });
   });
 
+  test.describe("editing and deleting", () => {
+    test.beforeEach(async ({ page }) => {
+      await withoutServiceWorker(page);
+    });
+
+    test("editing saves at once, closes the sheet and persists", async ({
+      page,
+    }) => {
+      await openList(page);
+      await addAndSync(page, "Pan", "Pan");
+
+      await openEditor(page, "Pan");
+      await editorField(page, texts.editItem.name).fill("Pan integral");
+      await editorField(page, texts.editItem.quantity).fill("1,5");
+      await editorField(page, texts.editItem.unit).fill("L");
+      await editorField(page, texts.editItem.note).fill("Marca Bimbo");
+
+      const saved = nextWrite(page, "PATCH");
+      await save(page);
+
+      const edited = row(pending(page), "Pan integral");
+      await expect(edited).toBeVisible({ timeout: ACTION_MS });
+      await expect(edited.locator("[data-numeric]")).toHaveText("1,5 L");
+      await expect(edited).toContainText("Marca Bimbo");
+      await expect(row(pending(page), "Pan")).toHaveCount(0);
+      await expect(editor(page)).toBeHidden({ timeout: ACTION_MS });
+      await expect(rowName(pending(page), "Pan integral")).toBeFocused();
+      await expect(count(pending(page))).toHaveText("1");
+
+      await saved;
+      await page.reload();
+      const reloaded = row(pending(page), "Pan integral");
+      await expect(reloaded).toBeVisible();
+      await expect(reloaded.locator("[data-numeric]")).toHaveText("1,5 L");
+      await expect(reloaded).toContainText("Marca Bimbo");
+      await expect(pending(page).locator("li")).toHaveCount(1);
+    });
+
+    test("an empty name or a bad quantity keeps the sheet open and sends nothing", async ({
+      page,
+    }) => {
+      await openList(page);
+      await addAndSync(page, "2 kg de tomates", "tomates");
+
+      let patches = 0;
+      page.on("request", (request) => {
+        if (
+          request.method() === "PATCH" &&
+          request.url().includes("/rest/v1/items")
+        ) {
+          patches += 1;
+        }
+      });
+
+      await openEditor(page, "tomates");
+      const alert = editor(page).getByRole("alert");
+
+      await editorField(page, texts.editItem.name).fill("");
+      await save(page);
+      await expect(alert).toHaveText(texts.editItem.errors.name);
+      await expect(editor(page)).toBeVisible();
+
+      await editorField(page, texts.editItem.name).fill("tomates");
+      await expect(alert).toHaveCount(0);
+
+      for (const bad of ["0", "abc"]) {
+        await editorField(page, texts.editItem.quantity).fill(bad);
+        await save(page);
+        await expect(alert).toHaveText(texts.editItem.errors.quantity);
+        await expect(editor(page)).toBeVisible();
+      }
+
+      expect(patches).toBe(0);
+      await expect(rowBehind(pending(page), "tomates")).toBeVisible();
+      await expect(
+        rowBehind(pending(page), "tomates").locator("[data-numeric]"),
+      ).toHaveText("2 kg");
+    });
+
+    test("deleting needs a second tap, then the row is gone for good", async ({
+      page,
+    }) => {
+      await openList(page);
+      await addAndSync(page, "Leche x3", "Leche");
+      await addAndSync(page, "Pan", "Pan");
+
+      await openEditor(page, "Leche");
+      const remove = removeButton(page);
+      await expect(remove).toHaveText(texts.editItem.remove);
+      await remove.click();
+      await expect(remove).toHaveText(texts.editItem.confirmRemove);
+      await expect(editor(page)).toBeVisible();
+      await expect(rowBehind(pending(page), "Leche")).toBeVisible();
+
+      const saved = nextWrite(page, "PATCH");
+      // Un segundo toque inmediato es un doble toque: se espera al botón armado.
+      await expect(remove).toHaveAttribute("data-armed", "true");
+      await remove.click();
+
+      await expect(editor(page)).toBeHidden({ timeout: ACTION_MS });
+      await expect(row(pending(page), "Leche")).toHaveCount(0);
+      await expect(field(page)).toBeFocused();
+      await expect(count(pending(page))).toHaveText("1");
+
+      await saved;
+      await page.reload();
+      await expect(row(pending(page), "Pan")).toBeVisible();
+      await expect(row(pending(page), "Leche")).toHaveCount(0);
+      await expect(pending(page).locator("li")).toHaveCount(1);
+    });
+
+    test("the delete confirmation resets after a few seconds", async ({
+      page,
+    }) => {
+      await openList(page);
+      await addAndSync(page, "Pan", "Pan");
+
+      await openEditor(page, "Pan");
+      const remove = removeButton(page);
+      await remove.click();
+      await expect(remove).toHaveText(texts.editItem.confirmRemove);
+
+      await expect(remove).toHaveText(texts.editItem.remove, { timeout: 6000 });
+      await expect(editor(page)).toBeVisible();
+      await expect(rowBehind(pending(page), "Pan")).toBeVisible();
+    });
+
+    test("a rejected edit restores the old name and warns", async ({
+      page,
+    }) => {
+      await openList(page);
+      await addAndSync(page, "2 kg de tomates", "tomates");
+      await rejectItems(page, "PATCH");
+
+      await openEditor(page, "tomates");
+      await editorField(page, texts.editItem.name).fill("tomates perita");
+      await save(page);
+
+      const notice = banner(page);
+      await expect(notice).toContainText(texts.itemErrors.edit("tomates"));
+      await expect(notice).toContainText(texts.itemErrors.editBody);
+      await expect(row(pending(page), "tomates")).toBeVisible();
+      await expect(row(pending(page), "tomates perita")).toHaveCount(0);
+      await expect(
+        row(pending(page), "tomates").locator("[data-numeric]"),
+      ).toHaveText("2 kg");
+      await expect(editor(page)).toBeHidden();
+
+      await notice
+        .getByRole("button", { name: texts.itemErrors.dismiss })
+        .click();
+      await expect(banner(page)).toHaveCount(0);
+    });
+
+    test("a rejected delete brings the row back and warns", async ({
+      page,
+    }) => {
+      await openList(page);
+      await addAndSync(page, "Leche x3", "Leche");
+      await rejectItems(page, "PATCH");
+
+      await openEditor(page, "Leche");
+      await removeButton(page).click();
+      await expect(removeButton(page)).toHaveAttribute("data-armed", "true");
+      await removeButton(page).click();
+
+      const notice = banner(page);
+      await expect(notice).toContainText(texts.itemErrors.remove("Leche"));
+      await expect(notice).toContainText(texts.itemErrors.removeBody);
+      await expect(row(pending(page), "Leche")).toBeVisible();
+      await expect(count(pending(page))).toHaveText("1");
+      await expect(editor(page)).toBeHidden();
+
+      await notice
+        .getByRole("button", { name: texts.itemErrors.dismiss })
+        .click();
+      await expect(banner(page)).toHaveCount(0);
+    });
+  });
+
   for (const mode of ["light", "dark"] as const) {
     test.describe(`${mode} mode at 375px`, () => {
       test.use({ colorScheme: mode, viewport: { width: 375, height: 812 } });
@@ -355,6 +595,48 @@ test.describe("list with the local Supabase stack", () => {
         await settle(page);
         await expectNoHorizontalOverflow(page);
         await capture(page, testInfo, `list-rejection-${mode}`);
+      });
+
+      test("the edit sheet and the delete confirmation", async ({
+        page,
+      }, testInfo) => {
+        await withoutServiceWorker(page);
+        await openList(page);
+        await addAndSync(
+          page,
+          "1,5 L de aceite de girasol",
+          "aceite de girasol",
+        );
+        await addWithEnter(page, "Pan", "Pan");
+
+        // Una nota para que la hoja se vea completa.
+        await openEditor(page, "aceite de girasol");
+        await editorField(page, texts.editItem.note).fill("Marca Optimo");
+        await save(page);
+        await expect(editor(page)).toBeHidden({ timeout: ACTION_MS });
+        await expect(row(pending(page), "aceite de girasol")).toContainText(
+          "Marca Optimo",
+        );
+
+        await openEditor(page, "aceite de girasol");
+        await expect(editorField(page, texts.editItem.quantity)).toHaveValue(
+          "1,5",
+        );
+        await expect(editorField(page, texts.editItem.unit)).toHaveValue("L");
+        await expect(editorField(page, texts.editItem.note)).toHaveValue(
+          "Marca Optimo",
+        );
+        await settle(page);
+        await expectNoHorizontalOverflow(page);
+        await capture(page, testInfo, `edit-sheet-${mode}`);
+
+        await removeButton(page).click();
+        await expect(removeButton(page)).toHaveText(
+          texts.editItem.confirmRemove,
+        );
+        await settle(page);
+        await expectNoHorizontalOverflow(page);
+        await capture(page, testInfo, `edit-sheet-confirm-${mode}`);
       });
     });
   }

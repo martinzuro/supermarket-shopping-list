@@ -31,6 +31,22 @@ export const texts = {
     placeholder: "Leche, pan, tomates…",
     submit: "Agregar",
   },
+  editItem: {
+    title: "Editar producto",
+    name: "Nombre",
+    quantity: "Cantidad",
+    unit: "Unidad",
+    unitPlaceholder: "kg, L, paquete",
+    note: "Nota",
+    noteHelp: "Marca, tamaño o lo que quieras recordar.",
+    save: "Guardar",
+    remove: "Borrar",
+    confirmRemove: "Tocá otra vez para borrar",
+    errors: {
+      name: "Escribí el nombre del producto.",
+      quantity: "Usá un número mayor que 0 y hasta 999, como 2 o 1,5.",
+    },
+  },
   /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
   itemErrors: {
     add: (name: string) => `No se guardó “${name}”`,
@@ -39,6 +55,10 @@ export const texts = {
     check: (name: string) => `No se marcó “${name}”`,
     uncheck: (name: string) => `No se desmarcó “${name}”`,
     toggleBody: "Volvió a donde estaba. Probá de nuevo.",
+    edit: (name: string) => `No se guardaron los cambios de “${name}”`,
+    editBody: "Quedó como estaba. Probá de nuevo.",
+    remove: (name: string) => `No se borró “${name}”`,
+    removeBody: "Volvió a la lista. Probá de nuevo.",
     dismiss: "Cerrar aviso",
   },
   sheet: {

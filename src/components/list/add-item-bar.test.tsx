@@ -278,4 +278,24 @@ describe("AddItemBar", () => {
     );
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
+
+  it.each([
+    ["edit", texts.itemErrors.edit("Leche"), texts.itemErrors.editBody],
+    ["remove", texts.itemErrors.remove("Leche"), texts.itemErrors.removeBody],
+  ])("shows a rejected %s", async (kind, title, body) => {
+    const { queryClient } = await renderBar();
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: [...queryKeys.items(USER, LIST), kind],
+      mutationFn: (): Promise<unknown> => Promise.reject(new Error("denied")),
+    });
+    await act(async () => {
+      await mutation
+        .execute({ id: "milk", name: "Leche", changes: {} })
+        .catch(() => {});
+    });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(title);
+    expect(alert).toHaveTextContent(body);
+  });
 });
