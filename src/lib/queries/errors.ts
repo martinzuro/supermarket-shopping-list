@@ -60,3 +60,6 @@ export function writeSignal(): AbortSignal {
   setTimeout(() => controller.abort(), WRITE_TIMEOUT_MS);
   return controller.signal;
 }
+
+/** Postgres unique_violation: on an insert retry, the first attempt was saved. */
+export const DUPLICATE_KEY = "23505";

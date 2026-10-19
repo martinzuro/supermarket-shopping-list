@@ -11,7 +11,7 @@ import { newId } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/database.types";
 import { texts } from "@/lib/texts";
-import { unwrap, writeSignal } from "./errors";
+import { DUPLICATE_KEY, RequestError, unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
 
 export type List = Tables<"lists">;
@@ -49,14 +49,31 @@ function optimisticList(id: string, userId: string): List {
 
 async function insertList(id: string, name: string): Promise<List> {
   // Through unwrap, so a lost answer (status 0) is retried like every write.
-  return unwrap(
-    await createClient()
-      .from("lists")
-      .insert({ id, name })
-      .select()
-      .abortSignal(writeSignal())
-      .single(),
-  );
+  try {
+    return unwrap(
+      await createClient()
+        .from("lists")
+        .insert({ id, name })
+        .select()
+        .abortSignal(writeSignal())
+        .single(),
+    );
+  } catch (error) {
+    // A retry after a lost answer: the first attempt was saved (the id is
+    // generated on the client). Read it, so onSuccess runs and resets the
+    // list's queries as for any creation.
+    if (error instanceof RequestError && error.code === DUPLICATE_KEY) {
+      return unwrap(
+        await createClient()
+          .from("lists")
+          .select("*")
+          .eq("id", id)
+          .abortSignal(writeSignal())
+          .single(),
+      );
+    }
+    throw error;
+  }
 }
 
 function setLists(

@@ -152,4 +152,64 @@ describe("useCurrentList", () => {
     await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(result.current.error).toBeNull();
   });
+
+  it("recovers a creation whose retry finds it already saved", async () => {
+    let saved: unknown = null;
+    let answerRetry!: () => void;
+    // The fake table cannot tell `.single()` apart: right after the
+    // duplicate key comes the read by id (one row), then list queries.
+    let readById = false;
+    read.mockImplementation(async () => {
+      if (readById) {
+        readById = false;
+        return { data: saved, error: null };
+      }
+      return { data: saved ? [saved] : [], error: null };
+    });
+    write
+      .mockImplementationOnce(async (row) => {
+        // Saved on the server, but the answer is lost.
+        saved = { ...(row as object), created_by: USER, deleted_at: null };
+        return {
+          data: null,
+          error: { message: "TypeError: Failed to fetch", code: "" },
+          status: 0,
+        } as never;
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answerRetry = () => {
+              readById = true;
+              resolve({
+                data: null,
+                error: { message: "duplicate key value", code: "23505" },
+                status: 409,
+              } as never);
+            };
+          }),
+      );
+    const queryClient = makeTestQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      mutations: { retry: shouldRetryMutation, retryDelay: 0 },
+    });
+    const { result } = renderHook(() => useCurrentList(USER), {
+      wrapper: makeWrapper(queryClient),
+    });
+    await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(2));
+    const { id } = lists.insert.mock.calls[0][0] as { id: string };
+    // Cached while the insert was in flight; the recovered creation resets it.
+    queryClient.setQueryData(queryKeys.categories(USER, id), []);
+    await act(async () => answerRetry());
+
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(result.current.list?.id).toBe(id);
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData(queryKeys.categories(USER, id)),
+      ).toBeUndefined(),
+    );
+  });
 });

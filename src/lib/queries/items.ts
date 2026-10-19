@@ -9,7 +9,7 @@ import {
 import { newId, normalizeName } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/database.types";
-import { RequestError, unwrap, writeSignal } from "./errors";
+import { DUPLICATE_KEY, RequestError, unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
 
 export type Item = Tables<"items">;
@@ -99,9 +99,6 @@ function optimisticItem(
     deleted_at: null,
   };
 }
-
-/** Postgres unique_violation. */
-const DUPLICATE_KEY = "23505";
 
 async function fetchItem(id: string): Promise<Item> {
   return unwrap(
