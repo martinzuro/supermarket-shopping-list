@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
+/* La documentación cita clases en prosa; no se escanea en busca de utilidades. */
+@source not "../../docs";
+
 /*
  * Sistema de diseño "Fresh Editorial" (docs/DESIGN_DIRECTION.md, ADR 0008).
  *
  * Capas:
  *   1. Paleta: valores crudos por modo (claro y oscuro).
  *   2. Roles semánticos: qué hace cada color en la interfaz.
- *   3. Alias de shadcn: mantienen funcionando las primitivas existentes
- *      hasta que se reemplacen; no usar en código nuevo.
- *   4. Tipografía, espaciado, radios, sombra y motion.
+ *   3. Tipografía, espaciado, radios, sombra y motion.
  *
  * Los pares de color se validan en src/lib/design/tokens.test.ts: los hex
  * de aquí deben coincidir con src/lib/design/tokens.ts.
@@ -50,7 +51,7 @@
 
   /* Velo detrás de hojas y la única sombra: por modo, siempre oscuros */
   --scrim: rgb(27 42 31 / 0.4);
-  --shadow-sheet: 0 12px 32px -8px rgb(27 42 31 / 0.22);
+  --sheet-shadow: 0 12px 32px -8px rgb(27 42 31 / 0.22);
 
   /* Acción primaria: lima sobre tinta */
   --action-bg: var(--ink);
@@ -110,7 +111,7 @@
     --focus-inverse: #c9f04a;
 
     --scrim: rgb(0 0 0 / 0.6);
-    --shadow-sheet: 0 16px 40px -8px rgb(0 0 0 / 0.6);
+    --sheet-shadow: 0 16px 40px -8px rgb(0 0 0 / 0.6);
 
     /* Acción primaria: tinta sobre lima (el papel ya es tinta) */
     --action-bg: var(--lime);
@@ -175,27 +176,6 @@
   /* Desplazamiento de las entradas (las primitivas de motion lo anulan
      con movimiento reducido, junto con el escalonado y los retrasos) */
   --motion-shift: 8px;
-
-  /* Alias de shadcn (solo para las primitivas existentes) */
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: var(--paper);
-  --card-foreground: var(--ink);
-  --popover: var(--paper);
-  --popover-foreground: var(--ink);
-  --primary: var(--action-bg);
-  --primary-foreground: var(--action-fg);
-  --secondary: var(--paper-2);
-  --secondary-foreground: var(--ink);
-  --muted: var(--paper-hover);
-  --muted-foreground: var(--ink-2);
-  --accent: var(--paper-2);
-  --accent-foreground: var(--ink);
-  --destructive: var(--tomato-text);
-  --border: var(--rule);
-  --input: var(--field-border);
-  --ring: var(--focus);
-  --radius: 0.75rem;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -253,26 +233,6 @@
   --color-cat-otros: var(--cat-otros);
   --color-cat-otros-thread: var(--cat-otros-thread);
 
-  /* Alias de shadcn */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-
   /* Fuentes: tres roles (ADR 0008) */
   --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-instrument-serif);
@@ -281,6 +241,8 @@
   /* Radios: 0, campo, hoja, píldora. Nada intermedio. */
   --radius-field: 0.375rem;
   --radius-sheet: 0.75rem;
+  --radius: var(--radius-field);
+  --radius-xs: var(--radius-field);
   --radius-sm: var(--radius-field);
   --radius-md: var(--radius-field);
   --radius-lg: var(--radius-sheet);
@@ -289,8 +251,8 @@
   --radius-3xl: var(--radius-sheet);
   --radius-4xl: var(--radius-sheet);
 
-  /* La única sombra (el token de Tailwind lee la variable de :root) */
-  --shadow-sheet: var(--shadow-sheet, 0 12px 32px -8px rgb(27 42 31 / 0.22));
+  /* La única sombra (el token de Tailwind lee --sheet-shadow, por modo) */
+  --shadow-sheet: var(--sheet-shadow);
 
   /* Curvas de motion */
   --ease-out: var(--motion-ease-out);
@@ -303,15 +265,33 @@
    * Roles tipográficos, fluidos entre 375px y 1440px. El tracking crece en
    * negativo con el tamaño; los eyebrows van en mayúsculas con tracking
    * positivo. Los inputs no bajan de 16px para evitar el zoom de iOS.
+   *
+   * Tracking por tamaño (0 a 14px, -1% a 20px, -2.5% a 40px, -4% desde
+   * 64px): un valor en em no puede variar con el viewport, así que display
+   * y title llevan el tracking en rem, lineal en vw entre 375px y 1440px.
+   *   display: 40px * -2.5% = -1px (-0.0625rem) a 375px
+   *            72px * -4%   = -2.88px (-0.18rem) a 1440px
+   *   title:   28px * -1.6% = -0.448px (-0.028rem) a 375px
+   *            40px * -2.5% = -1px (-0.0625rem) a 1440px
+   * Pendiente = delta / 1065px; la intersección sale de fijar el extremo
+   * de 375px. El clamp() fija los dos extremos fuera de ese rango.
    */
   --text-display: clamp(2.5rem, 1.75rem + 3.2vw, 4.5rem);
   --text-display--line-height: 1;
-  --text-display--letter-spacing: -0.04em;
+  --text-display--letter-spacing: clamp(
+    -0.18rem,
+    calc(-0.0211rem - 0.1765vw),
+    -0.0625rem
+  );
   --text-display--font-weight: 400;
 
   --text-title: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);
   --text-title--line-height: 1.1;
-  --text-title--letter-spacing: -0.025em;
+  --text-title--letter-spacing: clamp(
+    -0.0625rem,
+    calc(-0.0158rem - 0.0518vw),
+    -0.028rem
+  );
   --text-title--font-weight: 400;
 
   --text-heading: clamp(1.25rem, 1.15rem + 0.4vw, 1.5rem);
@@ -392,24 +372,30 @@
   );
 }
 
-/* Duraciones de motion */
+/* Duraciones de motion (--tw-duration como las de Tailwind, para que
+   transition-colors y compañía las lean sin depender del orden) */
 @utility duration-instant {
+  --tw-duration: var(--motion-dur-instant);
   transition-duration: var(--motion-dur-instant);
   animation-duration: var(--motion-dur-instant);
 }
 @utility duration-fast {
+  --tw-duration: var(--motion-dur-fast);
   transition-duration: var(--motion-dur-fast);
   animation-duration: var(--motion-dur-fast);
 }
 @utility duration-base {
+  --tw-duration: var(--motion-dur-base);
   transition-duration: var(--motion-dur-base);
   animation-duration: var(--motion-dur-base);
 }
 @utility duration-slow {
+  --tw-duration: var(--motion-dur-slow);
   transition-duration: var(--motion-dur-slow);
   animation-duration: var(--motion-dur-slow);
 }
 @utility duration-cinematic {
+  --tw-duration: var(--motion-dur-cinematic);
   transition-duration: var(--motion-dur-cinematic);
   animation-duration: var(--motion-dur-cinematic);
 }

@@ -11,7 +11,6 @@ import {
 } from "motion/react";
 import * as React from "react";
 import { motionTokens as t } from "@/lib/design/motion";
-import { cn } from "@/lib/utils";
 
 /**
  * Primitivas de motion del sistema (DESIGN_DIRECTION.md, sección 8). Todas
@@ -37,7 +36,7 @@ export function MotionProvider({ children }: { children: React.ReactNode }) {
 }
 
 /** Entrada estándar: fundido más desplazamiento vertical de 8px. */
-export const enterVariants: Variants = {
+const enterVariants: Variants = {
   hidden: { opacity: 0, y: t.shift },
   show: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: t.shift },
@@ -162,13 +161,15 @@ type CollapseProps = {
 };
 
 /**
- * Monta y desmonta un bloque (avisos, mensajes) abriendo su altura. Con
- * movimiento reducido solo funde: la altura cambia de golpe.
+ * Monta y desmonta un bloque (avisos, mensajes) con fundido y un
+ * desplazamiento vertical de --motion-shift. Solo anima transform y
+ * opacity: el cambio de layout es instantáneo. Con movimiento reducido
+ * queda solo el fundido.
  */
 export function Collapse({ show, className, children }: CollapseProps) {
   const reduced = useReducedMotion();
-  const hidden = reduced ? { opacity: 0 } : { opacity: 0, height: 0 };
-  const visible = reduced ? { opacity: 1 } : { opacity: 1, height: "auto" };
+  const hidden = reduced ? { opacity: 0 } : { opacity: 0, y: t.shift };
+  const visible = reduced ? { opacity: 1 } : { opacity: 1, y: 0 };
 
   return (
     <AnimatePresence initial={false}>
@@ -179,7 +180,7 @@ export function Collapse({ show, className, children }: CollapseProps) {
           animate={visible}
           exit={hidden}
           transition={transitions.base}
-          className={cn("overflow-hidden", className)}
+          className={className}
         >
           {children}
         </motion.div>
@@ -187,5 +188,3 @@ export function Collapse({ show, className, children }: CollapseProps) {
     </AnimatePresence>
   );
 }
-
-export { AnimatePresence, motion };

@@ -10,6 +10,11 @@ type BannerProps = {
   body?: string;
   action?: React.ReactNode;
   className?: string;
+  /**
+   * false cuando un contenedor aria-live ya anuncia el texto: el aviso no
+   * pone role="status" (el tono error conserva role="alert").
+   */
+  liveRegion?: boolean;
 } & Omit<React.ComponentProps<"div">, "title">;
 
 const tones = {
@@ -41,12 +46,13 @@ export function Banner({
   body,
   action,
   className,
+  liveRegion = true,
   ...props
 }: BannerProps) {
   const t = tones[tone];
   return (
     <div
-      role={tone === "error" ? "alert" : "status"}
+      role={tone === "error" ? "alert" : liveRegion ? "status" : undefined}
       data-slot="banner"
       data-tone={tone}
       className={cn(

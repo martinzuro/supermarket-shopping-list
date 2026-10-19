@@ -117,3 +117,23 @@ describe("tokens de motion", () => {
     expect(value("shift")).toBe(`${motionTokens.shift}px`);
   });
 });
+
+describe("tracking fluido por tamaño", () => {
+  function clampOf(name: string): string[] {
+    const match = new RegExp(`--${name}:\\s*clamp\\(([^;]+)\\);`).exec(css);
+    expect(match, `--${name}`).not.toBeNull();
+    return match![1].split(/,(?![^(]*\))/).map((part) => part.trim());
+  }
+
+  it("display va de -2.5% a -4% (-1px a -2.88px)", () => {
+    const [min, , max] = clampOf("text-display--letter-spacing");
+    expect(parseFloat(min) * 16).toBeCloseTo(-2.88, 2);
+    expect(parseFloat(max) * 16).toBeCloseTo(-1, 2);
+  });
+
+  it("title va de -1.6% a -2.5% (-0.448px a -1px)", () => {
+    const [min, , max] = clampOf("text-title--letter-spacing");
+    expect(parseFloat(min) * 16).toBeCloseTo(-1, 2);
+    expect(parseFloat(max) * 16).toBeCloseTo(-0.448, 2);
+  });
+});

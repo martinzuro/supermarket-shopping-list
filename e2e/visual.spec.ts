@@ -183,16 +183,27 @@ test.describe("first use with reduced motion", () => {
     await expect(welcome).toBeVisible();
     // Las filas entran escalonadas con un desplazamiento de 8px; con
     // movimiento reducido MotionConfig lo quita y solo queda el fundido.
-    const transforms = await welcome
-      .locator("li")
-      .evaluateAll((items) =>
-        items.map((item) => getComputedStyle(item).transform),
-      );
-    expect(transforms.length).toBeGreaterThan(0);
-    for (const transform of transforms) {
-      expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
-    }
+    // Motion aplica el estado final en el siguiente frame: se espera con poll.
+    await expect
+      .poll(async () => {
+        const transforms = await welcome
+          .locator("li")
+          .evaluateAll((items) =>
+            items.map((item) => getComputedStyle(item).transform),
+          );
+        return (
+          transforms.length > 0 &&
+          transforms.every((transform) =>
+            ["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(transform),
+          )
+        );
+      })
+      .toBe(true);
     await capture(page, testInfo, "welcome-reduced-motion");
+    // Con movimiento reducido no hay cierre automático: sigue abierta mucho
+    // después de los 2.6 s del cierre normal, hasta que la persona actúa.
+    await page.waitForTimeout(3500);
+    await expect(welcome).toBeVisible();
     await welcome.getByRole("button", { name: texts.welcome.cta }).click();
     await expect(welcome).toHaveCount(0);
   });

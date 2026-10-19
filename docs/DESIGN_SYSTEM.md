@@ -30,8 +30,8 @@ Estado: construido entre el 2026-10-17 y el 2026-10-18 en los PR 13 a 20.
 
 ## 2. Color
 
-Tres capas en `globals.css`: paleta cruda por modo, roles semánticos y
-alias de shadcn (solo para código heredado; no usar en código nuevo).
+Dos capas de color en `globals.css`: paleta cruda por modo y roles
+semánticos.
 
 ### Paleta (clase de Tailwind entre paréntesis)
 
@@ -63,7 +63,7 @@ alias de shadcn (solo para código heredado; no usar en código nuevo).
 | `--remote-pulse` | cítrico al 22% | Pulso de una fila que cambió otro miembro |
 | `--attention-bg` / `--danger-bg` | cítrico / tomate al 10% sobre papel | Fondos de aviso. El texto va en tinta; el color en icono e hilo |
 | `--scrim` | tinta al 40% en claro, negro al 60% en oscuro | Velo detrás de hojas |
-| `--shadow-sheet` | tinta al 22% en claro, negro al 60% en oscuro | La única sombra, definida por modo para que en oscuro no sea un halo claro |
+| `--sheet-shadow` (`shadow-sheet`) | tinta al 22% en claro, negro al 60% en oscuro | La única sombra, definida por modo para que en oscuro no sea un halo claro |
 | `--cat-<id>` / `--cat-<id>-thread` | oklch, ver abajo | Etiqueta e hilo de cada categoría |
 
 ### Categorías
@@ -99,13 +99,18 @@ interlineado, tracking y peso incorporados:
 
 | Clase | Tamaño | Tracking | Fuente habitual | Uso |
 | ----- | ------ | -------- | --------------- | --- |
-| `text-display` | 40 → 72px | −4% | serif | Titulares editoriales, bienvenida, momentos |
-| `text-title` | 28 → 40px | −2.5% | serif | Wordmark en cabecera, títulos de página |
+| `text-display` | 40 → 72px | −2.5% → −4% | serif | Titulares editoriales, bienvenida, momentos |
+| `text-title` | 28 → 40px | −1.6% → −2.5% | serif | Wordmark en cabecera, títulos de página |
 | `text-heading` | 20 → 24px | −1% | sans 500 | Encabezados de sección, títulos de hoja |
 | `text-row` | 17 → 18px | 0 | sans | Filas de la lista |
 | `text-body` (por defecto en `body`) | 15 → 16px | 0 | sans | Cuerpo |
 | `text-label` | 13px | 0 | sans 500 | Botones, etiquetas, chips |
 | `text-eyebrow` o utilidad `eyebrow` | 11 → 12px | +6% | sans 500, mayúsculas, tinta 2 | Metadatos |
+
+El tracking de display y title también es fluido (la regla: 0 a 14px,
+−1% a 20px, −2.5% a 40px, −4% desde 64px), y va en `rem` con `clamp()`
+porque un valor en `em` no puede variar con el viewport; la cuenta está
+comentada en `globals.css`.
 
 Las cifras son tabulares en `input`, `td` y cualquier elemento con
 `data-numeric`. Para una palabra en cursiva dentro de un titular serif se
@@ -152,8 +157,10 @@ Primitivas en `src/components/motion` (Motion for React, ADR 0009):
   resuelve en JavaScript (`useReducedMotion`), no en CSS.
 - `Enter` (entrada suelta, `delay` opcional), `Stagger` (con
   `delayChildren`) + `StaggerItem` (listas coreografiadas), `Collapse`
-  (bloques que aparecen y desaparecen, como el banner de conexión).
-- Transiciones y variantes reutilizables: `transitions`, `enterVariants`.
+  (bloques que aparecen y desaparecen, como el banner de conexión: fundido
+  y desplazamiento de `--motion-shift`, sin animar la altura, que cambia de
+  golpe).
+- Transiciones reutilizables: `transitions`.
 
 Reglas: solo `transform` y `opacity` en interacciones frecuentes; las
 transiciones CSS de los componentes usan las clases de duración y curva;
@@ -182,7 +189,10 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | `Moment` | Momento editorial | Superficie tinta, titular display con `<em>`, ilustración, acción, entrada escalonada. Pocas veces: carro vaciado, invitación |
 
 Las primitivas accesibles vienen de Radix (`radix-ui`); el aspecto es
-siempre propio y sale de los tokens. Ningún componente contiene cadenas de
+siempre propio y sale de los tokens. Las primitivas accesibles nuevas se
+escriben directamente sobre `radix-ui` (la CLI de shadcn se puede usar con
+`npx` como punto de partida, pero su salida se reestiliza antes de
+mergear). Ningún componente contiene cadenas de
 interfaz: todo texto viene de `src/lib/texts.ts`.
 
 ## 7. Iconos e ilustraciones

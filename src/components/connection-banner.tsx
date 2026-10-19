@@ -24,28 +24,42 @@ export function ConnectionBanner() {
     setTimeout(() => setRetrying(false), RETRY_FEEDBACK_MS);
   }
 
+  const offline = status === "offline";
+
   return (
-    <Collapse show={status === "offline"}>
-      <div className="px-safe mx-auto w-full max-w-xl pb-3">
-        <Banner
-          tone="info"
-          icon={WifiOff}
-          title={texts.connection.title}
-          body={texts.connection.body}
-          data-testid="connection-banner"
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="touch"
-              onClick={handleRetry}
-              disabled={retrying}
-            >
-              {retrying ? texts.connection.retrying : texts.connection.retry}
-            </Button>
-          }
-        />
+    <>
+      {/* Always mounted so screen readers announce the text when it is set. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {offline ? `${texts.connection.title}. ${texts.connection.body}` : ""}
       </div>
-    </Collapse>
+      <Collapse show={offline}>
+        <div className="px-safe mx-auto w-full max-w-xl pb-3">
+          <Banner
+            tone="info"
+            liveRegion={false}
+            icon={WifiOff}
+            title={texts.connection.title}
+            body={texts.connection.body}
+            data-testid="connection-banner"
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="touch"
+                onClick={handleRetry}
+                disabled={retrying}
+              >
+                {retrying ? texts.connection.retrying : texts.connection.retry}
+              </Button>
+            }
+          />
+        </div>
+      </Collapse>
+    </>
   );
 }
