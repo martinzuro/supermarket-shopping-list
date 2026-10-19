@@ -1,10 +1,11 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Enter, Stagger, StaggerItem, transitions } from "@/components/motion";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "@/components/ui/check-circle";
+import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
 import { texts } from "@/lib/texts";
 import { WELCOME_PENDING_PROPERTY, WELCOME_SEEN_KEY } from "./welcome-flag";
 
@@ -71,10 +72,13 @@ export function Welcome() {
   const pending = pendingOnLoad && !dismissed;
   const [checked, setChecked] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
 
   function finish() {
     markSeen();
     setDismissed(true);
+    // El foco sigue a la lista: el campo de añadir ya es visible.
+    document.getElementById(ADD_ITEM_INPUT_ID)?.focus({ preventScroll: true });
   }
 
   useEffect(() => {
@@ -87,18 +91,37 @@ export function Welcome() {
         (timeline.firstCheck + index * timeline.betweenChecks) * 1000,
       ),
     );
-    timers.push(window.setTimeout(finish, timeline.autoFinish * 1000));
+    // Cierre automático solo para quien no interactúa y no pidió menos
+    // movimiento: teclado, lector de pantalla o Tab cancelan el reloj y la
+    // pantalla espera al toque o a Enter.
+    let autoFinish: number | null = reduced
+      ? null
+      : window.setTimeout(finish, timeline.autoFinish * 1000);
+    function keepOpen() {
+      if (autoFinish !== null) {
+        window.clearTimeout(autoFinish);
+        autoFinish = null;
+      }
+    }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" || event.key === "Enter") finish();
+      if (event.key === "Escape" || event.key === "Enter") {
+        finish();
+        return;
+      }
+      keepOpen();
     }
     window.addEventListener("keydown", onKeyDown);
+    const dialog = dialogRef.current;
+    dialog?.addEventListener("focusin", keepOpen);
 
     return () => {
       timers.forEach((id) => window.clearTimeout(id));
+      keepOpen();
       window.removeEventListener("keydown", onKeyDown);
+      dialog?.removeEventListener("focusin", keepOpen);
     };
-  }, [pending]);
+  }, [pending, reduced]);
 
   return (
     <AnimatePresence>
@@ -115,7 +138,7 @@ export function Welcome() {
           exit={{ opacity: 0 }}
           transition={transitions.base}
           onClick={finish}
-          className="bg-inverse-bg text-inverse-fg px-safe pt-safe pb-safe fixed inset-0 z-40 flex flex-col outline-none"
+          className="surface-inverse px-safe pt-safe pb-safe fixed inset-0 z-40 flex flex-col outline-none"
         >
           <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-10 py-10">
             <Enter as="p" exit={undefined} className="text-title font-serif">
@@ -134,7 +157,7 @@ export function Welcome() {
             <Stagger
               aria-hidden
               exit={undefined}
-              transition={{ delayChildren: timeline.list }}
+              delayChildren={timeline.list}
               className="border-inverse-fg-2/40 border-t"
             >
               {t.items.map((item, index) => (

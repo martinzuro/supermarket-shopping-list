@@ -7,8 +7,10 @@ type CheckCircleProps = {
 };
 
 /**
- * Indicador visual de "hecho": círculo de 24px que se llena de lima. Es solo
- * presentación; el control accesible lo pone quien lo usa (ListRow).
+ * Indicador visual de "hecho": círculo de 24px que se llena con el par de
+ * acción (tinta con check lima en claro, lima con check tinta en oscuro),
+ * así el disco contrasta con el papel y la lima nunca queda sobre claro.
+ * Es solo presentación; el control accesible lo pone quien lo usa.
  */
 export function CheckCircle({ checked, className }: CheckCircleProps) {
   return (
@@ -18,14 +20,14 @@ export function CheckCircle({ checked, className }: CheckCircleProps) {
       data-checked={checked}
       className={cn(
         "border-field-border duration-base flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-[background-color,border-color,transform] ease-out",
-        checked && "border-lime bg-lime",
+        checked && "border-action-bg bg-action-bg",
         className,
       )}
     >
       <Check
         strokeWidth={2.5}
         className={cn(
-          "text-on-lime duration-fast size-4 transition-[opacity,transform] ease-out",
+          "text-action-fg duration-fast size-4 transition-[opacity,transform] ease-out",
           checked ? "scale-100 opacity-100" : "scale-50 opacity-0",
         )}
       />
