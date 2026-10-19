@@ -20,8 +20,18 @@ type ListSectionProps = {
   loading?: boolean;
   /** El carro va sobre pistacho: es la superficie secundaria del sistema. */
   surface?: "paper" | "cart";
+  /** Acción del encabezado (por ejemplo "Vaciar el carro"). */
+  action?: ReactNode;
+  /**
+   * Con `grouped` los hijos son agrupaciones (`Section` de nivel 3), cada una
+   * con su propia lista, en lugar de las filas directamente.
+   */
+  grouped?: boolean;
   className?: string;
-  /** Las filas (`ListRow`), cada una dentro de su propio `li`. */
+  /**
+   * Las filas (`ListRow`), cada una dentro de su propio `li`; con `grouped`,
+   * las agrupaciones.
+   */
   children?: ReactNode;
 };
 
@@ -32,6 +42,8 @@ export function ListSection({
   count = 0,
   loading = false,
   surface = "paper",
+  action,
+  grouped = false,
   className,
   children,
 }: ListSectionProps) {
@@ -44,9 +56,18 @@ export function ListSection({
         className,
       )}
     >
-      <Section id={id} title={title} count={hasItems ? count : undefined}>
+      <Section
+        id={id}
+        title={title}
+        count={hasItems ? count : undefined}
+        action={action}
+      >
         {loading ? null : hasItems ? (
-          <ul className="border-rule border-t">{children}</ul>
+          grouped ? (
+            <div>{children}</div>
+          ) : (
+            <ul className="border-rule border-t">{children}</ul>
+          )
         ) : (
           <EmptyState
             illustration={

@@ -15,10 +15,13 @@ export const texts = {
     pending: {
       title: "Pendientes",
       empty: "Nada pendiente. Lo que agregues aparece acá.",
+      /** Título del grupo de lo que no tiene categoría (la lista no tiene "Otros"). */
+      uncategorized: "Otros",
     },
     cart: {
       title: "En el carro",
       empty: "Lo que marques como comprado baja acá.",
+      emptyAction: "Vaciar el carro",
     },
     loadError: {
       title: "No pudimos cargar tu lista",
@@ -59,6 +62,8 @@ export const texts = {
     editBody: "Quedó como estaba. Probá de nuevo.",
     remove: (name: string) => `No se borró “${name}”`,
     removeBody: "Volvió a la lista. Probá de nuevo.",
+    emptyCart: "No se vació el carro",
+    emptyCartBody: "Lo que estaba en el carro volvió. Probá de nuevo.",
     dismiss: "Cerrar aviso",
   },
   sheet: {
@@ -72,8 +77,8 @@ export const texts = {
       eyebrow: "Compra terminada",
       lead: "Buena",
       em: "compra",
-      body: "Lo de hoy quedó en tu historial. La próxima lista arranca vacía.",
-      action: "Empezar otra lista",
+      body: "Lo del carro quedó guardado. Lo que faltó sigue en tu lista.",
+      action: "Volver a la lista",
     },
   },
   welcome: {

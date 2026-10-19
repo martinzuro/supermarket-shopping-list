@@ -94,6 +94,13 @@ export function useCreateList(userId: string) {
       setLists(queryClient, userId, (lists) =>
         lists.map((list) => (list.id === created.id ? created : list)),
       );
+      // While the insert was in flight the optimistic list already fetched
+      // its items, categories and catalog, and the server (no list yet, RLS)
+      // answered with nothing. Now the trigger has seeded its categories:
+      // start those queries over, so nothing reads the empty answers.
+      return queryClient.resetQueries({
+        queryKey: queryKeys.list(userId, created.id),
+      });
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });

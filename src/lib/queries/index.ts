@@ -7,6 +7,7 @@ export {
   useToggleItem,
   useEditItem,
   useRemoveItem,
+  useEmptyCart,
   newItem,
   itemMutationKeys,
   type Item,
@@ -15,5 +16,12 @@ export {
   type EditItem,
   type EditableFields,
   type RemoveItem,
+  type EmptyCart,
 } from "./items";
+export {
+  useCategories,
+  useCatalog,
+  type Category,
+  type CatalogEntry,
+} from "./categories";
 export { RequestError } from "./errors";

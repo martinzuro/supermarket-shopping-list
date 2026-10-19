@@ -4,6 +4,7 @@ import { queryKeys } from "./keys";
 import {
   useAddItem,
   useEditItem,
+  useEmptyCart,
   useItems,
   useRemoveItem,
   useToggleItem,
@@ -76,6 +77,7 @@ async function renderItems(
       toggle: useToggleItem(USER, LIST),
       edit: useEditItem(USER, LIST),
       remove: useRemoveItem(USER, LIST),
+      emptyCart: useEmptyCart(USER, LIST),
     }),
     { wrapper: makeWrapper(queryClient) },
   );
@@ -120,6 +122,7 @@ describe("useAddItem (optimistic mutation pattern)", () => {
       name: "Leche entera",
       quantity: null,
       unit: null,
+      category_id: null,
       position: 0,
     });
 
@@ -610,4 +613,117 @@ describe("writes queued behind an insert", () => {
       expect(read).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("useEmptyCart", () => {
+  const AT = "2026-10-19T18:00:00.000Z";
+  const checked = { checked: true, checked_at: "2026-10-19T17:00:00.000Z" };
+
+  it("archives the cart at once with one timestamp and one request", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const bread = serverRow({
+      id: "bread",
+      name: "Pan",
+      position: 1,
+      ...checked,
+    });
+    const rice = serverRow({ id: "rice", name: "Arroz", position: 2 });
+    const { result, queryClient } = await renderItems([milk, bread, rice]);
+    const pending = deferred<Result>();
+    update.mockReturnValue(pending.promise);
+
+    act(() =>
+      result.current.emptyCart.mutate({
+        ids: ["milk", "bread"],
+        deletedAt: AT,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        cached(queryClient).filter((item) => item.deleted_at === null),
+      ).toEqual([rice]),
+    );
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith({ deleted_at: AT }, [
+        ["id", ["milk", "bread"]],
+      ]),
+    );
+    expect(update).toHaveBeenCalledTimes(1);
+
+    read.mockResolvedValue({ data: [rice], error: null });
+    await act(async () =>
+      pending.resolve({
+        data: [
+          { ...milk, deleted_at: AT },
+          { ...bread, deleted_at: AT },
+        ],
+        error: null,
+      }),
+    );
+    await waitFor(() => expect(cached(queryClient)).toEqual([rice]));
+  });
+
+  it("brings the cart back when the server rejects", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const { result, queryClient } = await renderItems([milk]);
+    update.mockResolvedValue(rejection);
+
+    act(() =>
+      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+    );
+    await waitFor(() => expect(result.current.emptyCart.isError).toBe(true));
+    expect(cached(queryClient)).toEqual([milk]);
+  });
+
+  it("does not bring back a row a toggle answered while the emptying waited", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    const toggle = deferred<Result>();
+    update
+      .mockReturnValueOnce(toggle.promise)
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    act(() =>
+      result.current.toggle.mutate({
+        id: "milk",
+        name: "Leche",
+        checked: true,
+      }),
+    );
+    act(() =>
+      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+    );
+    await waitFor(() => expect(cached(queryClient)[0].deleted_at).toBe(AT));
+
+    // The toggle answers with the live row; the queued emptying wins.
+    await act(async () =>
+      toggle.resolve({ data: { ...milk, ...checked }, error: null }),
+    );
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(cached(queryClient)[0].deleted_at).toBe(AT);
+  });
+
+  it("skips rows whose insert was rejected", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const { result } = await renderItems([milk]);
+    const insert = deferred<Result>();
+    write.mockReturnValue(insert.promise);
+    update.mockReturnValue(new Promise(() => {}));
+
+    const eggs = newItem("Huevos");
+    act(() => result.current.add.mutate(eggs));
+    act(() =>
+      result.current.emptyCart.mutate({
+        ids: ["milk", eggs.id],
+        deletedAt: AT,
+      }),
+    );
+    await act(async () => insert.resolve(rejection));
+
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith({ deleted_at: AT }, [
+        ["id", ["milk"]],
+      ]),
+    );
+  });
 });

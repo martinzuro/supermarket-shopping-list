@@ -1,5 +1,6 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { queryKeys } from "./keys";
 import { useCurrentList } from "./lists";
 import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
 
@@ -69,5 +70,36 @@ describe("useCurrentList", () => {
     });
     expect(result.current.list).toBeNull();
     expect(lists.insert).not.toHaveBeenCalled();
+  });
+
+  it("starts the new list's queries over once the server has it", async () => {
+    // Before the insert commits, the list's categories come back empty (RLS:
+    // not a member yet). They must not stay cached as the real answer.
+    read.mockResolvedValue({ data: [], error: null });
+    let commit!: () => void;
+    write.mockImplementation(
+      (row) =>
+        new Promise((resolve) => {
+          commit = () =>
+            resolve({
+              data: { ...(row as object), created_by: USER, deleted_at: null },
+              error: null,
+            });
+        }),
+    );
+    const queryClient = makeTestQueryClient();
+    renderHook(() => useCurrentList(USER), {
+      wrapper: makeWrapper(queryClient),
+    });
+    await waitFor(() => expect(lists.insert).toHaveBeenCalledTimes(1));
+    const { id } = lists.insert.mock.calls[0][0] as { id: string };
+    queryClient.setQueryData(queryKeys.categories(USER, id), []);
+
+    await act(async () => commit());
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData(queryKeys.categories(USER, id)),
+      ).toBeUndefined(),
+    );
   });
 });

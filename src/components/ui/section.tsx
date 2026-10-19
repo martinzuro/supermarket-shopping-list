@@ -9,6 +9,12 @@ type SectionProps = {
   count?: number;
   /** Categoría cuyo hilo de 2px acompaña la sección. */
   thread?: CategoryId;
+  /**
+   * Nivel del encabezado. 3 para una agrupación dentro de otra sección (las
+   * categorías dentro de "Pendientes"): conserva el orden de títulos y se
+   * lee un escalón por debajo.
+   */
+  level?: 2 | 3;
   /** Eyebrow encima del título. */
   eyebrow?: string;
   /** Icono a la izquierda del título (por ejemplo CategoryIcon). */
@@ -28,6 +34,7 @@ export function Section({
   title,
   count,
   thread,
+  level = 2,
   eyebrow,
   icon,
   action,
@@ -35,6 +42,7 @@ export function Section({
   children,
 }: SectionProps) {
   const headingId = `${id}-heading`;
+  const Heading = level === 3 ? "h3" : "h2";
 
   return (
     <section
@@ -49,9 +57,12 @@ export function Section({
       <div className="min-h-touch flex items-center gap-3">
         <div className="min-w-0 flex-1">
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-          <h2
+          <Heading
             id={headingId}
-            className="text-heading flex min-w-0 items-center gap-2"
+            className={cn(
+              "flex min-w-0 items-center gap-2",
+              level === 3 ? "text-row font-medium" : "text-heading",
+            )}
           >
             {icon ? (
               <span className="text-ink-2 flex shrink-0">{icon}</span>
@@ -64,7 +75,7 @@ export function Section({
                 {count}
               </span>
             ) : null}
-          </h2>
+          </Heading>
         </div>
         {action}
       </div>
