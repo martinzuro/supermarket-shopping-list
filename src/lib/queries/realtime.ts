@@ -60,7 +60,11 @@ function openListChannel(
       if (!payload.old.id) return;
       change = { type: "DELETE", id: payload.old.id };
     } else {
-      change = { type: payload.eventType, row: payload.new };
+      change = {
+        type: payload.eventType,
+        row: payload.new,
+        previous: payload.eventType === "UPDATE" ? payload.old : undefined,
+      };
     }
     const pulses = applyRemoteItem(queryClient, userId, listId, change);
     if (pulses && change.type !== "DELETE") {

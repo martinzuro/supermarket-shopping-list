@@ -540,6 +540,45 @@ describe("changes from other members", () => {
     expect(result.current.remote.size).toBe(0);
   });
 
+  it("pulses a row another member added when a read showed it before its event", async () => {
+    const { result, channel, queryClient } = await renderList([]);
+    const milk = serverRow({
+      id: "milk",
+      name: "Leche",
+      created_by: MEMBER,
+      created_at: at(5),
+      updated_at: at(5),
+    });
+    // A read of the user's own (the refetch of settle, say) lands first.
+    readItems.mockResolvedValue({ data: [milk], error: null });
+    await act(() => queryClient.invalidateQueries({ queryKey: key }));
+    expect(ids(queryClient)).toEqual(["milk"]);
+    expect(result.current.remote.size).toBe(0);
+
+    channel.emit("items", inserted(milk));
+    expect(result.current.remote.has("milk")).toBe(true);
+  });
+
+  it("pulses an edit a read showed first only when the event says what changed", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, channel, queryClient } = await renderList([milk]);
+    const edited = { ...milk, note: "Entera", updated_at: at(2) };
+    readItems.mockResolvedValue({ data: [edited], error: null });
+    await act(() => queryClient.invalidateQueries({ queryKey: key }));
+    expect(cached(queryClient)).toEqual([edited]);
+
+    // Without the old record (only the key, as RLS may send it) there is no
+    // telling what changed: no pulse.
+    channel.emit("items", {
+      eventType: "UPDATE",
+      new: edited,
+      old: { id: "milk" },
+    });
+    expect(result.current.remote.size).toBe(0);
+    channel.emit("items", { eventType: "UPDATE", new: edited, old: milk });
+    expect(result.current.remote.has("milk")).toBe(true);
+  });
+
   it("ignores a change to another list", async () => {
     const milk = serverRow({ id: "milk", name: "Leche" });
     const { result, channel, queryClient } = await renderList([milk]);
@@ -621,6 +660,35 @@ describe("the echo of the user's own writes", () => {
     await act(async () => read.resolve({ data: [checked], error: null }));
     await waitFor(() => expect(result.current.toggle.isSuccess).toBe(true));
     expect(cached(queryClient)).toEqual([checked]);
+  });
+
+  it("never pulses the echo of an own write, whatever the cache shows", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, channel, queryClient } = await renderList([milk]);
+    const checked = {
+      ...milk,
+      checked: true,
+      checked_at: at(2),
+      updated_at: at(2),
+    };
+    updateItems.mockResolvedValue({ data: checked, error: null });
+    readItems.mockResolvedValue({ data: [checked], error: null });
+    act(() =>
+      result.current.toggle.mutate({
+        id: "milk",
+        name: "Leche",
+        checked: true,
+      }),
+    );
+    await waitFor(() => expect(result.current.toggle.isSuccess).toBe(true));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    // Whatever brought the cache back to an older version, the echo of the
+    // check is the user's own: applied, never pulsed.
+    act(() => queryClient.setQueryData(key, [milk]));
+    channel.emit("items", updated(checked));
+    expect(cached(queryClient)).toEqual([checked]);
+    expect(result.current.remote.size).toBe(0);
   });
 
   it("drops a late echo of an earlier write once a later one answered", async () => {

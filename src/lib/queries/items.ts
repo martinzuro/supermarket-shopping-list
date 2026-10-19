@@ -209,6 +209,42 @@ function nextPosition(items: Item[]) {
 }
 
 /**
+ * The versions (id and updated_at) the user's own writes produced, as their
+ * answers reported them, per list. Realtime echoes those same writes back
+ * with the same updated_at: an event carrying one of them is an echo, never
+ * another member's change, whatever the cache shows by then. Kept a minute,
+ * far longer than an echo takes.
+ */
+const ownVersions = new WeakMap<QueryClient, Map<string, number>>();
+const OWN_VERSION_MS = 60_000;
+
+const versionOf = (listId: string, row: Item) =>
+  `${listId}:${row.id}@${row.updated_at}`;
+
+function rememberOwn(
+  queryClient: QueryClient,
+  listId: string,
+  rows: readonly (Item | null)[],
+) {
+  let versions = ownVersions.get(queryClient);
+  if (!versions) {
+    versions = new Map();
+    ownVersions.set(queryClient, versions);
+  }
+  const now = Date.now();
+  for (const [version, at] of versions) {
+    if (now - at > OWN_VERSION_MS) versions.delete(version);
+  }
+  for (const row of rows) {
+    if (row) versions.set(versionOf(listId, row), now);
+  }
+}
+
+function isOwnVersion(queryClient: QueryClient, listId: string, row: Item) {
+  return ownVersions.get(queryClient)?.has(versionOf(listId, row)) === true;
+}
+
+/**
  * Every write to a list's items runs in one queue (TanStack Query runs
  * mutations of the same scope in series, retries included). The UI does not
  * wait for it: each change is applied to the cache at once. The queue keeps
@@ -323,6 +359,7 @@ export function useAddItem(userId: string, listId: string) {
       );
     },
     onSuccess: (created) => {
+      rememberOwn(queryClient, listId, [created]);
       if (!isLastWriteTo(queryClient, listId, created.id)) return;
       patchItem(queryClient, key, created.id, () => created);
     },
@@ -391,6 +428,7 @@ export function useToggleItem(userId: string, listId: string) {
       );
     },
     onSuccess: (updated) => {
+      rememberOwn(queryClient, listId, [updated]);
       if (!updated || !isLastWriteTo(queryClient, listId, updated.id)) return;
       patchItem(queryClient, key, updated.id, () => updated);
     },
@@ -465,6 +503,7 @@ export function useEditItem(userId: string, listId: string) {
       );
     },
     onSuccess: (updated) => {
+      rememberOwn(queryClient, listId, [updated]);
       if (!updated || !isLastWriteTo(queryClient, listId, updated.id)) return;
       patchItem(queryClient, key, updated.id, () => updated);
     },
@@ -515,6 +554,7 @@ export function useRemoveItem(userId: string, listId: string) {
       );
     },
     onSuccess: (removed) => {
+      rememberOwn(queryClient, listId, [removed]);
       if (!removed || !isLastWriteTo(queryClient, listId, removed.id)) return;
       patchItem(queryClient, key, removed.id, () => removed);
     },
@@ -594,6 +634,7 @@ export function useEmptyCart(userId: string, listId: string) {
       );
     },
     onSuccess: (archived) => {
+      rememberOwn(queryClient, listId, archived);
       for (const row of archived) {
         if (isLastWriteTo(queryClient, listId, row.id)) {
           patchItem(queryClient, key, row.id, () => row);
@@ -609,7 +650,13 @@ export function useEmptyCart(userId: string, listId: string) {
  * With RLS on, a DELETE carries only the primary key.
  */
 export type RemoteItemChange =
-  { type: "INSERT" | "UPDATE"; row: Item } | { type: "DELETE"; id: string };
+  | {
+      type: "INSERT" | "UPDATE";
+      row: Item;
+      /** The row before an update, when the event carries it. */
+      previous?: Partial<Item>;
+    }
+  | { type: "DELETE"; id: string };
 
 /** Fields the list shows: a change to any of them pulses the row. */
 const VISIBLE_FIELDS = [
@@ -698,8 +745,11 @@ function fetchAgain(queryClient: QueryClient, key: readonly unknown[]) {
  *
  * - The version is `updated_at`, which grows with every committed change of
  *   a row (migration monotonic_updated_at). An event not newer than the row
- *   in the cache changes nothing: it is the echo of one of our own writes,
- *   whose answer already put that same row there, or a late event.
+ *   in the cache changes nothing: a late event, the echo of one of our own
+ *   writes (whose answer already put that same row there), or another
+ *   member's change that a read brought before its event.
+ * - The echoes are told apart by the versions our own writes' answers
+ *   reported (rememberOwn), not by the cache: they never pulse.
  * - While one of our writes to the item is queued or running, its optimistic
  *   state wins and the event is left to the refetch of settle, which reads
  *   the list after the last write. The rollbacks stay targeted: nothing here
@@ -713,9 +763,10 @@ function fetchAgain(queryClient: QueryClient, key: readonly unknown[]) {
  *   insert was missed. A late insert does create it, but the events of a
  *   row come in order, and the archive that follows hides it again.
  *
- * Returns true when a member added, edited, checked or brought back a row
- * the user sees: that row pulses (DESIGN_DIRECTION.md, section 8). Echoes,
- * late events, deletions and refetches never do.
+ * Returns true when another member added, edited, checked or brought back
+ * a row the user sees: that row pulses (DESIGN_DIRECTION.md, section 8),
+ * also when a read showed the change before its event arrived. Echoes, late
+ * events, deletions and rows with a write of ours pending never do.
  */
 export function applyRemoteItem(
   queryClient: QueryClient,
@@ -734,12 +785,23 @@ export function applyRemoteItem(
   const id = change.type === "DELETE" ? change.id : change.row.id;
   const cached = items.find((item) => item.id === id);
   if (change.type === "DELETE" && !cached) return false;
-  if (
-    change.type !== "DELETE" &&
-    cached &&
-    compareTimestamps(change.row.updated_at, cached.updated_at) <= 0
-  ) {
-    return false;
+  const own =
+    change.type !== "DELETE" && isOwnVersion(queryClient, listId, change.row);
+  if (change.type !== "DELETE" && cached) {
+    const order = compareTimestamps(change.row.updated_at, cached.updated_at);
+    if (order < 0) return false;
+    // The cache shows this very version already: nothing to apply. If it is
+    // not ours, a read brought it first, unannounced: it pulses now.
+    if (order === 0) {
+      return (
+        !own &&
+        pendingWritesTo(queryClient, listId, id) === 0 &&
+        showsChange(
+          change.row,
+          change.type === "INSERT" ? undefined : (change.previous ?? {}),
+        )
+      );
+    }
   }
 
   // Before the change is applied: cancelling the read restores the cache
@@ -779,10 +841,19 @@ export function applyRemoteItem(
       queryKey: queryKeys.catalog(userId, listId),
     });
   }
+  return !own && showsChange(row, cached);
+}
+
+/**
+ * Whether a change shows on the list, against the row as it was before it:
+ * none (a new row), or one that may lack fields (an event's old record),
+ * which then count as unknown, never as changed.
+ */
+function showsChange(row: Item, before: Partial<Item> | undefined) {
   if (row.deleted_at !== null) return false;
-  return (
-    !cached ||
-    cached.deleted_at !== null ||
-    VISIBLE_FIELDS.some((field) => row[field] !== cached[field])
+  if (!before) return true;
+  if (before.deleted_at != null) return true;
+  return VISIBLE_FIELDS.some(
+    (field) => field in before && before[field] !== row[field],
   );
 }
