@@ -634,12 +634,14 @@ const scheduledReads = new WeakMap<QueryClient, Set<string>>();
  * - A read in flight is cancelled: its answer could overwrite what the
  *   events applied meanwhile, which the cache keeps. While a write is
  *   pending that read can only be the one of settle, made after the last
- *   write reached the server, so cancelling it drops nothing.
+ *   write reached the server, so cancelling it drops no optimistic change.
  * - One read follows a moment later, once for a whole burst of events (an
  *   emptied cart is one event per row).
- * - While a write is queued or running, that read is left to settle, which
- *   reads after the last write: an earlier one would drop the optimistic
- *   changes still pending.
+ * - While a write is queued or running, that read waits: an earlier one
+ *   would drop the optimistic changes still pending. It waits rather than
+ *   leaving it to settle, because the read of settle may be the one just
+ *   cancelled (the write stays pending until settle's catalog read is in
+ *   too). Once no write is pending, it runs.
  */
 export function readItemsAgain(
   queryClient: QueryClient,
@@ -664,11 +666,15 @@ export function readItemsAgain(
   const hash = JSON.stringify(key);
   if (scheduled.has(hash)) return;
   scheduled.add(hash);
-  setTimeout(() => {
+  const read = () => {
+    if (queryClient.isMutating({ mutationKey: key }) > 0) {
+      setTimeout(read, READ_AGAIN_MS);
+      return;
+    }
     scheduled.delete(hash);
-    if (queryClient.isMutating({ mutationKey: key }) > 0) return;
     void fetchAgain(queryClient, key);
-  }, READ_AGAIN_MS);
+  };
+  setTimeout(read, READ_AGAIN_MS);
 }
 
 function fetchAgain(queryClient: QueryClient, key: readonly unknown[]) {

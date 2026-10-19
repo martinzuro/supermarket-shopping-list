@@ -392,12 +392,57 @@ describe("catching up with what no event brought", () => {
     expect(readItems).not.toHaveBeenCalled();
     expect(cached(queryClient)[0].checked).toBe(true);
 
+    // Once the write is done: the read of settle, then the one the join
+    // asked for, which waited.
     const confirmed = { ...milk, checked: true, updated_at: at(2) };
     readItems.mockResolvedValue({ data: [confirmed], error: null });
     await act(async () => write.resolve({ data: confirmed, error: null }));
-    await waitFor(() => expect(readItems).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readItems).toHaveBeenCalledTimes(2));
     await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    expect(readItems).toHaveBeenCalledTimes(2);
+    expect(cached(queryClient)).toEqual([confirmed]);
+  });
+
+  it("still reads the list when a change cancelled the read of settle while the write waited for the catalog", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, channel, queryClient } = await renderList([milk]);
+    const checked = {
+      ...milk,
+      checked: true,
+      checked_at: at(2),
+      updated_at: at(2),
+    };
+    updateItems.mockResolvedValue({ data: checked, error: null });
+    const settleRead = deferred<Result>();
+    const catalogRead = deferred<Result>();
+    const edited = { ...checked, note: "Descremada", updated_at: at(3) };
+    readItems
+      .mockReturnValueOnce(settleRead.promise)
+      .mockResolvedValue({ data: [edited], error: null });
+    readCatalog.mockReturnValueOnce(catalogRead.promise);
+
+    act(() =>
+      result.current.toggle.mutate({
+        id: "milk",
+        name: "Leche",
+        checked: true,
+      }),
+    );
+    await waitFor(() => expect(readItems).toHaveBeenCalledTimes(1));
+    // Another member edits the row while settle reads: the event is left to
+    // a read, the read in flight is cancelled, and the write stays pending
+    // on the catalog's slow answer.
+    channel.emit("items", updated(edited));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(result.current.toggle.isPending).toBe(true);
     expect(readItems).toHaveBeenCalledTimes(1);
+    expect(cached(queryClient)[0].note).toBeNull();
+
+    await act(async () => catalogRead.resolve({ data: [], error: null }));
+    await waitFor(() => expect(result.current.toggle.isSuccess).toBe(true));
+    await waitFor(() => expect(readItems).toHaveBeenCalledTimes(2));
+    await act(async () => settleRead.resolve({ data: [checked], error: null }));
+    await waitFor(() => expect(cached(queryClient)).toEqual([edited]));
   });
 
   it("reads the list on focus even when fresh, but not while a write is pending", async () => {
