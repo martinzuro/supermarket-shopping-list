@@ -1,13 +1,21 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { Check, CircleAlert, Copy, Share2, UserPlus } from "lucide-react";
+import {
+  Check,
+  CircleAlert,
+  Copy,
+  Share2,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Enter } from "@/components/motion";
 import {
   GuestAccount,
   type PendingSignIn,
 } from "@/components/menu/account-section";
+import { MembersSection } from "@/components/share/members-section";
 import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -42,34 +50,53 @@ type ShareSheetProps = {
 };
 
 /**
- * Header action and the sheet it opens: the owner of the list shares it.
- * Only the owner can invite (RLS on list_invites), so a plain member of a
- * shared list does not get the button. An anonymous owner converts first,
- * with the same email and code step as the menu; an account gets the
- * invitation.
+ * Header action and the sheet it opens, for every member of the list. It
+ * shows who shares the list (MembersSection); the owner also invites from
+ * it, a plain member also leaves from it. Only the owner can invite (RLS on
+ * list_invites): an anonymous owner converts first, with the same email and
+ * code step as the menu; an account gets the invitation.
+ *
+ * The sheet belongs to one list: when the list on screen changes (the user
+ * left it, was taken out of it) it starts over, closed.
  */
-export function ShareSheet({
-  pendingSignIn,
-  onPendingSignInChange,
-}: ShareSheetProps) {
-  const { status, user } = useSession();
+export function ShareSheet(props: ShareSheetProps) {
+  const { user } = useSession();
   const lists = useLists(user?.id ?? null);
   // Not useCurrentList: that one also creates a list when there is none.
   const list = currentListOf(lists.data);
-  const [converted, setConverted] = useState(false);
+  if (!list) return null;
+  return <ListSheet key={list.id} list={list} {...props} />;
+}
 
-  if (list?.role !== "owner") return null;
+function ListSheet({
+  list,
+  pendingSignIn,
+  onPendingSignInChange,
+}: ShareSheetProps & { list: List }) {
+  const { status, user } = useSession();
+  const [open, setOpen] = useState(false);
+  const [converted, setConverted] = useState(false);
+  const isOwner = list.role === "owner";
+  // Someone else is in the list: it is worth showing who.
+  const shared = list.member_count > 1;
+  const Icon = shared || !isOwner ? Users : UserPlus;
 
   return (
-    <Sheet onOpenChange={(open) => open && setConverted(false)}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setConverted(false);
+      }}
+    >
       <SheetTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="icon-touch"
-          aria-label={t.open}
+          aria-label={isOwner ? t.open : texts.members.open}
         >
-          <UserPlus aria-hidden strokeWidth={1.5} />
+          <Icon aria-hidden strokeWidth={1.5} />
         </Button>
       </SheetTrigger>
       <SheetContent
@@ -83,9 +110,15 @@ export function ShareSheet({
         }}
       >
         <SheetHeader>
-          <SheetTitle>{t.title}</SheetTitle>
+          <SheetTitle>{isOwner ? t.title : texts.members.title}</SheetTitle>
           <SheetDescription>
-            {user?.is_anonymous ? t.guest.why : t.description}
+            {!isOwner
+              ? texts.members.description
+              : user?.is_anonymous
+                ? t.guest.why
+                : shared
+                  ? t.descriptionShared
+                  : t.description}
           </SheetDescription>
         </SheetHeader>
         <SheetBody className="pb-safe pb-6">
@@ -93,6 +126,12 @@ export function ShareSheet({
             <p className="text-ink-2 text-pretty">
               {status === "offline" ? t.offline : t.loading}
             </p>
+          ) : !isOwner ? (
+            <MembersSection
+              userId={user.id}
+              list={list}
+              onLeave={() => setOpen(false)}
+            />
           ) : user.is_anonymous ? (
             <GuestShare
               key={user.id}
@@ -108,7 +147,23 @@ export function ShareSheet({
               {converted ? (
                 <Banner tone="info" icon={Check} title={t.converted} />
               ) : null}
-              <InviteStep key={list.id} list={list} userId={user.id} />
+              {shared ? (
+                <Enter>
+                  <MembersSection
+                    userId={user.id}
+                    list={list}
+                    onLeave={() => setOpen(false)}
+                  />
+                </Enter>
+              ) : null}
+              {/* One place for the invitation whether or not the list is
+                  shared yet: someone joining must not remake the step. */}
+              <div className="flex flex-col gap-4">
+                {shared ? (
+                  <h2 className="text-heading pt-2">{t.inviteHeading}</h2>
+                ) : null}
+                <InviteStep list={list} userId={user.id} />
+              </div>
             </>
           )}
         </SheetBody>

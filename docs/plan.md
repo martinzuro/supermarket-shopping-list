@@ -129,6 +129,23 @@ actualizaciones optimistas.** [ADR 0003](decisions/0003-online-only.md)
     que la ráfaga dejó en cada fila (marcar y desmarcar se anulan). Una
     baja que una lectura mostró antes que su evento no se anuncia, porque
     nada dice que el usuario haya visto la fila.
+- Membresía (Fase 2c, `realtime.ts` y `lists.ts`): el mismo canal de la
+  lista escucha también `list_members` filtrado por `list_id`. Un alta o una
+  baja de otro miembro actualiza la lista de miembros y el conteo de la
+  lista. Cuando el DELETE es de la propia membresía del usuario (salió, lo
+  sacaron, o salió desde otro dispositivo), el canal se cierra en el acto y
+  la lista sale de la caché sin esperar una lectura: la pantalla pasa a la
+  otra lista del usuario o a una nueva suya y dice por qué
+  (`useMembershipNotice`: "left", "removed" o "leave_failed"; "removed"
+  también cubre salir desde otro dispositivo, por eso su texto es neutro).
+  Realtime no aplica RLS a los eventos DELETE: es lo que permite que ese
+  evento le llegue a alguien que ya no está en la lista, y por eso el canal
+  no puede quedar abierto después (un no miembro que conozca el id de una
+  lista oiría las bajas de ítems y de miembros). Cada `SUBSCRIBED` relee
+  también las listas (y los miembros): si el usuario perdió la lista
+  mientras no escuchaba, así se entera. Una lista perdida con la app
+  cerrada se avisa en la apertura siguiente (`lista:last-list:<usuario>` en
+  `localStorage`).
 - Sin red: banner persistente "sin conexión", las mutaciones en curso se
   reintentan con backoff mientras la pestaña siga abierta, el texto del
   input de añadir se conserva. No se garantiza nada más.
@@ -318,13 +335,23 @@ input.
 **Marcar comprado.** Toggle optimista, el ítem baja a "en el carro". El
 otro miembro lo ve en menos de un segundo vía Realtime.
 
-**Compartir.** El dueño genera un enlace con token. Si es anónimo, antes
-convierte su cuenta con magic link. Quien abre el enlace, si es anónimo,
-también convierte la suya. Al aceptar se inserta en `list_members`.
+**Compartir.** El dueño convierte su cuenta antes de invitar (correo y
+código) y genera un enlace de un solo uso que vence a los 7 días. Quien abre
+el enlace lo acepta como usuario anónimo, sin convertir nada: al aceptar se
+inserta en `list_members` y esa lista pasa a ser la que ve (la última a la
+que se unió). Cada miembro ve quiénes comparten la lista (su correo, o "Sin
+cuenta" si es anónimo); el dueño saca a un miembro y un miembro puede salir
+(el dueño no). Lo que quedó atrás se fusiona o se descarta: una lista propia
+vacía se fusiona sin preguntar, una con ítems se pregunta ("traerlos o
+descartarlos"), y descartar una lista ajena es salir de ella.
 
-**Recuperar en otro dispositivo.** Al entrar con magic link en un
-dispositivo nuevo, se cargan las listas donde es miembro. Si además había
-una lista anónima local en ese dispositivo, se ofrece fusionar o descartar.
+**Recuperar en otro dispositivo.** Al entrar con correo y código en un
+dispositivo nuevo se cargan las listas donde el usuario es miembro. Si el
+dispositivo tenía una lista anónima con ítems, antes de pedir el código se
+deja un pase (`list_invites` con `purpose = 'carry_over'`, solo un token y
+un conteo en `localStorage`) y, ya dentro de la cuenta, se ofrece traer esos
+ítems a la lista de la cuenta o dejarlos afuera. No hace falta unirse a la
+lista anónima: la RPC copia con el token.
 
 **Pérdida de conexión.** Banner "sin conexión". Las mutaciones pendientes
 reintentan con backoff. Al volver la red, TanStack Query refresca y
@@ -494,8 +521,53 @@ del reloj del cliente, así que pueden intercambiarse al releer la lista.
 conversión de cuenta anónima, lista de miembros, salir de la lista, dueño
 elimina miembro. Recuperar la lista en otro dispositivo.
 
-**Salida:** dos personas en dos teléfonos comparten una lista y ven los
-cambios de la otra en menos de un segundo.
+Estado al 2026-10-19: la 2c está en `main` (PR 35, 36 y el cierre de
+fase) y con ella la Fase 2 completa. El PR 35 trajo la capa de datos
+(migraciones de compartir, RPC `accept_invite`, `merge_list`,
+`claim_carry_over`, `list_member_emails`, y los hooks de `src/lib/queries`);
+el 36, el enlace y la pantalla de invitación; este, los miembros, los avisos
+de pérdida de lista y las preguntas de "traer lo de otra lista". Decisiones
+que quedaron: quien acepta lo hace como usuario anónimo, sin convertir;
+los enlaces son de un solo uso y duran 7 días; el dueño convierte su cuenta
+antes de invitar; los miembros se reconocen por su correo (no hay perfiles)
+y "Sin cuenta" si son anónimos; en la v1 se ve una sola lista, la última a
+la que el usuario se unió. Reglas de la fusión (`merge_list`): gana el
+destino por `name_normalized` (lo que ya está no se duplica), los ítems del
+carro siguen marcados, las categorías se emparejan por nombre y las
+entradas del catálogo que el destino no tiene vienen con su historial.
+`claim_carry_over` aplica las mismas reglas desde la lista anónima de otro
+dispositivo, sin unirse a ella. La hoja de la cabecera (`UserPlus` o
+`Users`) es para todos: lista a los miembros, el dueño además saca a
+alguien (confirmación ligera, optimista) e invita, un miembro además sale.
+Quien sale o es sacado deja de ver la lista en el acto y lo dice un aviso
+arriba de la lista; las dos preguntas de traer ítems son un bloque de la
+pantalla de la lista (`BringOver`). Los e2e de `e2e/phase-2c.spec.ts`
+(invitar y aceptar, con los tiempos de la 2b) y de
+`e2e/phase-2c-members.spec.ts` (quitar a un miembro y que pierda la lista
+en menos de un segundo, salir, traer o descartar lo que quedó atrás, y
+recuperar la cuenta en otro dispositivo con "traer" y con "dejar afuera"),
+en claro y oscuro a 375px y con capturas, cubren el criterio de salida. Los
+tests de base de datos están en `e2e/sharing-db.spec.ts`.
+
+Limitaciones conocidas de la 2c:
+
+- Un miembro anónimo que más tarde entra a otra cuenta que ya existía deja
+  de ver la lista compartida (su usuario anónimo, que era el miembro, ya no
+  es el de la sesión).
+- El dueño de una lista que otros usan, si se une a otra, deja la suya atrás
+  y sin verla (la v1 muestra una sola lista): no se le ofrece fusionarla ni
+  descartarla, porque descartarla sacaría a los demás.
+- Un aceptar concurrente puede colarse entre el chequeo `list_shared` y el
+  descarte de una lista propia.
+- Quien no es miembro pero conoce el id de una lista puede oír los ids de
+  los usuarios que la dejan y los de ítems borrados de verdad (los DELETE de
+  Realtime no pasan por RLS).
+- Un enlace de una lista en la que el usuario ya es miembro pero que no es
+  la actual ("Ya estás adentro") lleva a "Ir a la lista", que abre la lista
+  actual (la última a la que se unió), no esa.
+
+**Salida (cumplida):** dos personas en dos teléfonos comparten una lista y
+ven los cambios de la otra en menos de un segundo.
 
 ### Fase 3. Diferencial — 5 días
 

@@ -9,6 +9,11 @@ type BannerProps = {
   title: string;
   body?: string;
   action?: React.ReactNode;
+  /**
+   * Acciones que no caben al costado (dos botones, una pregunta): van en
+   * una línea propia debajo del texto, alineadas con él.
+   */
+  footer?: React.ReactNode;
   className?: string;
   /**
    * false cuando un contenedor aria-live ya anuncia el texto: el aviso no
@@ -45,6 +50,7 @@ export function Banner({
   title,
   body,
   action,
+  footer,
   className,
   liveRegion = true,
   ...props
@@ -56,7 +62,7 @@ export function Banner({
       data-slot="banner"
       data-tone={tone}
       className={cn(
-        "rounded-r-sheet flex items-center gap-3 border-l-2 py-3 pr-3 pl-4",
+        "rounded-r-sheet flex flex-wrap items-center gap-3 border-l-2 py-3 pr-3 pl-4",
         t.surface,
         t.thread,
         className,
@@ -77,6 +83,14 @@ export function Banner({
         ) : null}
       </p>
       {action ? <div className="shrink-0">{action}</div> : null}
+      {footer ? (
+        <div
+          data-slot="banner-footer"
+          className={cn("flex basis-full flex-wrap gap-2", Icon && "pl-8")}
+        >
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 }

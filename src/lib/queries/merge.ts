@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { newId } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/client";
 import { sharingErrorOf, unwrap, writeSignal } from "./errors";
@@ -10,10 +10,19 @@ import {
   listScope,
   receiveOwnRows,
   settle,
+  useItems,
   type Item,
 } from "./items";
 import { queryKeys } from "./keys";
-import { putListBack, takeListOut, type List } from "./lists";
+import {
+  currentListOf,
+  leftoversOf,
+  putListBack,
+  takeListOut,
+  useLists,
+  type List,
+} from "./lists";
+import { useDiscardList } from "./members";
 
 /**
  * Bringing another list's items into the current one (migration sharing):
@@ -308,4 +317,95 @@ export function useClaimCarryOver(userId: string, targetListId: string) {
     },
     onSettled: () => settle(queryClient, key),
   });
+}
+
+/**
+ * The list left behind when the user joined another one (leftoversOf), if
+ * any, with how many items it has, and the two ways out: bring them into the
+ * current list (merge) or leave them (discard). One at a time: v1 shows one
+ * list, so there is normally one leftover at most.
+ *
+ * A leftover of the user's own with nothing in it is merged at once, with no
+ * question: nothing would be lost, and its catalog (what the user used to
+ * buy) comes along. One of someone else's, even empty, is always asked
+ * about: retiring it means leaving it.
+ */
+export function useLeftover(userId: string | null) {
+  const lists = useLists(userId);
+  const current = currentListOf(lists.data);
+  const leftover = leftoversOf(lists.data, current)[0] ?? null;
+  const items = useItems(userId, leftover?.id ?? null);
+  const count =
+    items.data?.filter((item) => item.deleted_at === null).length ?? null;
+  const merge = useMergeList(userId ?? "", current?.id ?? "");
+  const discard = useDiscardList(userId ?? "", leftover);
+  const silent = useRef<string | null>(null);
+  const { mutate: mergeNow } = merge;
+
+  const ownAndEmpty =
+    leftover !== null &&
+    leftover.role === "owner" &&
+    leftover.member_count <= 1 &&
+    count === 0;
+  useEffect(() => {
+    if (!ownAndEmpty || !leftover || silent.current === leftover.id) return;
+    silent.current = leftover.id;
+    mergeNow({ sourceListId: leftover.id, ids: idsFor(0) });
+  }, [ownAndEmpty, leftover, mergeNow]);
+
+  return {
+    /** The list to ask about, once its items are known; null otherwise. */
+    leftover: leftover && count !== null && !ownAndEmpty ? leftover : null,
+    count: count ?? 0,
+    bring: () => {
+      if (!leftover) return;
+      merge.mutate({ sourceListId: leftover.id, ids: idsFor(count ?? 0) });
+    },
+    drop: () => discard.mutate(),
+    isPending: merge.isPending || discard.isPending,
+    error: merge.error ?? discard.error,
+  };
+}
+
+/**
+ * The carry-over waiting for this account on this device (useCarryOver),
+ * and the two ways out: bring its items into the current list, or leave
+ * them (the anonymous list stays behind, as anyone's abandoned one).
+ */
+export function useCarryOverOffer(
+  user: { id: string; is_anonymous?: boolean } | null,
+  targetListId: string | null,
+) {
+  const note = useCarryOver(user);
+  const claim = useClaimCarryOver(user?.id ?? "", targetListId ?? "");
+  return {
+    note: targetListId ? note : null,
+    bring: () => {
+      if (!note || !targetListId) return;
+      claim.mutate({ token: note.token, ids: idsFor(note.count) });
+    },
+    leave: clearCarryOver,
+    isPending: claim.isPending,
+    error: claim.error,
+  };
+}
+
+/**
+ * For the sign-in to an existing account (account section): leaves the
+ * carry-over of the list on screen, with the items the cache shows, while
+ * the session is still the anonymous one. Await it before asking for the
+ * email; it never fails.
+ */
+export function useCarryOverPreparation(userId: string) {
+  const queryClient = useQueryClient();
+  return useCallback(async () => {
+    const list = currentListOf(
+      queryClient.getQueryData<List[]>(queryKeys.lists(userId)),
+    );
+    if (!list) return null;
+    const items =
+      queryClient.getQueryData<Item[]>(queryKeys.items(userId, list.id)) ?? [];
+    const count = items.filter((item) => item.deleted_at === null).length;
+    return prepareCarryOver(userId, list, count);
+  }, [queryClient, userId]);
 }

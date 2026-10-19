@@ -1,13 +1,22 @@
-import {
-  expect,
-  test,
-  type BrowserContext,
-  type Page,
-  type TestInfo,
-} from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { palette } from "../src/lib/design/tokens";
 import { texts } from "../src/lib/texts";
-import { codeSentTo, uniqueEmail } from "./mailpit";
+import {
+  SCHEMES,
+  becomeAccountAndGetLink,
+  capture,
+  collectPageErrors,
+  inviteLink,
+  inviteScreen,
+  membersButton,
+  membersSheet,
+  memberRows,
+  readLink,
+  shareButton,
+  shareSheet,
+  tokenOf,
+  waitForOtherLink,
+} from "./sharing";
 import { expireInvite } from "./supabase-admin";
 import {
   CHANGE_MS,
@@ -35,110 +44,9 @@ import {
  * the only way in. The service role only ages an invite (expireInvite).
  */
 
-const SCHEMES = ["light", "dark"] as const;
-type Scheme = (typeof SCHEMES)[number];
-
-function shareButton(page: Page) {
-  return page.getByRole("button", { name: texts.share.open });
-}
-
-function shareSheet(page: Page) {
-  return page.getByRole("dialog", { name: texts.share.title });
-}
-
-function inviteLink(page: Page) {
-  return page.getByTestId("invite-link");
-}
-
-function inviteScreen(page: Page) {
-  return page.getByTestId("invite-screen");
-}
-
 function rgb(hex: string) {
   const value = parseInt(hex.slice(1), 16);
   return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
-}
-
-/** A screenshot at 375px, on disk (test-results/) and attached to the report. */
-async function capture(
-  page: Page,
-  testInfo: TestInfo,
-  name: string,
-  scheme: Scheme,
-) {
-  // Entrances (the invitation's last item enters about 0.8 s in) and the
-  // sheet sliding in: the picture is of the settled screen.
-  await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(1200);
-  const path = testInfo.outputPath(`${name}-${scheme}.png`);
-  await page.screenshot({ path, fullPage: true });
-  await testInfo.attach(`${name}-${scheme}`, {
-    path,
-    contentType: "image/png",
-  });
-}
-
-function collectPageErrors(page: Page) {
-  const errors: Error[] = [];
-  page.on("pageerror", (error) => errors.push(error));
-  return errors;
-}
-
-/**
- * The share flow of an anonymous owner: open the sheet, give an email, type
- * the code Auth mailed, and end on the invitation. Returns the link. With
- * `shot`, takes the screenshots of the guest step and of the card.
- */
-async function becomeAccountAndGetLink(
-  page: Page,
-  testInfo: TestInfo,
-  scheme: Scheme,
-  shot = false,
-) {
-  const email = uniqueEmail("owner");
-  await shareButton(page).click();
-  const sheet = shareSheet(page);
-  await expect(sheet.getByTestId("share-guest")).toBeVisible();
-  // An anonymous owner is told why an account is needed before being asked.
-  await expect(sheet).toContainText(texts.share.guest.why);
-  await expect(inviteLink(page)).toHaveCount(0);
-  if (shot) await capture(page, testInfo, "share-guest", scheme);
-
-  await sheet.getByLabel(texts.account.anonymous.emailLabel).fill(email);
-  const since = Date.now();
-  await sheet
-    .getByRole("button", { name: texts.account.anonymous.submit })
-    .click();
-  await expect(sheet.getByLabel(texts.account.code.label)).toBeVisible();
-  const code = await codeSentTo(email, { since });
-  await sheet.getByLabel(texts.account.code.label).fill(code);
-  await sheet
-    .getByRole("button", { name: texts.account.code.submit, exact: true })
-    .click();
-
-  await expect(inviteLink(page)).toHaveText(/\/invite\/\S+$/);
-  await expect(sheet.getByText(texts.share.converted)).toBeVisible();
-  if (shot) await capture(page, testInfo, "share-invitation", scheme);
-  return { email, link: await readLink(page) };
-}
-
-async function readLink(page: Page) {
-  return ((await inviteLink(page).textContent()) ?? "").trim();
-}
-
-/** The token at the end of an invitation link. */
-function tokenOf(link: string) {
-  return decodeURIComponent(link.slice(link.lastIndexOf("/") + 1));
-}
-
-/** Waits for the invitation to show a link other than `previous`. */
-function waitForOtherLink(page: Page, previous: string) {
-  return page.waitForFunction((before) => {
-    const text = document
-      .querySelector('[data-testid="invite-link"]')
-      ?.textContent?.trim();
-    return text !== undefined && text !== before;
-  }, previous);
 }
 
 /** What the invitation screen must keep at 375px, on the ink surface. */
@@ -383,8 +291,17 @@ for (const scheme of SCHEMES) {
         expect(
           await b.evaluate(() => localStorage.getItem("lista:welcome-seen")),
         ).not.toBeNull();
-        // A member that is not the owner cannot invite: no share button.
+        // A member that is not the owner cannot invite: no share button,
+        // and the sheet of who shares has no invitation in it.
         await expect(shareButton(b)).toHaveCount(0);
+        await membersButton(b).click();
+        await expect(membersSheet(b)).toBeVisible();
+        await expect(memberRows(b)).toHaveCount(2);
+        await expect(membersSheet(b).getByTestId("share-invite")).toHaveCount(
+          0,
+        );
+        await b.keyboard.press("Escape");
+        await expect(membersSheet(b)).toBeHidden();
         expect(await reloadJoined(a)).toBe(listA.id);
         await expect(shareButton(a)).toBeVisible();
 

@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
-import { Check, CircleAlert, Menu, Plus, Users, WifiOff } from "lucide-react";
+import {
+  ArrowDownToLine,
+  Check,
+  CircleAlert,
+  Menu,
+  Plus,
+  Users,
+  WifiOff,
+} from "lucide-react";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import {
   CartIllustration,
@@ -654,6 +662,20 @@ export default function DesignPage() {
               <Button type="button" variant="outline" size="sm">
                 {t.states.banner.error.action}
               </Button>
+            }
+          />
+          <Banner
+            tone="info"
+            icon={ArrowDownToLine}
+            title={t.states.banner.footer.title}
+            body={t.states.banner.footer.body}
+            footer={
+              <>
+                <Button type="button">{t.states.banner.footer.primary}</Button>
+                <Button type="button" variant="outline">
+                  {t.states.banner.footer.secondary}
+                </Button>
+              </>
             }
           />
         </div>

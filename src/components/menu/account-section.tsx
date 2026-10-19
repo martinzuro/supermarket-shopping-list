@@ -18,6 +18,7 @@ import {
   type AccountNotice,
   type AuthErrorKind,
 } from "@/lib/auth";
+import { useCarryOverPreparation } from "@/lib/queries";
 import { createClient } from "@/lib/supabase/client";
 import { texts } from "@/lib/texts";
 
@@ -164,6 +165,7 @@ export function GuestAccount({
     ? { ...pendingSignIn, mode: "signin" }
     : pendingFromUser(user);
 
+  const prepareCarryOver = useCarryOverPreparation(user.id);
   const [editingEmail, setEditingEmail] = useState(false);
   const [email, setEmail] = useState(pending?.email ?? "");
   const [code, setCode] = useState("");
@@ -189,7 +191,11 @@ export function GuestAccount({
       // The user now carries `new_email`: the code step comes from it.
       onPendingSignInChange(null);
     } else if (classifyAuthError(updateError) === "email_exists") {
-      // The email already belongs to an account: sign in to it instead.
+      // The email already belongs to an account: sign in to it instead. The
+      // session will become that account's, so first, while it is still
+      // this anonymous user's, leave what this device has for it to bring
+      // over (by the code here or by the link, maybe in another tab).
+      await prepareCarryOver();
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: address,
         options: { shouldCreateUser: false, emailRedirectTo: redirectTo },

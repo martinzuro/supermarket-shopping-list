@@ -5,7 +5,9 @@ import { CircleAlert } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
+import { BringOver } from "@/components/list/bring-over";
 import { EditItemSheet } from "@/components/list/edit-item-sheet";
+import { MembershipNotices } from "@/components/list/membership-notice";
 import { ListSection } from "@/components/list/list-section";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import { FullBagIllustration } from "@/components/illustrations";
@@ -391,6 +393,10 @@ export function ListView() {
   const t = texts.moments.cartEmptied;
   return (
     <>
+      {/* What happened to the list that was here, and what the user may
+          bring over from another one: above the list, never inside it. */}
+      <MembershipNotices />
+      {user ? <BringOver user={user} listId={listId} /> : null}
       {/* The focus lands on the moment's action, whose name alone would not
           say what happened: the moment is read out once as it appears. */}
       <div aria-live="polite" className="sr-only">

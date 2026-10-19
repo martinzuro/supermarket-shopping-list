@@ -6,9 +6,10 @@ decisiones están en [DESIGN_DIRECTION.md](DESIGN_DIRECTION.md) y en el
 construir con ellas. La página interna `/design` muestra todo renderizado.
 
 Estado: construido entre el 2026-10-17 y el 2026-10-18 en los PR 13 a 20.
-Actualizado el 2026-10-19 con lo que sumó la Fase 2a: `ListRow` y `Section`
+Actualizado el 2026-10-19 con lo que sumó la Fase 2a (`ListRow` y `Section`
 con las agrupaciones por categoría, las coreografías de la lista, la
-excepción del pulso remoto y los e2e con Supabase local.
+excepción del pulso remoto y los e2e con Supabase local) y la 2c (compartir,
+invitación, miembros, avisos de lista perdida y "traer lo de otra lista").
 
 ---
 
@@ -226,7 +227,7 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | `ListRow` | Fila de la lista | 56px, tachado animado, `note`, `quantity` en mono, `highlighted` para el pulso remoto. El checkbox mide 44px y su etiqueta accesible es solo el nombre del ítem (el rol y `aria-checked` dicen el resto). Con `onPress` el nombre es un botón de 44px con `aria-haspopup="dialog"` (abre la hoja de edición); sin él es texto. `as` elige la raíz: `li` por defecto, `div` cuando el `li` lo pone un envoltorio de motion |
 | `Section` + `SectionEmpty` | Agrupación | `thread` pone el hilo de categoría, `icon` el icono junto al título, `count` en mono. `level` 2 (por defecto, `h2` en `text-heading`) o 3 (`h3` en `text-row font-medium`): el nivel 3 es el grupo de categoría dentro de Pendientes y no lleva nombre accesible, para que diez grupos no llenen la lista de landmarks (el `h3` sigue en la navegación por encabezados) |
 | `EmptyState` | Estado vacío de una sección | Ilustración en tinta 2 a la izquierda, texto a la derecha. Es una invitación a actuar |
-| `Banner` | Aviso persistente | Tonos `info`, `attention`, `error`. El texto siempre en tinta; el color en icono e hilo izquierdo. Esquinas izquierdas rectas |
+| `Banner` | Aviso persistente | Tonos `info`, `attention`, `error`. El texto siempre en tinta; el color en icono e hilo izquierdo. Esquinas izquierdas rectas. `action` va al costado (un botón); `footer` en una línea propia debajo del texto, alineada con él, para dos botones o una pregunta (muestra en `/design`) |
 | `Sheet` | Hoja flotante | Radix Dialog + Motion. `side` right, left, bottom, top. `SheetHeader`, `SheetBody`, `SheetFooter`, `SheetTitle`, `SheetDescription`. Guarda el estado abierto para animar la salida |
 | `InvitationCard` | La invitación como objeto | Pistacho, `rounded-sheet`: arriba el nombre de la lista en serif, una línea de corte discontinua con muescas del color del papel, abajo el enlace en mono (`data-testid="invite-link"`, `select-all`). `link` en `null` muestra el texto de "preparando". Lo usa la hoja de compartir (`src/components/share/`) |
 | `Moment` | Momento editorial | Superficie tinta, titular display con `<em>`, ilustración, acción, entrada escalonada. Pocas veces: carro vaciado, invitación |
@@ -293,6 +294,57 @@ reducido de `visual.spec.ts` lo desactivan.
   foco va al `h1` cuando aparece un estado. Al unirse marca la bienvenida
   como vista (`markWelcomeSeen`): la invitación ya fue su primer uso.
 
+### Miembros, avisos y "traer lo de otra lista"
+
+- **Hoja de la cabecera para todos.** La acción es `UserPlus` si el dueño
+  está solo y `Users` si la lista es compartida o el usuario no es el dueño
+  (nombre accesible "Compartir lista" para el dueño, "Ver quién comparte la
+  lista" para un miembro). Es la misma hoja (`ShareSheet`, que vuelve a
+  empezar, cerrada, cuando cambia la lista de la pantalla). Un miembro ve
+  solo `MembersSection`; el dueño ve, si hay alguien más, primero los
+  miembros y debajo "Sumar a alguien más" con la invitación (el paso de
+  invitar queda en un lugar fijo: que alguien se una no lo rehace).
+- **`MembersSection`** (`src/components/share/members-section.tsx`): se arma
+  con piezas existentes, sin componente nuevo en `ui`. `Section` con conteo
+  y filas separadas por reglas de 1px y de 56px como mínimo: "Vos" o el
+  correo en `text-row` y debajo, en `text-label` tinta 2, "Dueño" y el
+  correo propio ("Dueño · ana@correo.com"); "Sin cuenta" para un anónimo.
+  Sin tarjetas. Se actualiza en vivo por Realtime.
+- **Confirmación ligera** (`useConfirm`, la misma del borrado de la hoja de
+  edición, con los mismos 350 ms y 4 s): el primer toque en "Sacar" (dueño,
+  en la fila del miembro) o en "Salir de la lista" (miembro, al pie) pide
+  confirmación: el botón pasa a "Tocá otra vez" sobre `--danger-bg` con
+  texto en tinta, la fila dice qué pasa ("Va a dejar de ver la lista.") y
+  el botón queda armado (`data-armed`) a los 350 ms. Un solo objetivo a la
+  vez. Una región `role="status"` siempre montada lee la pregunta. Los dos
+  gestos son optimistas: la persona sale de la lista al instante y, si el
+  servidor rechaza, vuelve con un `Banner` de error. El dueño no tiene
+  "Salir".
+- **Avisos de lista perdida** (`MembershipNotices`, arriba de la lista,
+  encima de "Pendientes"): `Banner` con botón de cerrar, sin cierre
+  automático porque es la única explicación de por qué cambió la lista. Tres
+  casos: `left` (info, "Saliste de la lista"), `removed` (cítrico, "Ya no
+  estás en esa lista": neutro a propósito, también cubre salir desde otro
+  dispositivo y una lista que dejó de existir) y `leave_failed` (error,
+  `role="alert"`). Entran y salen con `Collapse`. La frase se lee por una
+  región `role="status"` siempre montada (`data-slot="membership-announcement"`),
+  porque el rol de un banner que aparece con su texto no se anuncia de
+  forma fiable.
+- **Traer lo de otra lista** (`BringOver`, mismo lugar, bajo los avisos): un
+  `Banner` info con `footer` y dos acciones, un bloque de la pantalla y no
+  una hoja, porque quien acaba de llegar a una lista quiere verla y la
+  respuesta puede esperar. Un componente con dos casos (`data-kind`):
+  `leftover`, lo que quedó atrás al unirse a una lista compartida ("N cosas
+  en tu lista anterior": "Traerlas acá" o "Descartarlas"; si era una lista
+  ajena, "Copiarlas acá" o "Salir de esa lista", y si está vacía solo
+  salir), y `carry-over`, lo que el dispositivo tenía sin cuenta al entrar a
+  una cuenta existente ("N cosas que anotaste en este dispositivo sin
+  cuenta": "Traerlas" o "Dejarlas afuera"). Aparece una vez y desaparece al
+  responder; mientras corre deshabilita los dos botones y el elegido cambia
+  de texto ("Trayendo…"); un error sale en un `Banner` error debajo y deja
+  los botones para reintentar. Una lista propia vacía se fusiona sin
+  preguntar.
+
 ## 9. Accesibilidad
 
 - Contraste AA garantizado por test para cada par de tokens.
@@ -353,6 +405,19 @@ reducido de `visual.spec.ts` lo desactivan.
   sentidos con los mismos criterios; además prueba el enlace usado, el
   vencido, el inexistente y el propio, y las acciones de compartir. Los
   helpers comunes están en `e2e/two-members.ts`.
+  `e2e/phase-2c-members.spec.ts` sigue con los miembros, sin atajos y en
+  claro y oscuro a 375px: el dueño ve aparecer a quien se une sin recargar,
+  lo saca con la confirmación ligera y esa persona pierde la lista en menos
+  de un segundo (aviso neutro, lista propia nueva, y lo que el dueño agrega
+  después no le llega); un miembro sale y el dueño lo ve sin recargar; lo
+  que quedó atrás se trae o se descarta (el otro lo ve llegar); y una cuenta
+  en otro dispositivo carga su lista y ofrece lo que ese dispositivo tenía
+  (traerlo o dejarlo afuera). Adjunta capturas de la hoja de miembros del
+  dueño y del miembro, la confirmación de sacar y de salir, los avisos de
+  "removed" y "left", las dos preguntas de traer ítems y el aviso del
+  formulario de código ante una cuenta existente. Los helpers de compartir
+  (hojas, capturas, código de Mailpit, dos personas en una lista por la
+  invitación real) están en `e2e/sharing.ts`.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
   categorías, ya que el selector manual llega en la Fase 3.
