@@ -113,7 +113,7 @@ export async function archiveItem(itemId: string) {
   });
 }
 
-/** Makes a user a plain member of a list (the app has no invites yet). */
+/** Makes a user a plain member of a list (phase-2b.spec.ts: sharing is phase 2c). */
 export async function addMember(listId: string, userId: string) {
   await admin("/list_members", {
     method: "POST",
@@ -124,4 +124,18 @@ export async function addMember(listId: string, userId: string) {
 /** Deletes a list for good, with its items, categories and memberships. */
 export async function deleteList(listId: string) {
   await admin(`/lists?id=eq.${listId}`, { method: "DELETE" });
+}
+
+/**
+ * Moves an invite's expiry into the past, by its token, as if its seven days
+ * had gone by (the trigger lets an expiry move earlier, never later).
+ */
+export async function expireInvite(token: string) {
+  const { data, error } = await adminClient()
+    .from("list_invites")
+    .update({ expires_at: new Date(Date.now() - 60_000).toISOString() })
+    .eq("token", token)
+    .select("id");
+  if (error) throw error;
+  if (data.length !== 1) throw new Error(`no invite with token ${token}`);
 }

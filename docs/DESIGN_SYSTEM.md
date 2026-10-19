@@ -228,6 +228,7 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | `EmptyState` | Estado vacío de una sección | Ilustración en tinta 2 a la izquierda, texto a la derecha. Es una invitación a actuar |
 | `Banner` | Aviso persistente | Tonos `info`, `attention`, `error`. El texto siempre en tinta; el color en icono e hilo izquierdo. Esquinas izquierdas rectas |
 | `Sheet` | Hoja flotante | Radix Dialog + Motion. `side` right, left, bottom, top. `SheetHeader`, `SheetBody`, `SheetFooter`, `SheetTitle`, `SheetDescription`. Guarda el estado abierto para animar la salida |
+| `InvitationCard` | La invitación como objeto | Pistacho, `rounded-sheet`: arriba el nombre de la lista en serif, una línea de corte discontinua con muescas del color del papel, abajo el enlace en mono (`data-testid="invite-link"`, `select-all`). `link` en `null` muestra el texto de "preparando". Lo usa la hoja de compartir (`src/components/share/`) |
 | `Moment` | Momento editorial | Superficie tinta, titular display con `<em>`, ilustración, acción, entrada escalonada. Pocas veces: carro vaciado, invitación |
 
 Las primitivas accesibles vienen de Radix (`radix-ui`); el aspecto es
@@ -245,9 +246,10 @@ interfaz: todo texto viene de `src/lib/texts.ts`.
 - Iconos de interfaz: `lucide-react` con `strokeWidth={1.5}` (2 o 2.5 solo
   para el check y el más de la acción principal).
 - Ilustraciones (`src/components/illustrations`): `EmptyBagIllustration`,
-  `CartIllustration`, `FullBagIllustration`. Grilla de 120, trazo fijo de
-  1.5px (`vector-effect: non-scaling-stroke`), tinta en `currentColor`; el
-  único relleno es el lima de la bolsa llena. Se usan en tinta 2 para
+  `CartIllustration`, `FullBagIllustration` e `InvitationIllustration` (dos hojas de lista, la de adelante con un producto marcado en lima). Grilla de 120, trazo fijo de
+  1.5px (`vector-effect: non-scaling-stroke`), tinta en `currentColor`; los
+  únicos rellenos son el lima de la bolsa llena y el del producto marcado de
+  la invitación, los dos en momentos editoriales. Se usan en tinta 2 para
   estados vacíos y en tinta inversa en los momentos.
 - Icono PWA: la marca de "hecho" (círculo lima con check sobre tinta),
   en `public/icons/`. Se regenera con sharp desde fuera del proyecto.
@@ -270,6 +272,26 @@ lista reaparece sola a los 6 s por una animación CSS de respaldo.
 Los e2e arrancan como un dispositivo que ya la vio (`storageState` en
 `playwright.config.ts`); `e2e/welcome.spec.ts` y el test de movimiento
 reducido de `visual.spec.ts` lo desactivan.
+
+### Compartir e invitación
+
+- **Compartir** es una acción de la cabecera (`UserPlus`, junto al menú) que
+  abre una hoja desde la derecha (`ShareSheet`); solo la ve el dueño de la
+  lista, que es quien puede invitar. Un dueño anónimo ve primero por qué
+  hace falta una cuenta y el mismo paso de correo y código del menú
+  (`GuestAccount`, exportado de `account-section.tsx`); con cuenta, el
+  enlace se crea al abrir la hoja y aparece en `InvitationCard`, con
+  "Compartir enlace" (Web Share, si el navegador la tiene), "Copiar enlace"
+  (con confirmación en una región `role="status"`; si el portapapeles falla,
+  el enlace queda seleccionado) y "Armar otro enlace".
+- **Pantalla de invitación** (`/invite/[token]`, `InviteScreen`): superficie
+  tinta en los dos modos, titular `text-display` con `<em>`, ilustración y
+  entrada escalonada (`Stagger`), con el texto abajo a 375px y como pliego
+  de dos columnas desde `md`. Estados: cargando, sin conexión, válida
+  (unirse), ya estás adentro, enlace propio, usada, vencida, inexistente;
+  los errores de aceptar salen en un `Banner` sin perder la pantalla. El
+  foco va al `h1` cuando aparece un estado. Al unirse marca la bienvenida
+  como vista (`markWelcomeSeen`): la invitación ya fue su primer uso.
 
 ## 9. Accesibilidad
 
@@ -325,6 +347,12 @@ reducido de `visual.spec.ts` lo desactivan.
   que las propias no parpadean, comprueba qué se les dice a los lectores
   de pantalla (la frase exacta al otro miembro y nada al que hizo el
   cambio) y adjunta la fila en pleno pulso.
+  `e2e/phase-2c.spec.ts` hace lo mismo sin atajos: una persona convierte su
+  cuenta con el código que llega a Mailpit, comparte el enlace, otra lo abre
+  en un dispositivo que nunca vio la app, se une y los cambios van en los dos
+  sentidos con los mismos criterios; además prueba el enlace usado, el
+  vencido, el inexistente y el propio, y las acciones de compartir. Los
+  helpers comunes están en `e2e/two-members.ts`.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
   categorías, ya que el selector manual llega en la Fase 3.

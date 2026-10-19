@@ -51,12 +51,17 @@ function takeNoticeFromUrl() {
   if (fromUrl) setNotice(fromUrl);
 }
 
+type AppMenuProps = {
+  pendingSignIn: PendingSignIn | null;
+  onPendingSignInChange: (pending: PendingSignIn | null) => void;
+};
+
 /** Header menu button and the sheet it opens (account and, later, more). */
-export function AppMenu() {
+export function AppMenu({
+  pendingSignIn,
+  onPendingSignInChange,
+}: AppMenuProps) {
   const [open, setOpen] = useState(false);
-  const [pendingSignIn, setPendingSignIn] = useState<PendingSignIn | null>(
-    null,
-  );
   const currentNotice = useSyncExternalStore(
     subscribeToNotice,
     getNotice,
@@ -106,7 +111,7 @@ export function AppMenu() {
             notice={currentNotice}
             onNotice={setNotice}
             pendingSignIn={pendingSignIn}
-            onPendingSignInChange={setPendingSignIn}
+            onPendingSignInChange={onPendingSignInChange}
           />
         </SheetBody>
       </SheetContent>

@@ -180,6 +180,28 @@ for (const mode of modes) {
       await capture(page, testInfo, `lista-offline-${mode}`);
     });
 
+    // La invitación sin conexión: no necesita el stack, y es la misma
+    // pantalla de tinta que los demás estados. Los estados con datos los
+    // cubre phase-2c.spec.ts.
+    test(`invite offline: ink surface, one heading and touch targets`, async ({
+      page,
+    }, testInfo) => {
+      await cutSupabase(page);
+      await page.goto("/invite/e2e-visual-token-0123456789");
+      const screen = page.getByTestId("invite-screen");
+      await expect(screen).toHaveAttribute("data-state", "offline");
+      await settle(page);
+      await expectSystemInvariants(page, mode);
+      // Tinta verde en los dos modos: la superficie no sigue al modo.
+      expect(
+        await screen.evaluate((e) => getComputedStyle(e).backgroundColor),
+      ).toBe(rgb(palette[mode]["inverse-bg"]));
+      await expect(page.locator("h1")).toHaveCount(1);
+      await expect(page.locator("h1 em")).toHaveText(texts.invite.offline.em);
+      await expectTouchTargets(page);
+      await capture(page, testInfo, `invite-offline-${mode}`);
+    });
+
     test(`menu sheet: floats on paper`, async ({ page }, testInfo) => {
       await page.goto("/");
       await settle(page);
@@ -233,5 +255,33 @@ test.describe("first use with reduced motion", () => {
     await expect(welcome).toBeVisible();
     await welcome.getByRole("button", { name: texts.welcome.cta }).click();
     await expect(welcome).toHaveCount(0);
+  });
+});
+
+test.describe("invite with reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("the invitation fades in without any translate", async ({ page }) => {
+    await cutSupabase(page);
+    await page.goto("/invite/e2e-visual-token-0123456789");
+    const screen = page.getByTestId("invite-screen");
+    await expect(screen).toHaveAttribute("data-state", "offline");
+    // Cada elemento escalonado entra con 8px de desplazamiento; con
+    // movimiento reducido solo queda el fundido.
+    await expect
+      .poll(async () => {
+        const transforms = await screen
+          .locator("h1, p")
+          .evaluateAll((items) =>
+            items.map((item) => getComputedStyle(item).transform),
+          );
+        return (
+          transforms.length > 0 &&
+          transforms.every((transform) =>
+            ["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(transform),
+          )
+        );
+      })
+      .toBe(true);
   });
 });

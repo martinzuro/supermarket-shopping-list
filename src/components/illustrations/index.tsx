@@ -75,3 +75,29 @@ export function FullBagIllustration(props: React.ComponentProps<"svg">) {
     </Frame>
   );
 }
+
+/**
+ * Dos hojas de lista, una detrás de la otra: la misma lista, de dos
+ * personas. La de adelante lleva el único relleno en lima, un producto ya
+ * marcado.
+ */
+export function InvitationIllustration(props: React.ComponentProps<"svg">) {
+  return (
+    <Frame {...props}>
+      <path className="text-ink-3" d="M14 104h92" />
+      {/* Hoja de atrás: solo lo que asoma por arriba y por la derecha. */}
+      <path d="M44 32V16h36l14 14v56H76" />
+      <path d="M80 16v14h14" />
+      <path d="M52 24h16M82 44h6M82 56h6" />
+      {/* Hoja de adelante. */}
+      <path d="M26 32h50v72H26z" />
+      <circle cx="37" cy="48" r="5" fill="var(--lime)" />
+      <path d="M34.5 48l1.8 1.8 3.4-3.6" />
+      <path d="M48 48h18" />
+      <circle cx="37" cy="64" r="5" />
+      <path d="M48 64h12" />
+      <circle cx="37" cy="80" r="5" />
+      <path d="M48 80h16" />
+    </Frame>
+  );
+}
