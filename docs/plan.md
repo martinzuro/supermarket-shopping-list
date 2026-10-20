@@ -114,8 +114,25 @@ actualizaciones optimistas.** [ADR 0003](decisions/0003-online-only.md)
   - Una fila archivada queda marcada en la caché hasta el próximo refetch.
     Un UPDATE nunca crea una fila que falta: pide una lectura. Los DELETE
     traen solo el id. Un insert remoto entra en el orden del servidor.
-  - Las categorías se invalidan con cualquier evento, el catálogo con
-    altas y renombres remotos.
+  - Categorías (Fase 3): el orden del recorrido se cambia con la RPC
+    `move_category`, que mueve una categoría más allá de otra (la que tenía
+    al lado cuando se tocó la flecha) con las categorías de la lista
+    bloqueadas: dos miembros que mueven a la vez ven aplicados los dos
+    movimientos, las posiciones quedan siempre 0..n-1, y un reintento tras
+    perder la respuesta no mueve dos veces. En el cliente los movimientos
+    van en una cola propia (`categories:<listId>`), optimistas y con
+    rollback dirigido. Un movimiento llega como dos UPDATE después del
+    commit: no se parchea la caché con cada uno (habría dos categorías en
+    la misma posición), se relee el recorrido una vez por ráfaga, y espera
+    mientras haya un movimiento propio pendiente. El eco propio se reconoce
+    por versión, o por estar pendiente un movimiento de esa categoría si
+    llega antes que la respuesta. Un reorden de otro miembro desliza los
+    grupos de Pendientes y se anuncia ("Cambiaron el orden del recorrido"),
+    sin pulso.
+  - El catálogo no está publicado en Realtime: todo cambio suyo nace de un
+    evento de ítems. Se relee con las altas remotas y con los cambios de
+    nombre, categoría, unidad, precio o moneda (los campos que sigue su
+    trigger).
   - Recuperación: cada `SUBSCRIBED` vuelve a leer ítems, categorías y
     catálogo con las mismas reglas. El foco y la reconexión releen la
     lista aunque esté fresca, salvo que haya una escritura pendiente.
