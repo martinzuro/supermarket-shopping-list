@@ -31,7 +31,7 @@ export function cart(page: Page) {
 }
 
 export function field(page: Page) {
-  return page.getByRole("textbox", { name: texts.addItem.label });
+  return page.getByRole("combobox", { name: texts.addItem.label });
 }
 
 export function row(section: Locator, name: string) {
@@ -592,9 +592,11 @@ export function stepper(steps: Step[]) {
     expect(await saidOf(other), `${label}: observer hears`).toEqual([heard]);
     expect(await saidOf(actor), `${label}: actor hears`).toEqual([]);
     expect(await pulsedNames(actor), `${label}: actor pulsed`).toEqual([]);
-    expect(await pulsedNames(other), `${label}: observer pulsed`).toEqual(
-      pulses,
-    );
+    // Several rows that arrive together pulse in no fixed order.
+    expect(
+      [...(await pulsedNames(other))].sort(),
+      `${label}: observer pulsed`,
+    ).toEqual(pulses.length > 1 ? [...pulses].sort() : pulses);
     expect(await rowEventsOf(actor), `${label}: actor's rows`).toEqual(ownRows);
   };
 }

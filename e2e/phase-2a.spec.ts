@@ -27,7 +27,7 @@ function cart(page: Page) {
 }
 
 function field(page: Page) {
-  return page.getByRole("textbox", { name: texts.addItem.label });
+  return page.getByRole("combobox", { name: texts.addItem.label });
 }
 
 function row(section: Locator, name: string) {

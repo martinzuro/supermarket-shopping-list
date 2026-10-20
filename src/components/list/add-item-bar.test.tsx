@@ -99,7 +99,7 @@ async function renderBar({ itemsLoaded = true } = {}) {
     { name_normalized: "tomates", last_category_id: VEGETABLES },
   ]);
   render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
-  const field = screen.getByRole<HTMLInputElement>("textbox", {
+  const field = screen.getByRole<HTMLInputElement>("combobox", {
     name: texts.addItem.label,
   });
   const submit = screen.getByRole("button", { name: texts.addItem.submit });

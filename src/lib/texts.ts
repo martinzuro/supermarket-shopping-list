@@ -42,6 +42,19 @@ export const texts = {
     label: "Producto para agregar",
     placeholder: "Leche, pan, tomates…",
     submit: "Agregar",
+    /** Nombre accesible de la lista de sugerencias bajo el campo. */
+    suggestions: "Sugerencias",
+    /** La fila de productos de un toque sobre el campo vacío. */
+    frequents: "Frecuentes",
+    addProduct: (name: string) => `Agregar “${name}”`,
+    /** Todo lo que se compra seguido y no está pendiente, de una vez. */
+    usuals: {
+      label: "Lo de siempre",
+      /** Contiene el texto visible y dice cuántos agrega. */
+      aria: (count: number) => `Lo de siempre: agregar ${count} productos`,
+      added: (count: number) => `Agregaste ${count} productos`,
+      undo: "Deshacer",
+    },
   },
   editItem: {
     title: "Editar producto",
@@ -115,6 +128,10 @@ export const texts = {
     removeBody: "Volvió a la lista. Probá de nuevo.",
     emptyCart: "No se vació el carro",
     emptyCartBody: "Lo que estaba en el carro volvió. Probá de nuevo.",
+    addMany: (count: number) => `No se agregaron los ${count} productos`,
+    addManyBody: "Se sacaron de la lista. Probá de nuevo.",
+    undoAdd: "No se pudo deshacer",
+    undoAddBody: "Los productos siguen en la lista. Probá de nuevo.",
     dismiss: "Cerrar aviso",
   },
   /**

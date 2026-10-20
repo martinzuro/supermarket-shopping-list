@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { normalizeName } from "../src/lib/domain/normalize-name";
 import type { Database } from "../src/lib/supabase/database.types";
 
 /**
@@ -107,6 +108,45 @@ export async function setCategory(itemId: string, categoryId: string) {
   await admin(`/items?id=eq.${itemId}`, {
     method: "PATCH",
     body: JSON.stringify({ category_id: categoryId }),
+  });
+}
+
+export type CatalogSeed = {
+  name: string;
+  /** How many times the list "added" it (what the add bar's rows go by). */
+  times: number;
+  /** A default category by name, for the one the catalog remembers. */
+  category?: string;
+  price?: number;
+  /** The last add, this many days ago (0 by default). */
+  daysAgo?: number;
+};
+
+/**
+ * Gives a list a history: catalog rows, as if its products had been added
+ * before. Only the service role writes the catalog (the items triggers keep
+ * it); the app reads it when it loads, so the page reloads after this.
+ */
+export async function seedCatalog(listId: string, rows: CatalogSeed[]) {
+  const categories = await categoryIds(listId);
+  await admin("/catalog", {
+    method: "POST",
+    body: JSON.stringify(
+      rows.map((row) => ({
+        list_id: listId,
+        name_normalized: normalizeName(row.name),
+        display_name: row.name,
+        last_category_id: row.category
+          ? (categories.get(row.category) ?? null)
+          : null,
+        last_price: row.price ?? null,
+        last_currency: row.price === undefined ? null : "UYU",
+        times_added: row.times,
+        last_added_at: new Date(
+          Date.now() - (row.daysAgo ?? 0) * 86_400_000,
+        ).toISOString(),
+      })),
+    ),
   });
 }
 

@@ -333,6 +333,45 @@ reducido de `visual.spec.ts` lo desactivan.
   ningún precio no hay línea. Se calcula sobre lo que cada sección muestra, así
   que el monto viaja con la fila al marcar.
 
+### Añadir: sugerencias, frecuentes y "Lo de siempre"
+
+La barra fija de abajo (`AddItemBar`) crece hacia arriba; se arma con piezas
+existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
+`frequents-row.tsx`, en `src/components/list`).
+
+- **Combobox.** El campo es un combobox ARIA 1.2 (`role="combobox"`,
+  `aria-autocomplete="list"`, `aria-expanded`, `aria-controls`,
+  `aria-activedescendant`) y siempre conserva el foco. Las opciones son su
+  `listbox`, sobre el campo, en papel con reglas de 1px y sin sombra: hasta 5,
+  desde el primer carácter, para la parte del nombre de lo escrito
+  (`parseItemInput`), sin lo que ya está pendiente. Cada una lleva el icono
+  de su categoría, el nombre y el último precio en mono. **La mejor queda
+  pegada al campo** (la lista no salta al afinar la búsqueda) y las flechas
+  siguen lo que se ve: arriba desde el campo llega primero a ella. Enter agrega
+  la activa (o lo escrito, sin activa), Escape cierra, y tocar una opción
+  agrega ese producto con la cantidad y la unidad de lo escrito ("2 kg tom" +
+  "Tomates"), su categoría y su último precio. Tocar no mueve el foco
+  (`preventDefault` en pointer y mouse down): el teclado no se cierra.
+- **Frecuentes.** Con el campo vacío, una fila que se desplaza de costado
+  (grupo "Frecuentes"): primero "Lo de siempre" con su cuenta (pistacho), luego
+  hasta 12 productos de un toque (`outline`, con un más). Píldoras de 36px con
+  un área táctil de 44px (pseudo-elemento sobre el relleno vertical de la
+  fila). Sin historial la fila no existe. Al escribir la reemplazan las
+  sugerencias (el contenido cambia de golpe dentro del mismo `Collapse`, así
+  la barra no suma las dos alturas mientras una sale).
+- **"Lo de siempre".** Solo con 2 o más productos habituales sin pendiente. Un
+  toque los agrega en una escritura (`useAddItems`) y la barra avisa "Agregaste
+  N productos" (`Banner` info, sin cierre) con "Deshacer" durante 8 s
+  (`useUndoAdd`, una sola escritura). Una región `role="status"`
+  (`data-slot="add-announcement"`) siempre montada lo lee. Un rechazo del alta
+  de varios o del deshacer tiene su propio texto (`itemErrors.addMany`,
+  `itemErrors.undoAdd`) y reemplaza al aviso.
+- **Alto de la barra.** `useBarHeight` mide la barra con un `ResizeObserver` y
+  publica su alto real en `--add-bar-measured`, que lee `pb-add-bar` en la
+  página (con el alto nominal de respaldo hasta medirla). Si la página estaba
+  al final cuando la barra crece, se desplaza lo mismo: las últimas filas no
+  quedan debajo, con el teclado abierto o cerrado.
+
 ### Miembros, avisos y "traer lo de otra lista"
 
 - **Hoja de la cabecera para todos.** La acción es `UserPlus` si el dueño
@@ -483,6 +522,11 @@ reducido de `visual.spec.ts` lo desactivan.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
   categorías, ya que el selector manual llega en la Fase 3.
+- `e2e/phase-3c.spec.ts` y `e2e/phase-3c-members.spec.ts`: las sugerencias,
+  los frecuentes y "Lo de siempre" (una sola petición para agregar y otra
+  para deshacer), el alto de la barra, y entre dos miembros el criterio de
+  `phase-2b` con N filas (menos de 1 s, pulso solo en el otro, una frase para
+  su lector de pantalla). Con capturas a 375px en claro y oscuro.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.
