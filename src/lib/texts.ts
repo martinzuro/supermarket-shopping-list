@@ -47,12 +47,23 @@ export const texts = {
     /** La fila de productos de un toque sobre el campo vacío. */
     frequents: "Frecuentes",
     addProduct: (name: string) => `Agregar “${name}”`,
-    /** Todo lo que se compra seguido y no está pendiente, de una vez. */
+    /**
+     * Todo lo que se compra seguido y no está pendiente: abre una hoja de
+     * repaso, con todo tildado, para destildar lo que todavía hay en casa
+     * (docs/improvements.md, A-3).
+     */
     usuals: {
       label: "Lo de siempre",
-      /** Contiene el texto visible y dice cuántos agrega. */
-      aria: (count: number) => `Lo de siempre: agregar ${count} productos`,
-      added: (count: number) => `Agregaste ${count} productos`,
+      /** Contiene el texto visible y dice cuántos hay para repasar. */
+      aria: (count: number) => `Lo de siempre: repasar ${count} productos`,
+      title: "Lo de siempre",
+      description: "Destildá lo que todavía tenés en casa y agregá el resto.",
+      listLabel: "Productos de siempre",
+      add: (count: number) =>
+        count === 1 ? "Agregar 1 producto" : `Agregar ${count} productos`,
+      none: "Nada para agregar",
+      added: (count: number) =>
+        count === 1 ? "Agregaste 1 producto" : `Agregaste ${count} productos`,
       undo: "Deshacer",
     },
     /**
@@ -141,7 +152,10 @@ export const texts = {
     removeBody: "Volvió a la lista. Probá de nuevo.",
     emptyCart: "No se vació el carro",
     emptyCartBody: "Lo que estaba en el carro volvió. Probá de nuevo.",
-    addMany: (count: number) => `No se agregaron los ${count} productos`,
+    addMany: (count: number) =>
+      count === 1
+        ? "No se agregó el producto"
+        : `No se agregaron los ${count} productos`,
     addManyBody: "Se sacaron de la lista. Probá de nuevo.",
     undoAdd: "No se pudo deshacer",
     undoAddBody: "Los productos siguen en la lista. Probá de nuevo.",

@@ -39,7 +39,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | --- | --------------------------------------------------- | --------------------- | -------------- |
 | A-1 | Los productos nuevos caen en "Otros"                | Nada                  | Antes de beta  |
 | A-2 | Duplicados sin aviso                                | Nada                  | Hecho          |
-| A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Con la beta    |
+| A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
 | A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Antes de beta  |
 | M-1 | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
 | M-2 | Totales a la vista mientras se compra               | Nada                  | Con la beta    |
@@ -155,6 +155,43 @@ pendiente que coincide por nombre normalizado (mayúsculas, tildes).
 **Requiere.** Nada fuera del cliente.
 
 ### A-3. "Lo de siempre" a ciegas y sin cantidades
+
+**Estado: hecho el 2026-10-20**, a pedido del usuario después de A-2 (rama
+`feat/a3-usuals-review`). Lo decidido al implementarlo:
+
+- La píldora abre una hoja de repaso (`usuals-sheet.tsx`): lo habitual que no
+  está pendiente, en el orden del recorrido, todo tildado y con la cantidad con
+  que vuelve. "Agregar N productos" suma lo tildado en una escritura, en ese
+  orden, con el "Deshacer" de siempre. Cerrar no agrega nada.
+- La migración `20261020200138_catalog_last_quantity.sql` agrega
+  `catalog.last_quantity` y `last_quantity_unit`, un par de la misma fila y
+  aparte de `last_unit` (la del precio). Lo da un alta con cantidad, o una
+  edición de la cantidad o de su unidad que deja una cantidad (como "Sumar" de
+  A-2). Un alta sin cantidad, o borrar la cantidad, no lo pisa: "tomates" a
+  secas una vez no olvida los 2 kg de siempre. El trigger de UPDATE ahora
+  también corre cuando cambia solo la cantidad, y `copy_list_into` copia el par
+  al fusionar. Una edición que no renombra ya no reescribe `display_name` con
+  la grafía de esa fila. Sin relleno: el catálogo existente empieza sin
+  cantidad, y cada producto la toma la próxima vez que se agrega o se edita
+  con una.
+- El foco vuelve al campo al cerrar la hoja solo si estaba ahí (o en la
+  píldora, con teclado) al abrirla: un toque con el teclado del teléfono
+  cerrado no lo abre. El aviso "Agregaste N productos" sale cuando la hoja ya
+  se fue, para que el lector de pantalla lo oiga (mientras se cierra, Radix
+  oculta el resto de la página).
+- Lo traen el repaso y los frecuentes (`rememberedAmount`), y con la unidad
+  vuelve el precio por kilo (`rememberedPrice` en esa base). Las sugerencias
+  mientras se escribe siguen con lo escrito.
+- Código: `rememberedAmount` en `catalog.ts`, `inRouteOrder` en
+  `categories.ts`, la hoja en `usuals-sheet.tsx` y la barra en
+  `add-item-bar.tsx`. Pruebas en `catalog.test.ts`, `categories.test.ts`,
+  `add-item-bar-catalog.test.tsx`, `e2e/catalog-db.spec.ts` y
+  `e2e/a3-usuals.spec.ts`.
+- Antes de desplegar, la migración tiene que estar en staging (`npx supabase
+  db push`): el cliente pide las columnas nuevas y, sin ellas, la lectura del
+  catálogo falla.
+- Queda abierto: elegir una sugerencia mientras se escribe podría traer
+  también la cantidad recordada cuando no se escribió ninguna.
 
 **Qué pasa.** Un toque agrega hasta 15 productos (`USUAL_LIMIT`) y solo
 muestra cuántos, no cuáles; se deshace durante 8 s. Vuelven sin cantidad ni
@@ -450,5 +487,6 @@ Pendiente de decisión del usuario.
 
 - **Antes de la beta** (baratas, definen la primera impresión): A-1, A-2
   (hecha el 2026-10-20), A-4 y M-6. F-3 coincide con la Fase 4.
-- **Con lo que muestre la beta:** A-3, M-1, M-2, M-3, M-8, F-1 y F-2.
+- **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
+  M-8, F-1 y F-2.
 - **Después:** M-4, M-5, M-7, F-4, F-5 y F-6.

@@ -122,3 +122,16 @@ export function usualsOf<E extends Entry>(
     .sort(byUse)
     .slice(0, limit);
 }
+
+/**
+ * The quantity a product comes back with from the catalog (the frequents and
+ * "Lo de siempre", docs/improvements.md A-3): the last one it was on the list
+ * with, and its unit, or none.
+ */
+export function rememberedAmount(
+  entry: Pick<Tables<"catalog">, "last_quantity" | "last_quantity_unit">,
+): { quantity: number | null; unit: string | null } {
+  return entry.last_quantity == null
+    ? { quantity: null, unit: null }
+    : { quantity: entry.last_quantity, unit: entry.last_quantity_unit };
+}

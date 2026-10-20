@@ -86,6 +86,8 @@ function entry(
     last_unit: null,
     last_price: null,
     last_currency: null,
+    last_quantity: null,
+    last_quantity_unit: null,
     times_added,
     last_added_at: RECENT,
     ...extra,
@@ -102,12 +104,15 @@ const CATALOG = [
   }),
   entry("Lechuga", 1, { last_category_id: VEGETABLES }),
   // Priced per kilo: its price comes along with "2 kg tom", not with a
-  // bare "tomates" (another basis).
+  // bare "tomates" (another basis). Bought by 2 kg: the frequents and "Lo de
+  // siempre" bring that, and so its price (A-3).
   entry("Tomates", 4, {
     last_category_id: VEGETABLES,
     last_unit: "kg",
     last_price: 90,
     last_currency: "UYU",
+    last_quantity: 2,
+    last_quantity_unit: "kg",
   }),
   entry("Pan", 3),
   entry("Arroz", 6),
@@ -195,6 +200,16 @@ const frequents = () =>
 const banner = () => document.querySelector('[data-slot="banner"]');
 const usualsButton = (count: number) =>
   screen.queryByRole("button", { name: texts.addItem.usuals.aria(count) });
+const usualsSheet = () =>
+  screen.queryByRole("dialog", { name: texts.addItem.usuals.title });
+const usualsAdd = (count: number) =>
+  screen.queryByRole("button", { name: texts.addItem.usuals.add(count) });
+
+/** "Lo de siempre": open the review and add everything, as it comes ticked. */
+async function addAllUsuals(count: number) {
+  fireEvent.click(usualsButton(count)!);
+  fireEvent.click((await waitFor(() => usualsAdd(count)))!);
+}
 
 beforeEach(() => {
   readItems.mockReset();
@@ -533,6 +548,27 @@ describe("the frequents row", () => {
     expect(field).toHaveFocus();
   });
 
+  it("brings a product with the quantity it is bought in, and its price in that basis", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    await renderBar();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.addItem.addProduct("Tomates") }),
+    );
+
+    await waitFor(() =>
+      expect(items.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Tomates",
+          quantity: 2,
+          unit: "kg",
+          category_id: VEGETABLES,
+          estimated_price: 90,
+        }),
+      ),
+    );
+  });
+
   it("is replaced by the suggestions while typing", async () => {
     const { field } = await renderBar();
     expect(frequents()).not.toBeNull();
@@ -566,27 +602,58 @@ describe("the frequents row", () => {
 });
 
 describe("Lo de siempre", () => {
-  it("adds every usual product that is not pending in one write", async () => {
-    const { field } = await renderBar({ pending: ["Pan"] });
+  it("opens the review, everything ticked in route order, before adding anything", async () => {
+    await renderBar({ pending: ["Pan"] });
 
     const button = usualsButton(3)!;
+    expect(button).toHaveAttribute("aria-haspopup", "dialog");
     expect(fireEvent.mouseDown(button)).toBe(false);
     fireEvent.click(button);
 
+    const sheet = await waitFor(() => usualsSheet()!);
+    const rows = within(sheet).getAllByRole("checkbox");
+    // Frutas y verduras, then Fiambres y lácteos; without category, last
+    // (this list has no "Otros"). Each with the quantity it comes back with.
+    // (With a space between name and quantity, for its accessible name.)
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Tomates 2 kg",
+      "Leche",
+      "Arroz",
+    ]);
+    expect(
+      within(sheet).getByRole("checkbox", { name: "Tomates 2 kg" }),
+    ).toBeInTheDocument();
+    for (const row of rows) expect(row).toHaveAttribute("aria-checked", "true");
+    expect(usualsAdd(3)).toBeEnabled();
+    expect(items.insert).not.toHaveBeenCalled();
+  });
+
+  it("adds what stays ticked in one write, each with its quantity and price", async () => {
+    const { field } = await renderBar({ pending: ["Pan"] });
+
+    await addAllUsuals(3);
+
     await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
     const rows = items.insert.mock.calls[0][0] as { name: string }[];
-    expect(rows.map((row) => row.name)).toEqual(["Arroz", "Leche", "Tomates"]);
+    expect(rows.map((row) => row.name)).toEqual(["Tomates", "Leche", "Arroz"]);
     expect(rows).toEqual([
-      expect.objectContaining({ category_id: null, estimated_price: null }),
-      expect.objectContaining({ category_id: DAIRY, estimated_price: 45 }),
-      // Tomates is priced per kilo and comes with no unit: no price, rather
-      // than $ 90 read per unit.
+      // Bought by 2 kg: its price per kilo comes along.
       expect.objectContaining({
+        quantity: 2,
+        unit: "kg",
         category_id: VEGETABLES,
-        estimated_price: null,
+        estimated_price: 90,
       }),
+      expect.objectContaining({
+        quantity: null,
+        unit: null,
+        category_id: DAIRY,
+        estimated_price: 45,
+      }),
+      expect.objectContaining({ category_id: null, estimated_price: null }),
     ]);
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(usualsSheet()).toBeNull());
+    await waitFor(() => expect(field).toHaveFocus());
 
     // The notice, in the bar and read by the live region.
     await waitFor(() =>
@@ -599,9 +666,67 @@ describe("Lo de siempre", () => {
     await waitFor(() => expect(usualsButton(3)).toBeNull());
   });
 
-  it("Deshacer takes them back in one write, with the added ids", async () => {
+  it("gives the focus back to the field only if it had it", async () => {
+    const { field } = await renderBar();
+    // A touch on the pill with the keyboard closed: nothing focused.
+    field.blur();
+
+    await addAllUsuals(4);
+
+    await waitFor(() => expect(usualsSheet()).toBeNull());
+    // The notice comes once the sheet is gone, for the screen reader too.
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="add-announcement"]'),
+      ).toHaveTextContent(texts.addItem.usuals.added(4)),
+    );
+    expect(field).not.toHaveFocus();
+  });
+
+  it("leaves out what was unticked", async () => {
+    await renderBar({ pending: ["Pan"] });
+    fireEvent.click(usualsButton(3)!);
+    const sheet = await waitFor(() => usualsSheet()!);
+
+    const leche = within(sheet).getByRole("checkbox", { name: "Leche" });
+    fireEvent.click(leche);
+    expect(leche).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(usualsAdd(2)!);
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    const rows = items.insert.mock.calls[0][0] as { name: string }[];
+    expect(rows.map((row) => row.name)).toEqual(["Tomates", "Arroz"]);
+    await waitFor(() =>
+      expect(banner()).toHaveTextContent(texts.addItem.usuals.added(2)),
+    );
+  });
+
+  it("cannot add with everything unticked, and closing adds nothing", async () => {
     await renderBar();
     fireEvent.click(usualsButton(4)!);
+    const sheet = await waitFor(() => usualsSheet()!);
+
+    for (const row of within(sheet).getAllByRole("checkbox")) {
+      fireEvent.click(row);
+    }
+    const none = within(sheet).getByRole("button", {
+      name: texts.addItem.usuals.none,
+    });
+    expect(none).toBeDisabled();
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: texts.sheet.close }),
+    );
+
+    await waitFor(() => expect(usualsSheet()).toBeNull());
+    expect(items.insert).not.toHaveBeenCalled();
+    // Opened again, it starts all ticked.
+    fireEvent.click(usualsButton(4)!);
+    await waitFor(() => expect(usualsAdd(4)).toBeEnabled());
+  });
+
+  it("Deshacer takes them back in one write, with the added ids", async () => {
+    await renderBar();
+    await addAllUsuals(4);
     await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
     const added = (
       items.insert.mock.calls[0][0] as { id: string; name: string }[]
@@ -632,7 +757,7 @@ describe("Lo de siempre", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       await renderBar();
-      fireEvent.click(usualsButton(4)!);
+      await addAllUsuals(4);
       await waitFor(() =>
         expect(banner()).toHaveTextContent(texts.addItem.usuals.added(4)),
       );
@@ -654,7 +779,7 @@ describe("Lo de siempre", () => {
     write.mockResolvedValue(rejection);
     await renderBar();
 
-    fireEvent.click(usualsButton(4)!);
+    await addAllUsuals(4);
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(texts.itemErrors.addMany(4));
@@ -670,7 +795,7 @@ describe("Lo de siempre", () => {
   it("tells a rejected undo with its own text", async () => {
     update.mockResolvedValue(rejection);
     await renderBar();
-    fireEvent.click(usualsButton(4)!);
+    await addAllUsuals(4);
     await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
 
     fireEvent.click(

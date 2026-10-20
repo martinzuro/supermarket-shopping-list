@@ -316,9 +316,12 @@ catalog
   list_id fk, name_normalized text, display_name text,
   last_category_id uuid null, last_unit text null,
   last_price numeric null, last_currency text null,
+  last_quantity numeric null, last_quantity_unit text null,
   times_added int, last_added_at
   pk (list_id, name_normalized)
   -- fuente del autocompletado y de "frecuentes"; se actualiza por trigger
+  -- last_unit es la unidad del precio; last_quantity_unit, la de la
+  -- cantidad (A-3, docs/improvements.md)
 ```
 
 Reglas:
@@ -766,9 +769,10 @@ documento propone un orden (A-1, A-2, A-4 y M-6 antes de la beta). El uso
 sin señal dentro del supermercado no está ahí: sigue como riesgo (sección
 6) y fase futura.
 
-Estado al 2026-10-20: A-2 (aviso de duplicados) está hecha, a pedido del
-usuario, antes de empezar la Fase 4; el detalle de lo decidido está en su
-entrada.
+Estado al 2026-10-20: A-2 (aviso de duplicados) y A-3 (repaso de "Lo de
+siempre" y cantidad recordada en el catálogo, migración
+`catalog_last_quantity`) están hechas, a pedido del usuario, antes de empezar
+la Fase 4; el detalle de lo decidido está en sus entradas.
 
 ---
 

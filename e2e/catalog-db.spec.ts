@@ -7,8 +7,11 @@ import { adminClient, anonymousUser, type Client } from "./supabase-admin";
  * Phase 3, the database side of the remembered price (migration
  * `catalog_price_unit_pair`): the catalog keeps the last price with the unit
  * it was given in, so a new item gets it only in the same basis (per kilo,
- * per litre, per unit). Items are written as a real user, as the app does;
- * the catalog is read with the service role.
+ * per litre, per unit). And the remembered quantity (migration
+ * `catalog_last_quantity`, docs/improvements.md A-3): the last quantity a
+ * product was on the list with, and its unit, apart from the price's pair.
+ * Items are written as a real user, as the app does; the catalog is read
+ * with the service role.
  */
 
 test.skip(
@@ -55,7 +58,9 @@ async function edit(who: Person, id: string, changes: TablesUpdate<"items">) {
 async function remembered(listId: string, name: string) {
   const { data, error } = await adminClient()
     .from("catalog")
-    .select("last_unit, last_price, last_currency, times_added")
+    .select(
+      "display_name, last_unit, last_price, last_currency, last_quantity, last_quantity_unit, times_added",
+    )
     .eq("list_id", listId)
     .eq("name_normalized", name)
     .single();
@@ -182,6 +187,116 @@ test.describe("the catalog's remembered price and its unit", () => {
       last_unit: "L",
       last_price: 12,
       last_currency: "UYU",
+    });
+  });
+});
+
+test.describe("the catalog's remembered quantity", () => {
+  test("an add with a quantity is remembered with its unit; a bare one leaves it", async () => {
+    const ana = await person();
+    await add(ana, { name: "Tomates", quantity: 2, unit: "kg" });
+    expect(await remembered(ana.listId, "tomates")).toMatchObject({
+      last_quantity: 2,
+      last_quantity_unit: "kg",
+    });
+
+    // "tomates" bare, once: the usual 2 kg stays.
+    await add(ana, { name: "tomates" });
+    expect(await remembered(ana.listId, "tomates")).toMatchObject({
+      last_quantity: 2,
+      last_quantity_unit: "kg",
+      times_added: 2,
+    });
+
+    // A count without unit is a quantity too, and its unit is none.
+    await add(ana, { name: "Tomates", quantity: 6 });
+    expect(await remembered(ana.listId, "tomates")).toMatchObject({
+      last_quantity: 6,
+      last_quantity_unit: null,
+    });
+  });
+
+  test("an edit of the quantity or its unit is remembered; clearing it is not", async () => {
+    const ana = await person();
+    const milk = await add(ana, { name: "Leche", quantity: 3 });
+    // As "Sumar" does (A-2): only the quantity changes.
+    await edit(ana, milk.id, { quantity: 5 });
+    expect(await remembered(ana.listId, "leche")).toMatchObject({
+      last_quantity: 5,
+      last_quantity_unit: null,
+      // An edit is not another add.
+      times_added: 1,
+    });
+    await edit(ana, milk.id, { unit: "L" });
+    expect(await remembered(ana.listId, "leche")).toMatchObject({
+      last_quantity: 5,
+      last_quantity_unit: "L",
+    });
+    await edit(ana, milk.id, { quantity: null });
+    expect(await remembered(ana.listId, "leche")).toMatchObject({
+      last_quantity: 5,
+      last_quantity_unit: "L",
+    });
+  });
+
+  test("an edit that is not a rename keeps the name the catalog shows", async () => {
+    const ana = await person();
+    const first = await add(ana, { name: "Tomates", quantity: 2, unit: "kg" });
+    // Typed again in lowercase: the catalog shows the last spelling.
+    await add(ana, { name: "tomates" });
+    expect((await remembered(ana.listId, "tomates")).display_name).toBe(
+      "tomates",
+    );
+    // The first row's quantity changes: no rename, so no other spelling.
+    await edit(ana, first.id, { quantity: 3 });
+    expect(await remembered(ana.listId, "tomates")).toMatchObject({
+      display_name: "tomates",
+      last_quantity: 3,
+    });
+    // A rename does give it the new spelling.
+    await edit(ana, first.id, { name: "Tomates perita" });
+    expect((await remembered(ana.listId, "tomates perita")).display_name).toBe(
+      "Tomates perita",
+    );
+  });
+
+  test("the quantity and the price keep their own units", async () => {
+    const ana = await person();
+    await add(ana, {
+      name: "Tomates",
+      quantity: 2,
+      unit: "kg",
+      estimated_price: 180,
+    });
+    // Three tomatoes, without price: the quantity is 3 units, and the price
+    // is still 180 per kilo.
+    await add(ana, { name: "tomates", quantity: 3 });
+    expect(await remembered(ana.listId, "tomates")).toMatchObject({
+      last_quantity: 3,
+      last_quantity_unit: null,
+      last_unit: "kg",
+      last_price: 180,
+    });
+  });
+
+  test("a merge brings the remembered quantity with the rest of the history", async () => {
+    const ana = await person();
+    await add(ana, { name: "Yerba", quantity: 1, unit: "kg" });
+    const targetId = newId();
+    const { error: listError } = await ana.client
+      .from("lists")
+      .insert({ id: targetId, name: "Mi lista" });
+    if (listError) throw listError;
+
+    const { error } = await ana.client.rpc("merge_list", {
+      source_list_id: ana.listId,
+      target_list_id: targetId,
+      new_ids: [newId()],
+    });
+    if (error) throw error;
+    expect(await remembered(targetId, "yerba")).toMatchObject({
+      last_quantity: 1,
+      last_quantity_unit: "kg",
     });
   });
 });

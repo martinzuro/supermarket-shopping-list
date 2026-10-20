@@ -402,14 +402,27 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   (`preventDefault` en pointer y mouse down): el teclado no se cierra.
 - **Frecuentes.** Con el campo vacío, una fila que se desplaza de costado
   (grupo "Frecuentes"): primero "Lo de siempre" con su cuenta (pistacho), luego
-  hasta 12 productos de un toque (`outline`, con un más). Píldoras de 36px con
+  hasta 12 productos de un toque (`outline`, con un más), que entran con la
+  cantidad con que se compran (A-3, ver abajo). Píldoras de 36px con
   un área táctil de 44px (pseudo-elemento sobre el relleno vertical de la
   fila). Sin historial la fila no existe. Al escribir la reemplazan las
   sugerencias (el contenido cambia de golpe dentro del mismo `Collapse`, así
   la barra no suma las dos alturas mientras una sale).
-- **"Lo de siempre".** Solo con 2 o más productos habituales sin pendiente. Un
-  toque los agrega en una escritura (`useAddItems`) y la barra avisa "Agregaste
-  N productos" (`Banner` info, sin cierre) con "Deshacer" durante 8 s
+- **"Lo de siempre"** (repaso desde `docs/improvements.md`, A-3). Solo con 2 o
+  más productos habituales sin pendiente. La píldora (`aria-haspopup="dialog"`)
+  abre una hoja desde abajo (`usuals-sheet.tsx`, con las piezas de `Sheet`):
+  los productos en el orden del recorrido (`inRouteOrder`), todos tildados con
+  el `CheckCircle` de la lista, el icono de su categoría y la cantidad con que
+  vuelven en mono. Cada fila es un `role="checkbox"` de 56px; destildada, el
+  nombre pasa a tinta secundaria. "Agregar N productos" (`touch-lg`, en un pie
+  fijo con regla, siempre a la vista) suma lo tildado; sin nada tildado dice
+  "Nada para agregar" y queda deshabilitado. Cerrar no agrega nada, y cada
+  apertura empieza todo tildado. Al agregar, la hoja se cierra, el foco vuelve
+  al campo si estaba ahí al abrirla (un toque con el teclado cerrado no lo
+  abre) y lo tildado entra en una escritura (`useAddItems`), cada producto
+  con su cantidad, su categoría y su precio en esa base; la barra avisa
+  "Agregaste N productos" (`Banner` info, sin cierre; sale cuando la hoja ya
+  se fue, así el lector de pantalla lo oye) con "Deshacer" durante 8 s
   (`useUndoAdd`, una sola escritura). Una región `role="status"`
   (`data-slot="add-announcement"`) siempre montada lo lee. Un rechazo del alta
   de varios o del deshacer tiene su propio texto (`itemErrors.addMany`,
@@ -598,14 +611,15 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   contra la base la RPC `move_category` (los dos cambios de fila, el reintento
   idempotente, los casos sin efecto, los permisos de miembros y de ajenos, y
   dos miembros a la vez con posiciones 0..n-1). `e2e/catalog-db.spec.ts` prueba
-  que el catálogo guarda el último precio con la unidad en que se dio.
+  que el catálogo guarda el último precio con la unidad en que se dio, y la
+  última cantidad con la suya, aparte (A-3), también al fusionar listas.
 - `e2e/phase-3b.spec.ts` y `e2e/phase-3b-members.spec.ts`: un precio por kilo
   en dólares, los totales, el carro y el catálogo; el nombre largo que sigue
   recortándose sin empujar el check; "Guardar" y "Borrar" a la vista mientras el
   formulario se desplaza; y entre dos miembros, que un cambio de precio y de
   moneda llegue en menos de 1 s.
 - `e2e/phase-3c.spec.ts` y `e2e/phase-3c-members.spec.ts`: las sugerencias,
-  los frecuentes y "Lo de siempre" (una sola petición para agregar y otra
+  los frecuentes y "Lo de siempre" (el repaso, una sola petición para agregar y otra
   para deshacer), el alto de la barra, y entre dos miembros el criterio de
   `phase-2b` con N filas (menos de 1 s, pulso solo en el otro, una frase para
   su lector de pantalla). Con capturas a 375px en claro y oscuro.
@@ -613,6 +627,11 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   el aviso con su cantidad y "Sumar" (una sola edición), la opción "En la
   lista" de las sugerencias, unidades que no se suman, y lo del carro que se
   agrega como siempre. Con capturas a 375px en claro y oscuro.
+- `e2e/a3-usuals.spec.ts`: el repaso de "Lo de siempre" (orden del
+  recorrido, cantidades, filas de 44px o más, el botón a la vista), destildar
+  y agregar el resto en una petición con su cantidad y su precio por kilo, un
+  frecuente que entra con su cantidad, y cerrar sin agregar. Con capturas a
+  375px en claro y oscuro.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.

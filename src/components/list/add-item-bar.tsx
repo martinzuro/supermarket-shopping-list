@@ -19,6 +19,7 @@ import {
 } from "@/components/list/suggestion-list";
 import { useBarHeight } from "@/components/list/use-bar-height";
 import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
+import { UsualsSheet, type UsualProduct } from "@/components/list/usuals-sheet";
 import { Collapse } from "@/components/motion";
 import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
@@ -32,8 +33,10 @@ import {
   formatMoney,
   formatQuantity,
   frequentsOf,
+  inRouteOrder,
   parseItemInput,
   pendingMatchesFor,
+  rememberedAmount,
   rememberedPrice,
   suggestCategory,
   suggestionsFor,
@@ -57,6 +60,7 @@ import {
   currentListOf,
   useLists,
   type AddItems,
+  type Category,
   type CatalogEntry,
   type EditItem,
   type Item,
@@ -231,6 +235,15 @@ function latestNotice(
   return latest;
 }
 
+/** Tinte e icono de la categoría de ese id, o los de "Otros". */
+function kindOf(
+  categories: readonly Category[] | undefined,
+  id: string | null,
+) {
+  const category = categories?.find((one) => one.id === id);
+  return category ? categoryKind(category) : "otros";
+}
+
 /** Id de la lista de opciones; el campo la declara en `aria-controls`. */
 const LISTBOX_ID = "add-item-suggestions";
 
@@ -388,17 +401,38 @@ export function AddItemBar() {
   );
   // Con uno solo no hay nada que agregar "de una vez".
   const usualsCount = usuals.length >= 2 ? usuals.length : 0;
+  // La hoja de repaso los muestra en el orden del recorrido, cada uno con la
+  // cantidad con que vuelve.
+  const [usualsOpen, setUsualsOpen] = useState(false);
+  // Whether the focus goes back to the field when the review closes: only if
+  // it was there (or on the pill, from a keyboard) when it opened. A touch on
+  // the pill leaves the focus where it was, and a closed phone keyboard must
+  // not pop up after adding.
+  const usualsRefocus = useRef(false);
+  // The notice of what the review added waits for the sheet to be gone:
+  // while it closes, Radix hides the rest of the page from screen readers,
+  // and the status region would change unheard.
+  const usualsAdded = useRef<Notice | null>(null);
+  const usualProducts = useMemo<UsualProduct[]>(
+    () =>
+      inRouteOrder(usuals, categories.data ?? []).map((entry) => {
+        const amount = rememberedAmount(entry);
+        return {
+          key: entry.name_normalized,
+          name: entry.display_name,
+          category: kindOf(categories.data, entry.last_category_id),
+          amount: formatQuantity(amount.quantity, amount.unit),
+        };
+      }),
+    [usuals, categories.data],
+  );
 
   // La mejor opción queda pegada al campo: arriba, las demás.
   const options = useMemo<Suggestion[]>(() => {
-    const kindOf = (categoryId: string | null) => {
-      const category = categories.data?.find((one) => one.id === categoryId);
-      return category ? categoryKind(category) : "otros";
-    };
     const pendingOptions = inList.map((item): Suggestion => ({
       key: item.name_normalized,
       name: item.name,
-      category: kindOf(item.category_id),
+      category: kindOf(categories.data, item.category_id),
       price: null,
       inList: texts.addItem.duplicate.inList(
         formatQuantity(item.quantity, item.unit),
@@ -416,7 +450,7 @@ export function AddItemBar() {
       return {
         key: entry.name_normalized,
         name: entry.display_name,
-        category: kindOf(entry.last_category_id),
+        category: kindOf(categories.data, entry.last_category_id),
         price: price && formatMoney(price.price, price.currency),
       };
     });
@@ -594,41 +628,79 @@ export function AddItemBar() {
     if (document.activeElement === event.currentTarget) {
       inputRef.current?.focus();
     }
-    addNamed(entry.display_name, { quantity: null, unit: null }, "");
+    // Con la cantidad con que se compra (A-3), y su precio en esa base.
+    addNamed(entry.display_name, rememberedAmount(entry), "");
   }
 
-  /** "Lo de siempre": todo lo habitual que no está pendiente, en una escritura. */
-  function addUsuals(event: MouseEvent<HTMLButtonElement>) {
+  /** "Lo de siempre": abre el repaso de lo habitual que no está pendiente. */
+  function openUsuals(event: MouseEvent<HTMLButtonElement>) {
     if (isDoubleTap(event) || !ready || usualsCount === 0) return;
-    if (document.activeElement === event.currentTarget) {
-      inputRef.current?.focus();
+    const active = document.activeElement;
+    usualsRefocus.current =
+      active === inputRef.current || active === event.currentTarget;
+    setUsualsOpen(true);
+  }
+
+  /** La hoja ya se fue: el foco vuelve si estaba en la barra, y el aviso sale. */
+  function afterUsualsClose(event: Event) {
+    // The pill that opened it may be gone (what it offered is pending now):
+    // never back to it.
+    event.preventDefault();
+    if (usualsRefocus.current) {
+      inputRef.current?.focus({ preventScroll: true });
     }
+    const added = usualsAdded.current;
+    usualsAdded.current = null;
+    if (added) setUsualsNotice(added);
+  }
+
+  /**
+   * Lo tildado en el repaso, en una escritura: cada producto con la cantidad
+   * con que vuelve, su categoría y su precio en esa base. Lo que entretanto
+   * pasó a estar pendiente (lo agregó otro miembro) ya no está entre los
+   * habituales y no se agrega dos veces.
+   */
+  function addUsuals(keys: readonly string[]) {
+    setUsualsOpen(false);
+    // In the sheet's order, the route's.
+    const byKey = new Map(
+      usuals.map((entry) => [entry.name_normalized, entry]),
+    );
+    const picked = keys.flatMap((key) => byKey.get(key) ?? []);
+    if (!ready || picked.length === 0) return;
     if (notice) close(notice);
-    const created = usuals.map((entry) =>
-      newItem(entry.display_name, {
+    const created = picked.map((entry) => {
+      const amount = rememberedAmount(entry);
+      return newItem(entry.display_name, {
+        ...amount,
         categoryId: suggestCategory(
           entry.display_name,
           catalog.data ?? [],
           categories.data ?? [],
         ),
-        // Nothing typed: no unit, so only a price per unit comes along.
-        price: rememberedPrice(entry.display_name, catalog.data ?? [], null),
-      }),
-    );
+        price: rememberedPrice(
+          entry.display_name,
+          catalog.data ?? [],
+          amount.unit,
+        ),
+      });
+    });
     const variables = addItems(created);
     // Antes de escribir: si el servidor rechaza, su aviso (con la hora de
     // envío) es posterior a este y lo reemplaza.
     const at = Date.now();
     const key = `usuals:${variables.ids[0]}`;
     addMany.mutateAsync(variables).catch(() => {
+      if (usualsAdded.current?.key === key) usualsAdded.current = null;
       setUsualsNotice((current) => (current?.key === key ? null : current));
     });
-    setUsualsNotice({
+    // Shown once the sheet is gone (afterUsualsClose).
+    usualsAdded.current = {
       key,
       at,
       title: texts.addItem.usuals.added(created.length),
       undo: { ids: variables.ids },
-    });
+    };
   }
 
   function undoUsuals(
@@ -803,7 +875,7 @@ export function AddItemBar() {
               key: entry.name_normalized,
               name: entry.display_name,
             }))}
-            onUsuals={addUsuals}
+            onUsuals={openUsuals}
             onPick={pickFrequent}
           />
         )}
@@ -857,6 +929,13 @@ export function AddItemBar() {
           <Plus aria-hidden strokeWidth={2} />
         </Button>
       </form>
+      <UsualsSheet
+        open={usualsOpen}
+        onOpenChange={setUsualsOpen}
+        products={usualProducts}
+        onAdd={addUsuals}
+        onCloseAutoFocus={afterUsualsClose}
+      />
     </div>
   );
 }

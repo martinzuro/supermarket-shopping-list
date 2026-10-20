@@ -177,3 +177,29 @@ export function groupByCategory<I extends Item, C extends Category>(
   if (orphans) groups.push({ category: null, items: orphans });
   return groups;
 }
+
+/**
+ * Catalog products in route order, by the category the catalog remembers for
+ * each, as Pendientes would show them: a product without category, or whose
+ * category is gone, goes where "Otros" is (last, if the list has none). The
+ * order within a category is the one given.
+ */
+export function inRouteOrder<
+  E extends Pick<CatalogEntry, "last_category_id">,
+  C extends Category,
+>(entries: readonly E[], categories: readonly C[]): E[] {
+  const live = categories
+    .filter((category) => category.deleted_at == null)
+    .sort(compareRouteOrder);
+  const rank = new Map(live.map((category, index) => [category.id, index]));
+  const fallback = fallbackCategory(live);
+  const last = fallback ? (rank.get(fallback.id) ?? live.length) : live.length;
+  const place = (entry: E) =>
+    (entry.last_category_id == null
+      ? undefined
+      : rank.get(entry.last_category_id)) ?? last;
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => place(a.entry) - place(b.entry) || a.index - b.index)
+    .map(({ entry }) => entry);
+}
