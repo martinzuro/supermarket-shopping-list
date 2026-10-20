@@ -136,6 +136,8 @@ export function EditItemSheet({
     >
       <SheetContent
         side="bottom"
+        // A field that takes the focus scrolls clear of the sticky footer.
+        className="scroll-pb-44"
         aria-describedby={undefined}
         data-keyboard-open={keyboardInset > 0}
         // En iOS el teclado no achica el viewport: la hoja sube con él y su
@@ -412,7 +414,6 @@ function EditForm({
               autoComplete="off"
               enterKeyHint="done"
               placeholder={texts.editItem.pricePlaceholder}
-              className="font-mono"
               value={price}
               onChange={(event) => {
                 setPrice(event.target.value);
@@ -439,7 +440,7 @@ function EditForm({
                   className={cn(
                     buttonVariants({ variant: "outline" }),
                     "px-0 font-mono",
-                    "data-[state=checked]:border-action-bg data-[state=checked]:bg-action-bg data-[state=checked]:text-action-fg data-[state=checked]:hover:bg-action-bg",
+                    "data-[state=checked]:border-ink data-[state=checked]:bg-ink data-[state=checked]:text-paper data-[state=checked]:hover:bg-ink",
                   )}
                 >
                   {symbol}
@@ -489,7 +490,10 @@ function EditForm({
           </div>
         ) : null}
       </SheetBody>
-      <SheetFooter className="in-data-[keyboard-open=true]:pb-4">
+      {/* Sticks to the bottom of the sheet while the body scrolls: Guardar and
+          Borrar stay reachable however many rows the form has, and with the
+          keyboard open the sheet itself sits above it. */}
+      <SheetFooter className="border-rule bg-paper sticky bottom-0 mt-4 border-t pt-4 in-data-[keyboard-open=true]:pb-4">
         <Button type="submit" size="touch-lg" className="w-full">
           {texts.editItem.save}
         </Button>

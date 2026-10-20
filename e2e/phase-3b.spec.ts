@@ -271,5 +271,53 @@ for (const scheme of SCHEMES) {
       ).toBe(true);
       await captureViewport(page, testInfo, `long-name-total-${scheme}`);
     });
+
+    test("Guardar and Borrar stay in view while the form scrolls", async ({
+      page,
+    }, testInfo) => {
+      test.setTimeout(60_000);
+      await openAndCreateList(page);
+      await add(page, "2 kg de tomates", "tomates");
+      await openEditor(page, "tomates");
+      const sheet = editor(page);
+      const footer = sheet.locator('[data-slot="sheet-footer"]');
+      const save = sheet.getByRole("button", { name: e.save, exact: true });
+      const remove = removeButton(page);
+      await page.waitForTimeout(500);
+
+      // The form is taller than the sheet (it scrolls), and the footer is
+      // inside the viewport at the top of the scroll anyway.
+      const scrolls = await sheet.evaluate((el) => ({
+        scrolls: el.scrollHeight > el.clientHeight + 40,
+        top: el.scrollTop,
+      }));
+      expect(scrolls).toEqual({ scrolls: true, top: 0 });
+      for (const button of [save, remove]) {
+        const box = await button.boundingBox();
+        expect(box!.y + box!.height).toBeLessThanOrEqual(812);
+      }
+      // On paper, a 1px rule on top, no shadow.
+      await expect(footer).toHaveCSS("position", "sticky");
+      await expect(footer).toHaveCSS("border-top-width", "1px");
+      await expect(footer).toHaveCSS("box-shadow", "none");
+      await captureViewport(page, testInfo, `edit-sheet-top-${scheme}`);
+
+      // A field the footer would cover scrolls clear of it when focused.
+      const note = sheet.getByRole("textbox", { name: e.note, exact: true });
+      await note.focus();
+      await page.waitForTimeout(300);
+      const [noteBox, footerBox] = await Promise.all([
+        note.boundingBox(),
+        footer.boundingBox(),
+      ]);
+      expect(noteBox!.y + noteBox!.height).toBeLessThanOrEqual(footerBox!.y);
+
+      // At the end of the scroll the footer is where it was.
+      await sheet.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await page.waitForTimeout(300);
+      const after = await save.boundingBox();
+      expect(after!.y + after!.height).toBeLessThanOrEqual(812);
+      await captureViewport(page, testInfo, `edit-sheet-end-${scheme}`);
+    });
   });
 }
