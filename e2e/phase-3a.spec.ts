@@ -408,8 +408,10 @@ for (const scheme of SCHEMES) {
       await captureViewport(page, testInfo, `list-after-reorder-${scheme}`);
 
       // It is on the server: a reload shows the same order, in both places.
+      // reload() waits for the catalog, not for the items and categories:
+      // the groups are waited for (an empty Pendientes here is the load).
       await reload(page);
-      expect(await groupTitles(page)).toEqual(expected);
+      await expect.poll(() => groupTitles(page)).toEqual(expected);
       await routeButton(page).click();
       expect((await routeOrder(page)).slice(0, 3)).toEqual([
         "Frutas y verduras",
