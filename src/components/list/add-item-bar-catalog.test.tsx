@@ -409,6 +409,20 @@ describe("the add field as a combobox", () => {
     await waitFor(() => expect(chip("Yerba")).toBeNull());
   });
 
+  it("shows a price on an option only when the add would bring it", async () => {
+    const { field } = await renderBar();
+    // Tomates is priced per kilo: not for a bare "tom"...
+    type(field, "tom");
+    expect(
+      screen.getByRole("option", { name: /^Tomates/ }),
+    ).not.toHaveTextContent("90");
+    // ...but for "2 kg tom".
+    type(field, "2 kg tom");
+    expect(screen.getByRole("option", { name: /^Tomates/ })).toHaveTextContent(
+      "90",
+    );
+  });
+
   it("puts what was typed back, and says so, when the server rejects a tap", async () => {
     write.mockResolvedValue(rejection);
     const { field } = await renderBar();

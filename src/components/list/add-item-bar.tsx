@@ -25,7 +25,6 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DEFAULT_CURRENCY,
   categoryKind,
   formatMoney,
   frequentsOf,
@@ -328,20 +327,22 @@ export function AddItemBar() {
         const category = categories.data?.find(
           (one) => one.id === entry.last_category_id,
         );
+        // The price the add would bring, in the unit typed: none when the
+        // remembered one is in another basis (a price per kilo for a bare
+        // "tom"), rather than a price the row would not show.
+        const price = rememberedPrice(
+          entry.name_normalized,
+          [entry],
+          parsed.unit,
+        );
         return {
           key: entry.name_normalized,
           name: entry.display_name,
           category: category ? categoryKind(category) : "otros",
-          price:
-            entry.last_price == null
-              ? null
-              : formatMoney(
-                  entry.last_price,
-                  entry.last_currency || DEFAULT_CURRENCY,
-                ),
+          price: price && formatMoney(price.price, price.currency),
         };
       }),
-    [suggestions, categories.data],
+    [suggestions, categories.data, parsed.unit],
   );
   const activeIndex = open
     ? options.findIndex((option) => option.key === activeKey)

@@ -638,7 +638,12 @@ cierre, con los arreglos de la revisión cruzada final en `5446615`).
   una o dos cifras detrás se lee como decimal). El alta rápida no interpreta
   precios. Al agregar entran el último precio y la última moneda del catálogo,
   solo si la unidad del ítem nuevo tiene la misma base que la última unidad del
-  catálogo (desde `5446615`); la unidad nunca se precarga. Totales por moneda al
+  catálogo (desde `5446615`); la unidad nunca se precarga. Para eso el catálogo
+  guarda el precio con la unidad en que se dio: la migración
+  `20261020154617_catalog_price_unit_pair.sql` hace que precio, moneda y unidad
+  salgan siempre de la misma fila (una línea sin precio no mueve la unidad de un
+  precio recordado), probado en `e2e/catalog-db.spec.ts`. Las sugerencias
+  muestran el precio solo si el alta lo traería. Totales por moneda al
   pie de Pendientes y del carro, con "N de M con precio" cuando falta alguno.
 - **3c, sugerencias, frecuentes y "Lo de siempre" (PR 41).** Campo de añadir
   como combobox con hasta 5 sugerencias del catálogo, fila de frecuentes
@@ -654,10 +659,11 @@ cierre, con los arreglos de la revisión cruzada final en `5446615`).
   se relee una vez por ráfaga con las altas remotas y con los cambios de nombre,
   categoría, unidad, precio o moneda (ver 2.3).
 
-Pruebas: 709 tests unitarios. Los e2e con Supabase local, todos en CI, son
+Pruebas: 710 tests unitarios. Los e2e con Supabase local, todos en CI, son
 `e2e/phase-3a.spec.ts`, `phase-3a-members.spec.ts`, `phase-3b.spec.ts`,
-`phase-3b-members.spec.ts`, `phase-3c.spec.ts`, `phase-3c-members.spec.ts` y
-`categories-db.spec.ts` (la RPC y las policies de categorías). Revisiones:
+`phase-3b-members.spec.ts`, `phase-3c.spec.ts`, `phase-3c-members.spec.ts`,
+`categories-db.spec.ts` (la RPC y las policies de categorías) y
+`catalog-db.spec.ts` (el precio recordado con su unidad). Revisiones:
 Fable revisó la seguridad de la migración y cada parte, y al final hizo una
 revisión cruzada de toda la fase (veredicto: lista para cerrar); sus hallazgos
 quedaron arreglados en `5446615` o están abajo.
@@ -675,8 +681,8 @@ Limitaciones conocidas de la Fase 3:
   versiones del primer intento, así que su eco puede anunciársele a su propio
   autor; con una renumeración concurrente, un movimiento propio puede
   anunciarse como "Cambiaron el orden del recorrido".
-- Un ítem agregado antes de que cargue el catálogo no tiene categoría ni precio
-  sugeridos.
+- Si la lectura del catálogo falla, un ítem nuevo entra sin categoría ni
+  precio sugeridos (mientras no llega, la barra de añadir espera).
 - Un precio recordado por kilo o por litro no acompaña a un ítem agregado sin
   unidad (frecuentes, "Lo de siempre" o "tomates" a secas): empieza sin precio
   antes que con un total equivocado.
