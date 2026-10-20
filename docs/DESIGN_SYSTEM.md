@@ -583,7 +583,8 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   de categoría lleguen en menos de 1 s. `e2e/categories-db.spec.ts` prueba
   contra la base la RPC `move_category` (los dos cambios de fila, el reintento
   idempotente, los casos sin efecto, los permisos de miembros y de ajenos, y
-  dos miembros a la vez con posiciones 0..n-1).
+  dos miembros a la vez con posiciones 0..n-1). `e2e/catalog-db.spec.ts` prueba
+  que el catálogo guarda el último precio con la unidad en que se dio.
 - `e2e/phase-3b.spec.ts` y `e2e/phase-3b-members.spec.ts`: un precio por kilo
   en dólares, los totales, el carro y el catálogo; el nombre largo que sigue
   recortándose sin empujar el check; "Guardar" y "Borrar" a la vista mientras el
