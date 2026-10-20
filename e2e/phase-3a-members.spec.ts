@@ -91,18 +91,28 @@ async function closeSheet(page: Page) {
   await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 
-/** Records which groups of Pendientes ever had a vertical transform. */
+/**
+ * Records, frame by frame, the vertical transforms each group of Pendientes
+ * goes through. A slide is an interpolation: two or more different
+ * translations of the same group. A jump with reduced motion may show one
+ * frame at the old place (Motion's instant layout animation) and is not one.
+ */
 async function recordSlides(page: Page) {
   await page.evaluate(() => {
-    const w = window as unknown as { __slid: Set<string>; __stop: boolean };
-    w.__slid = new Set();
+    const w = window as unknown as {
+      __slid: Map<string, Set<string>>;
+      __stop: boolean;
+    };
+    w.__slid = new Map();
     w.__stop = false;
     const tick = () => {
       for (const title of document.querySelectorAll("#pending h3")) {
         const wrapper = title.closest("section")?.parentElement;
         const transform = wrapper ? getComputedStyle(wrapper).transform : "";
         if (/matrix\(1, 0, 0, 1, [^,]+, (?!0\))/.test(transform)) {
-          w.__slid.add(title.querySelector("span.truncate")?.textContent ?? "");
+          const name = title.querySelector("span.truncate")?.textContent ?? "";
+          const seen = w.__slid.get(name) ?? new Set<string>();
+          w.__slid.set(name, seen.add(transform));
         }
       }
       if (!w.__stop) requestAnimationFrame(tick);
@@ -111,11 +121,17 @@ async function recordSlides(page: Page) {
   });
 }
 
+/** The groups that slid (two or more different translations). */
 async function stopSlides(page: Page) {
   return page.evaluate(() => {
-    const w = window as unknown as { __slid: Set<string>; __stop: boolean };
+    const w = window as unknown as {
+      __slid: Map<string, Set<string>>;
+      __stop: boolean;
+    };
     w.__stop = true;
-    return [...w.__slid];
+    return [...w.__slid]
+      .filter(([, transforms]) => transforms.size >= 2)
+      .map(([name]) => name);
   });
 }
 

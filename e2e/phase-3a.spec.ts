@@ -124,18 +124,22 @@ async function seed(
 }
 
 /**
- * Records, frame by frame, every element matching the selectors whose
- * computed transform is not the identity, and the number of groups of
- * Pendientes (it must never dip: nothing flickers out and back).
+ * Records, frame by frame, the vertical transforms of the groups of
+ * Pendientes and of the rows of the route sheet, and the number of groups
+ * (it must never dip: nothing flickers out and back). An element slid when
+ * it went through two or more different translations: an interpolation.
+ * With reduced motion Motion's layout animation is instant (`type: false`)
+ * and may still paint one frame at the old place, which is a jump, not a
+ * slide.
  */
 async function recordTransforms(page: Page) {
   await page.evaluate(() => {
     const w = window as unknown as {
-      __moving: Set<string>;
+      __moving: Map<string, Set<string>>;
       __groupCounts: number[];
       __stop: boolean;
     };
-    w.__moving = new Set();
+    w.__moving = new Map();
     w.__groupCounts = [];
     w.__stop = false;
     const tick = () => {
@@ -152,16 +156,13 @@ async function recordTransforms(page: Page) {
             ? element.closest("section")?.parentElement
             : element;
         const transform = target ? getComputedStyle(target).transform : "none";
-        if (
-          transform !== "none" &&
-          transform !== "matrix(1, 0, 0, 1, 0, 0)" &&
-          /matrix\(1, 0, 0, 1, [^,]+, (?!0\))/.test(transform)
-        ) {
-          w.__moving.add(
+        if (/matrix\(1, 0, 0, 1, [^,]+, (?!0\))/.test(transform)) {
+          const key =
             element.tagName === "H3"
               ? `group:${element.textContent}`
-              : `row:${element.getAttribute("data-category-id")}`,
-          );
+              : `row:${element.getAttribute("data-category-id")}`;
+          const seen = w.__moving.get(key) ?? new Set<string>();
+          w.__moving.set(key, seen.add(transform));
         }
       }
       if (!w.__stop) requestAnimationFrame(tick);
@@ -170,15 +171,19 @@ async function recordTransforms(page: Page) {
   });
 }
 
+/** What slid (two or more different translations), and the group counts. */
 async function stopRecording(page: Page) {
   return page.evaluate(() => {
     const w = window as unknown as {
-      __moving: Set<string>;
+      __moving: Map<string, Set<string>>;
       __groupCounts: number[];
       __stop: boolean;
     };
     w.__stop = true;
-    return { moving: [...w.__moving], groupCounts: w.__groupCounts };
+    const moving = [...w.__moving]
+      .filter(([, transforms]) => transforms.size >= 2)
+      .map(([key]) => key);
+    return { moving, groupCounts: w.__groupCounts };
   });
 }
 
