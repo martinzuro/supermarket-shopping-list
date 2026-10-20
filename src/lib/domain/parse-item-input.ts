@@ -55,23 +55,25 @@ const UNITS: Record<string, string | null> = {
   unidades: null,
 };
 
-// Count words are kept as typed (lowercase), singular or plural.
+// Count words are kept as typed (lowercase), singular or plural. Each plural
+// is the singular plus "s".
+const COUNT_SINGULARS = new Set([
+  "paquete",
+  "docena",
+  "lata",
+  "botella",
+  "caja",
+  "bandeja",
+  "frasco",
+  "atado",
+  "bolsa",
+  "sobre",
+  "maple",
+  "rollo",
+  "pack",
+]);
 const COUNT_WORDS = new Set(
-  [
-    "paquete",
-    "docena",
-    "lata",
-    "botella",
-    "caja",
-    "bandeja",
-    "frasco",
-    "atado",
-    "bolsa",
-    "sobre",
-    "maple",
-    "rollo",
-    "pack",
-  ].flatMap((word) => [word, `${word}s`]),
+  [...COUNT_SINGULARS].flatMap((word) => [word, `${word}s`]),
 );
 
 const GLYPHS: Record<string, number> = { "½": 0.5, "¼": 0.25, "¾": 0.75 };
@@ -204,4 +206,42 @@ export function canonicalUnit(text: string): string | null {
   if (trimmed === "") return null;
   const unit = parseUnit(trimmed);
   return unit === undefined ? text.trim() : unit;
+}
+
+/** The singular of a count word ("latas" → "lata"), or null if it is not one. */
+function countSingular(unit: string): string | null {
+  if (COUNT_SINGULARS.has(unit)) return unit;
+  const singular = unit.slice(0, -1);
+  return unit.endsWith("s") && COUNT_SINGULARS.has(singular) ? singular : null;
+}
+
+/**
+ * Whether two units measure the same thing, so their quantities add up:
+ * the same canonical unit ("kilos" and "kg"), a count word in singular or
+ * plural ("lata" and "latas"), or no unit on either side (a bare count). A
+ * unit the parser does not know is kept as typed in the edit sheet, so case
+ * does not matter ("Sachet" and "sachet").
+ */
+export function sameUnit(a: string | null, b: string | null): boolean {
+  const left = a === null ? null : canonicalUnit(a);
+  const right = b === null ? null : canonicalUnit(b);
+  if (left === null || right === null) return left === right;
+  if (left.toLowerCase() === right.toLowerCase()) return true;
+  const singular = countSingular(left);
+  return singular !== null && singular === countSingular(right);
+}
+
+/**
+ * The unit as it reads next to a quantity: a count word in plural from two
+ * up ("2 paquetes"), in singular for one or less ("1 paquete"). Any other
+ * unit is kept as it is.
+ */
+export function unitForQuantity(
+  unit: string | null,
+  quantity: number,
+): string | null {
+  if (unit === null) return null;
+  const singular = countSingular(unit);
+  if (singular === null) return unit;
+  return quantity > 1 ? `${singular}s` : singular;
 }

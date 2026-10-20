@@ -235,10 +235,14 @@ for (const scheme of SCHEMES) {
       await expect(listbox(page)).toHaveCount(0);
       await expect(input).toHaveAttribute("aria-expanded", "false");
 
-      // What is pending is not proposed again.
+      // What is pending is not proposed again: it is offered as what is
+      // already on the list, next to the field (docs/improvements.md, A-2).
       await input.fill("lec");
-      await expect(options(page)).toHaveCount(1);
+      await expect(options(page)).toHaveCount(2);
       await expect(options(page).first()).toContainText("Lechuga");
+      await expect(options(page).last()).toContainText(
+        t.addItem.duplicate.inList(),
+      );
 
       // The quantity typed goes with the product.
       await input.fill("2 kg lec");

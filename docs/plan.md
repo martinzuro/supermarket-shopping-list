@@ -754,6 +754,22 @@ una semana.
   datos), múltiples listas, añadir por voz, importar texto pegado,
   notificaciones push, recetas, despensa.
 
+### Mejoras y arreglos (sin fase asignada)
+
+Backlog de experiencia de uso en [improvements.md](improvements.md),
+escrito el 2026-10-20 después de recorrer la app como alguien que hace la
+compra semanal: arreglos (A-1 a A-4), mejoras de lo que existe (M-1 a M-8)
+y funcionalidades nuevas (F-1 a F-6), cada una con lo que pasa hoy, la
+propuesta, los criterios de aceptación y lo que requiere (migración, ADR o
+nada). Ninguna entra en una fase hasta que el usuario la asigne; el
+documento propone un orden (A-1, A-2, A-4 y M-6 antes de la beta). El uso
+sin señal dentro del supermercado no está ahí: sigue como riesgo (sección
+6) y fase futura.
+
+Estado al 2026-10-20: A-2 (aviso de duplicados) está hecha, a pedido del
+usuario, antes de empezar la Fase 4; el detalle de lo decidido está en su
+entrada.
+
 ---
 
 ## 5. Infraestructura y costes estimados

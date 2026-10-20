@@ -20,7 +20,12 @@ export {
 } from "./price";
 export type { PriceBasis } from "./price";
 export { formatQuantity } from "./format-quantity";
-export { canonicalUnit, parseItemInput } from "./parse-item-input";
+export {
+  canonicalUnit,
+  parseItemInput,
+  sameUnit,
+  unitForQuantity,
+} from "./parse-item-input";
 export type { ParsedItemInput } from "./parse-item-input";
 export { formatQuantityField, parseQuantityField } from "./quantity-field";
 export {
@@ -41,3 +46,4 @@ export {
   suggestionsFor,
   usualsOf,
 } from "./catalog";
+export { addedQuantity, findPending, pendingMatchesFor } from "./duplicates";

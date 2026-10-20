@@ -160,18 +160,18 @@ function archived(changes: unknown, filters: [string, unknown][]): Result {
 async function renderBar({
   catalog = CATALOG as unknown[],
   pending = [] as string[],
+  // Items with more than a name (a quantity, in the cart...).
+  rows = [] as ReturnType<typeof serverItem>[],
 } = {}) {
   const queryClient = makeTestQueryClient();
   queryClient.setQueryData(queryKeys.lists(USER), [
     { id: LIST, name: "Mi lista" },
   ]);
-  queryClient.setQueryData(
-    queryKeys.items(USER, LIST),
-    pending.map((name) => serverItem(name)),
-  );
+  const listed = () => [...pending.map((name) => serverItem(name)), ...rows];
+  queryClient.setQueryData(queryKeys.items(USER, LIST), listed());
   queryClient.setQueryData(queryKeys.categories(USER, LIST), CATEGORIES);
   queryClient.setQueryData(queryKeys.catalog(USER, LIST), catalog);
-  server = pending.map((name) => serverItem(name));
+  server = listed();
   render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
   const field = screen.getByRole<HTMLInputElement>("combobox", {
     name: texts.addItem.label,
@@ -233,11 +233,18 @@ describe("the add field as a combobox", () => {
     expect(names()).toEqual(["Lechuga", "Leche"]);
   });
 
-  it("filters by the name part of what is typed, never what is pending", async () => {
+  it("filters by the name part of what is typed, with what is pending next to the field", async () => {
     const { field } = await renderBar({ pending: ["Lechuga"] });
 
     type(field, "2 kg lec");
-    expect(names()).toEqual(["Leche"]);
+    // Lechuga is offered once, as what is already on the list.
+    expect(names()).toEqual(["Leche", "Lechuga"]);
+    expect(queryOptions()[1]).toHaveTextContent(
+      texts.addItem.duplicate.inList(),
+    );
+    expect(queryOptions()[0]).not.toHaveTextContent(
+      texts.addItem.duplicate.inList(),
+    );
 
     type(field, "zzz");
     expect(field).toHaveAttribute("aria-expanded", "false");
@@ -392,7 +399,9 @@ describe("the add field as a combobox", () => {
     // The second add is pending at once (its insert waits in the queue).
     await waitFor(() => expect(field.value).toBe(""));
     type(field, "lec");
-    expect(screen.queryByRole("option", { name: /^Leche/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /^Leche/ })).toHaveTextContent(
+      texts.addItem.duplicate.inList(),
+    );
   });
 
   it("adds both when two taps land on two different products, however quick", async () => {
@@ -702,5 +711,229 @@ describe("notices of the writes of several", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(title);
     expect(alert).toHaveTextContent(body);
+  });
+});
+
+describe("a product that is already pending (A-2)", () => {
+  const d = texts.addItem.duplicate;
+  const infoBanner = () =>
+    document.querySelector('[data-slot="banner"][data-tone="info"]');
+  const announcement = () =>
+    document.querySelector('[data-slot="add-announcement"]');
+  const addButton = (amount: string, name: string) =>
+    screen.queryByRole("button", { name: d.addAria(amount, name) });
+  const cached = (queryClient: ReturnType<typeof makeTestQueryClient>) =>
+    queryClient.getQueryData<ReturnType<typeof serverItem>[]>(
+      queryKeys.items(USER, LIST),
+    ) ?? [];
+
+  function submit(field: HTMLInputElement, text: string) {
+    type(field, text);
+    fireEvent.submit(field.form!);
+  }
+
+  it("does not add a second row: it says so, with its quantity and a way to add one", async () => {
+    const { field, queryClient } = await renderBar({
+      rows: [serverItem("Leche", { quantity: 3 })],
+    });
+
+    submit(field, "LÉCHE");
+
+    expect(items.insert).not.toHaveBeenCalled();
+    expect(cached(queryClient)).toHaveLength(1);
+    expect(field.value).toBe("");
+    expect(field).toHaveFocus();
+    expect(infoBanner()).toHaveTextContent(d.title("Leche"));
+    expect(infoBanner()).toHaveTextContent(d.quantity("3"));
+    expect(addButton("1", "Leche")).toHaveTextContent(d.add("1"));
+    // Read once by the status region (the banner itself is not live).
+    expect(announcement()).toHaveTextContent(d.title("Leche"));
+  });
+
+  it("adds what was typed to the pending item when asked, in one edit", async () => {
+    update.mockReturnValue(new Promise(() => {}));
+    const { field, queryClient } = await renderBar({
+      rows: [serverItem("Leche", { quantity: 3 })],
+    });
+
+    submit(field, "leche x2");
+    fireEvent.click(addButton("2", "Leche")!, { detail: 1 });
+
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith({ quantity: 5 }, [
+        ["id", "item-Leche"],
+      ]),
+    );
+    expect(cached(queryClient)[0]).toMatchObject({ quantity: 5 });
+    expect(items.insert).not.toHaveBeenCalled();
+    await waitFor(() => expect(infoBanner()).toBeNull());
+  });
+
+  it("counts a line without quantity as one, and puts a count word in plural", async () => {
+    update.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar({
+      rows: [serverItem("Fideos", { quantity: 1, unit: "paquete" })],
+    });
+
+    submit(field, "1 paquete de fideos");
+    expect(infoBanner()).toHaveTextContent(d.quantity("1 paquete"));
+    fireEvent.click(addButton("1 paquete", "Fideos")!, { detail: 1 });
+
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith(
+        { quantity: 2, unit: "paquetes" },
+        [["id", "item-Fideos"]],
+      ),
+    );
+  });
+
+  it("offers nothing to add when the quantities do not add up, only to close", async () => {
+    const { field } = await renderBar({
+      rows: [serverItem("Tomates", { quantity: 2, unit: "kg" })],
+    });
+
+    submit(field, "tomates x3");
+
+    expect(infoBanner()).toHaveTextContent(d.title("Tomates"));
+    expect(infoBanner()).toHaveTextContent(d.quantity("2 kg"));
+    expect(
+      within(infoBanner() as HTMLElement).queryByRole("button", {
+        name: /Sumar/,
+      }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.itemErrors.dismiss }),
+    );
+    await waitFor(() => expect(infoBanner()).toBeNull());
+    expect(items.insert).not.toHaveBeenCalled();
+    expect(items.update).not.toHaveBeenCalled();
+  });
+
+  it("says the same when the pending option is picked from the list", async () => {
+    const { field } = await renderBar({ pending: ["Leche"] });
+
+    type(field, "lec");
+    const option = screen.getByRole("option", { name: /^Leche/ });
+    expect(option).toHaveTextContent(d.inList());
+    fireEvent.click(option, { detail: 1 });
+
+    expect(items.insert).not.toHaveBeenCalled();
+    expect(field.value).toBe("");
+    expect(infoBanner()).toHaveTextContent(d.title("Leche"));
+    // No quantity on the row: no "Cantidad" line.
+    expect(infoBanner()).not.toHaveTextContent(d.quantity("").trim());
+    expect(addButton("1", "Leche")).not.toBeNull();
+  });
+
+  it("is reached from the keyboard too: up to the option, then Enter", async () => {
+    const { field } = await renderBar({ pending: ["Leche"] });
+
+    type(field, "lec");
+    // The pending one sits next to the field: the first one up.
+    fireEvent.keyDown(field, { key: "ArrowUp" });
+    expect(queryOptions().at(-1)).toHaveAttribute("aria-selected", "true");
+    expect(fireEvent.keyDown(field, { key: "Enter" })).toBe(false);
+
+    expect(items.insert).not.toHaveBeenCalled();
+    expect(field.value).toBe("");
+    expect(infoBanner()).toHaveTextContent(d.title("Leche"));
+  });
+
+  it("says when the server rejects what Sumar added", async () => {
+    update.mockResolvedValue(rejection);
+    const { field } = await renderBar({ pending: ["Leche"] });
+
+    submit(field, "leche");
+    fireEvent.click(addButton("1", "Leche")!, { detail: 1 });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(texts.itemErrors.edit("Leche"));
+  });
+
+  it("never hides a rejected add: it is not a write, and closing it closes nothing else", async () => {
+    let answer!: (result: Result) => void;
+    write.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const { field } = await renderBar({
+      rows: [serverItem("Tomates", { quantity: 2, unit: "kg" })],
+    });
+
+    // Pan is on its way to the server when the reminder shows and closes.
+    submit(field, "Pan");
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    submit(field, "tomates x3");
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.itemErrors.dismiss }),
+    );
+    await waitFor(() => expect(infoBanner()).toBeNull());
+
+    await act(async () => answer(rejection));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(texts.itemErrors.add("Pan"));
+  });
+
+  it("gives way to a rejection that arrives while it shows", async () => {
+    let answer!: (result: Result) => void;
+    write.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const { field } = await renderBar({
+      rows: [serverItem("Tomates", { quantity: 2, unit: "kg" })],
+    });
+
+    submit(field, "Pan");
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    submit(field, "tomates x3");
+    expect(infoBanner()).toHaveTextContent(d.title("Tomates"));
+
+    await act(async () => answer(rejection));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(texts.itemErrors.add("Pan"));
+    expect(infoBanner()).toBeNull();
+  });
+
+  it("adds it as new when it left the pending list before the tap", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field, queryClient } = await renderBar({ pending: ["Leche"] });
+
+    submit(field, "leche x2");
+    // Checked meanwhile (by this member or another): it is a frequent chip
+    // again once the bar sees it.
+    act(() => {
+      queryClient.setQueryData(
+        queryKeys.items(USER, LIST),
+        cached(queryClient).map((row) => ({ ...row, checked: true })),
+      );
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", {
+          name: texts.addItem.addProduct("Leche"),
+        }),
+      ).not.toBeNull(),
+    );
+    fireEvent.click(addButton("2", "Leche")!, { detail: 1 });
+
+    await waitFor(() =>
+      expect(items.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Leche", quantity: 2 }),
+      ),
+    );
+    expect(items.update).not.toHaveBeenCalled();
+  });
+
+  it("adds a product that is only in the cart, as always", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar({
+      rows: [serverItem("Leche", { checked: true })],
+    });
+
+    submit(field, "leche");
+
+    await waitFor(() =>
+      expect(items.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "leche" }),
+      ),
+    );
+    expect(infoBanner()).toBeNull();
   });
 });

@@ -11,6 +11,11 @@ export type Suggestion = {
   category: CategoryId;
   /** El último precio, ya formateado ("$ 45"). */
   price: string | null;
+  /**
+   * Ya está pendiente: en lugar del precio dice "En la lista", con su
+   * cantidad. Elegirla no agrega otra fila (docs/improvements.md, A-2).
+   */
+  inList?: string;
 };
 
 export function optionId(listboxId: string, index: number) {
@@ -28,8 +33,9 @@ type SuggestionListProps = {
 /**
  * Las opciones del autocompletado del campo de añadir (ARIA 1.2: el campo
  * es el combobox y mantiene el foco; esto es su listbox). Papel y reglas de
- * 1px, sin sombra. Tocar una opción no le saca el foco al campo, así el
- * teclado del teléfono no se cierra.
+ * 1px, sin sombra. Lo que ya está pendiente va primero y lo dice. Tocar una
+ * opción no le saca el foco al campo, así el teclado del teléfono no se
+ * cierra.
  */
 export function SuggestionList({
   id,
@@ -64,7 +70,14 @@ export function SuggestionList({
           >
             <CategoryIcon category={option.category} className="text-ink-2" />
             <span className="min-w-0 flex-1 truncate">{option.name}</span>
-            {option.price ? (
+            {option.inList ? (
+              <span
+                data-slot="suggestion-in-list"
+                className="text-label text-ink-2 shrink-0"
+              >
+                {option.inList}
+              </span>
+            ) : option.price ? (
               <span
                 data-numeric
                 className="text-label text-ink-2 shrink-0 font-mono"
