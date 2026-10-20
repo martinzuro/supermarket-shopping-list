@@ -334,8 +334,12 @@ Reglas:
 - Categorías por defecto sembradas al crear una lista: frutas y verduras,
   carnes y pescados, fiambres y lácteos, panadería, almacén, bebidas,
   congelados, limpieza, higiene, otros.
-- Totales: suma de `estimated_price` agrupada por `currency`, para
+- Totales: suma del total de cada línea agrupada por `currency`, para
   pendientes y para el carro. Si solo hay una moneda se muestra un total.
+  `estimated_price` es el precio de góndola (Fase 3): por kilo con g o kg,
+  por litro con ml o L, por unidad en el resto; el total de la línea es ese
+  precio por la cantidad en esa base (sin cantidad, una). Un ítem nuevo
+  entra con el último precio y la última moneda del catálogo.
 
 ### 3.3 Flujos clave
 
