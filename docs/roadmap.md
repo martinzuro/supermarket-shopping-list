@@ -4,6 +4,16 @@ Funcionalidades previstas. Este documento es una referencia de alcance;
 el detalle de cada funcionalidad se define al abordarla. Las decisiones de
 arquitectura están en [plan.md](plan.md) y [decisions/](decisions/).
 
+Estado al 2026-10-20 (Fases 2 y 3 en `main`, detalle en [plan.md](plan.md)):
+de "Esencial" están hechos el añadido rápido con autocompletado, marcar con un
+toque, cantidad y unidad opcionales, la lista compartida en tiempo real y el
+diseño mobile first; el comportamiento sin red es el honesto de la v1 (aviso,
+reintentos, el texto no se pierde), sin offline completo. De "Diferencial"
+están hechos los cuatro puntos: agrupación por categoría con recorrido
+ordenable, frecuentes y "Lo de siempre", notas por ítem y precio estimado con
+moneda y totales por moneda. Falta la prueba en dispositivo real
+([device-checklist.md](device-checklist.md)).
+
 ## Esencial
 
 - Añadir ítems de forma muy rápida, con autocompletado basado en compras

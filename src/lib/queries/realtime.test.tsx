@@ -910,6 +910,42 @@ function idsOf(route: { id: string }[]) {
   return route.map((c) => c.id);
 }
 
+describe("the catalog, when another member adds several at once", () => {
+  it("is read again once for the whole burst", async () => {
+    const { channel } = await renderList([]);
+    for (let n = 0; n < 5; n++) {
+      channel.emit(
+        "items",
+        inserted(
+          serverRow({
+            id: `usual-${n}`,
+            name: `Producto ${n}`,
+            position: n,
+            created_by: MEMBER,
+            created_at: at(5 + n),
+            updated_at: at(5 + n),
+          }),
+        ),
+      );
+    }
+    await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(readCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it("is read again when a read showed another member's add before its event", async () => {
+    const milk = serverRow({
+      id: "milk",
+      name: "Leche",
+      created_by: MEMBER,
+      updated_at: at(4),
+    });
+    // The list already shows it (a read brought it first).
+    const { channel } = await renderList([milk]);
+    channel.emit("items", inserted(milk));
+    await waitFor(() => expect(readCatalog).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe("the catalog, when another member changes an item", () => {
   it("is read again when the change touches what it remembers, and only then", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", category_id: "dairy" });

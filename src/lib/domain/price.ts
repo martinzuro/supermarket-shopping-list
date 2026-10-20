@@ -5,7 +5,7 @@ import { canonicalUnit } from "./parse-item-input";
 type Item = Tables<"items">;
 type CatalogEntry = Pick<
   Tables<"catalog">,
-  "name_normalized" | "last_price" | "last_currency"
+  "name_normalized" | "last_price" | "last_currency" | "last_unit"
 >;
 
 /**
@@ -106,13 +106,21 @@ export function formatPriceField(price: number | null): string {
  * remembers for that product (ADR 0006: "los propone al volver a añadirlo"),
  * or null. The catalog trigger keeps the two as a pair; a price without its
  * currency is not trusted.
+ *
+ * Only when it is a price of the same thing: the catalog's last unit tells
+ * the basis it was given in (per kilo, per litre, per unit), and the new
+ * item's unit the basis it would be read in. $ 180 remembered per kilo is
+ * not a price for "3 tomates" (three units would total $ 540), so a new
+ * item with another basis starts without price.
  */
 export function rememberedPrice(
   name: string,
   catalog: readonly CatalogEntry[],
+  unit: string | null,
 ): { price: number; currency: string } | null {
   const key = normalizeName(name);
   const entry = catalog.find((one) => one.name_normalized === key);
   if (entry?.last_price == null || !entry.last_currency) return null;
+  if (priceBasis(entry.last_unit) !== priceBasis(unit)) return null;
   return { price: entry.last_price, currency: entry.last_currency };
 }

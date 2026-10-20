@@ -25,7 +25,6 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DEFAULT_CURRENCY,
   categoryKind,
   formatMoney,
   frequentsOf,
@@ -328,20 +327,22 @@ export function AddItemBar() {
         const category = categories.data?.find(
           (one) => one.id === entry.last_category_id,
         );
+        // The price the add would bring, in the unit typed: none when the
+        // remembered one is in another basis (a price per kilo for a bare
+        // "tom"), rather than a price the row would not show.
+        const price = rememberedPrice(
+          entry.name_normalized,
+          [entry],
+          parsed.unit,
+        );
         return {
           key: entry.name_normalized,
           name: entry.display_name,
           category: category ? categoryKind(category) : "otros",
-          price:
-            entry.last_price == null
-              ? null
-              : formatMoney(
-                  entry.last_price,
-                  entry.last_currency || DEFAULT_CURRENCY,
-                ),
+          price: price && formatMoney(price.price, price.currency),
         };
       }),
-    [suggestions, categories.data],
+    [suggestions, categories.data, parsed.unit],
   );
   const activeIndex = open
     ? options.findIndex((option) => option.key === activeKey)
@@ -372,7 +373,7 @@ export function AddItemBar() {
         catalog.data ?? [],
         categories.data ?? [],
       ),
-      price: rememberedPrice(name, catalog.data ?? []),
+      price: rememberedPrice(name, catalog.data ?? [], details.unit),
     });
     const at = Date.now();
     add.mutateAsync(item).catch(() => {
@@ -467,7 +468,8 @@ export function AddItemBar() {
           catalog.data ?? [],
           categories.data ?? [],
         ),
-        price: rememberedPrice(entry.display_name, catalog.data ?? []),
+        // Nothing typed: no unit, so only a price per unit comes along.
+        price: rememberedPrice(entry.display_name, catalog.data ?? [], null),
       }),
     );
     const variables = addItems(created);
@@ -632,7 +634,8 @@ export function AddItemBar() {
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={open}
-          aria-controls={LISTBOX_ID}
+          // Only while the list is there to point to.
+          aria-controls={open ? LISTBOX_ID : undefined}
           aria-activedescendant={
             activeIndex === -1 ? undefined : optionId(LISTBOX_ID, activeIndex)
           }

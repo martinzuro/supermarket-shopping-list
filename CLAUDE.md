@@ -8,23 +8,21 @@ Desarrollar una web app para gestionar listas de compras de supermercado.
 
 ## Estado actual
 
-Fase 1 (fundaciones) casi completa; la Fase 2 (lista funcional y
-compartida) está completa: 2a (la lista con ítems reales), 2b (tiempo real)
-y 2c (compartir), entregadas el 2026-10-19, ver el estado fechado en
-`docs/plan.md`. En `main`: tooling
-(Prettier, Vitest, Playwright, CI), PWA, esquema de Supabase con RLS y
-triggers en `supabase/migrations/`, tipos generados en
+Fase 1 (fundaciones) casi completa; las Fases 2 (lista funcional y
+compartida) y 3 (diferencial) están completas en `main`, entregadas el
+2026-10-19 y el 2026-10-20 (ver el estado fechado en `docs/plan.md`).
+Pendiente solo la prueba en dispositivo real, a cargo del usuario
+(`docs/device-checklist.md`, que también cierra la Fase 1). En `main`:
+tooling (Prettier, Vitest, Playwright, CI), PWA, esquema de Supabase con RLS
+y triggers en `supabase/migrations/`, tipos generados en
 `src/lib/supabase/database.types.ts`, helpers puros en `src/lib/domain/`,
-auth anónima con conversión por código, capa de queries con TanStack Query
-y canal Realtime por lista, y el sistema de diseño Fresh Editorial
-construido y aplicado a las pantallas (`docs/DESIGN_SYSTEM.md`, página
-interna `/design`). La lista guarda ítems (añadir, marcar, editar, borrar,
-agrupar por categoría, vaciar el carro), todo optimista, y refleja los
-cambios de otros miembros. Se comparte por enlace de invitación, se ve quién
-comparte, el dueño saca a un miembro y un miembro sale, y lo que quedó en
-otra lista (al unirse a una compartida, o al entrar a una cuenta en otro
-dispositivo) se trae o se descarta. Lo siguiente es la Fase 3
-(diferencial).
+auth anónima con conversión por código, capa de queries con TanStack Query y
+canal Realtime por lista, y el sistema de diseño Fresh Editorial
+(`docs/DESIGN_SYSTEM.md`, página interna `/design`). La lista guarda ítems
+con escrituras optimistas, se comparte por enlace de invitación y refleja en
+vivo los cambios de otros miembros; tiene categorías con recorrido ordenable,
+precio estimado con totales por moneda, sugerencias, frecuentes y "Lo de
+siempre". Lo siguiente es la Fase 4 (preparación para producción).
 
 ## Decisiones tomadas
 
