@@ -63,8 +63,12 @@ export {
 export {
   useCategories,
   useCatalog,
+  useMoveCategory,
+  categoryStep,
+  categoryMutationKeys,
   type Category,
   type CatalogEntry,
+  type MoveCategory,
 } from "./categories";
 export {
   useListRealtime,

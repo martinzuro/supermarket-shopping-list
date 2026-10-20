@@ -328,6 +328,41 @@ describe("AddItemBar", () => {
     expect(alert).toHaveTextContent(body);
   });
 
+  it("shows a rejected move of a category along the route", async () => {
+    const { queryClient } = await renderBar();
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: [...queryKeys.categories(USER, LIST), "move"],
+      mutationFn: (): Promise<unknown> => Promise.reject(new Error("denied")),
+    });
+    await act(async () => {
+      await mutation
+        .execute({ id: OTHERS, name: "Bebidas", direction: "up", past: "x" })
+        .catch(() => {});
+    });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(texts.route.error.title("Bebidas"));
+    expect(alert).toHaveTextContent(texts.route.error.body);
+  });
+
+  it("does not show a rejected move that was removed from the cache", async () => {
+    const { queryClient } = await renderBar();
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: [...queryKeys.categories(USER, LIST), "move"],
+      mutationFn: (): Promise<unknown> => Promise.reject(new Error("denied")),
+    });
+    await act(async () => {
+      await mutation
+        .execute({ id: OTHERS, name: "Bebidas", direction: "up", past: "x" })
+        .catch(() => {});
+    });
+    await screen.findByRole("alert");
+
+    // The route sheet showed it and forgot it: it is not told a second time.
+    act(() => queryClient.getMutationCache().remove(mutation));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
   it("puts the item in the category the catalog remembers, or in Otros", async () => {
     write.mockReturnValue(new Promise(() => {}));
     const { field, queryClient } = await renderBar();

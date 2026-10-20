@@ -1,7 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { focusManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useCatalog, useCategories } from "./categories";
+import { texts } from "@/lib/texts";
+import {
+  categoryStep,
+  useCatalog,
+  useCategories,
+  useMoveCategory,
+  type Category,
+} from "./categories";
 import {
   newItem,
   useAddItem,
@@ -192,6 +199,7 @@ function useList({ userId, listId }: Props) {
     toggle: useToggleItem(userId ?? "", listId ?? ""),
     edit: useEditItem(userId ?? "", listId ?? ""),
     emptyCart: useEmptyCart(userId ?? "", listId ?? ""),
+    move: useMoveCategory(userId ?? "", listId ?? ""),
     merge: useMergeList(userId ?? "", listId ?? ""),
     remote: useRemoteChanges(userId, listId),
     announcement: useRemoteAnnouncement(userId, listId),
@@ -622,11 +630,308 @@ describe("changes from other members", () => {
     expect(cached(queryClient)).toBe(before);
     expect(result.current.remote.size).toBe(0);
   });
+});
 
-  it("reads the categories again when they change", async () => {
-    const { channel } = await renderList([]);
-    channel.emit("categories", { eventType: "UPDATE", new: {}, old: {} });
+describe("the route, when another member moves a category", () => {
+  function category(id: string, name: string, position: number): Category {
+    return {
+      id,
+      list_id: LIST,
+      name,
+      position,
+      is_default: true,
+      created_at: at(0),
+      updated_at: at(0),
+      deleted_at: null,
+    };
+  }
+
+  const ROUTE = [
+    category("veg", "Frutas y verduras", 0),
+    category("meat", "Carnes y pescados", 1),
+    category("dairy", "Fiambres y lácteos", 2),
+    category("other", "Otros", 3),
+  ];
+
+  /** The route as the server has it after a move: ids in order, newer rows. */
+  function routeOf(ids: string[], version: number, base = ROUTE): Category[] {
+    return ids.map((id, position) => {
+      const known = base.find((c) => c.id === id)!;
+      return known.position === position
+        ? known
+        : { ...known, position, updated_at: at(version) };
+    });
+  }
+
+  /** The events of a move: one UPDATE per category whose position changed. */
+  function eventsOf(before: Category[], after: Category[]) {
+    return after
+      .filter(
+        (row) => before.find((c) => c.id === row.id)!.position !== row.position,
+      )
+      .map((row) => ({
+        eventType: "UPDATE",
+        new: row,
+        old: before.find((c) => c.id === row.id)!,
+      }));
+  }
+
+  /** Answers like the network, slower than waitFor polls. */
+  function later(result: Result, ms = 150) {
+    return new Promise<Result>((resolve) =>
+      setTimeout(() => resolve(result), ms),
+    );
+  }
+
+  const routeKey = queryKeys.categories(USER, LIST);
+  const order = (queryClient: ReturnType<typeof makeTestQueryClient>) =>
+    queryClient.getQueryData<Category[]>(routeKey)?.map((c) => c.id);
+  const wait = (ms: number) =>
+    act(() => new Promise((resolve) => setTimeout(resolve, ms)));
+
+  async function renderRoute() {
+    readCategories.mockResolvedValue({ data: ROUTE, error: null });
+    const rendered = await renderList([]);
+    await waitFor(() =>
+      expect(order(rendered.queryClient)).toEqual(ROUTE.map((c) => c.id)),
+    );
+    readCategories.mockClear();
+    return rendered;
+  }
+
+  it("reads the route once for the move, and tells it once", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    const moved = routeOf(["veg", "dairy", "meat", "other"], 5);
+    readCategories.mockImplementation(() =>
+      later({ data: moved, error: null }, 30),
+    );
+
+    for (const event of eventsOf(ROUTE, moved)) {
+      channel.emit("categories", event);
+    }
+    await waitFor(() => expect(order(queryClient)).toEqual(idsOf(moved)));
+    await waitFor(() =>
+      expect(result.current.announcement.text).toBe(
+        texts.remoteChanges.reordered,
+      ),
+    );
+    expect(readCategories).toHaveBeenCalledTimes(1);
+    expect(result.current.remote.size).toBe(0);
+  });
+
+  it("changes nothing for an event older than the route it has", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    const newer = routeOf(["veg", "dairy", "meat", "other"], 5);
+    queryClient.setQueryData(routeKey, newer);
+    // A late event of an earlier move of the same categories.
+    const stale = { ...newer[1], position: 2, updated_at: at(3) };
+    channel.emit("categories", {
+      eventType: "UPDATE",
+      new: stale,
+      old: { ...stale, position: 1 },
+    });
+    await wait(900);
+    expect(readCategories).not.toHaveBeenCalled();
+    expect(order(queryClient)).toEqual(idsOf(newer));
+    expect(result.current.announcement.text).toBe("");
+  });
+
+  it("tells nothing of the echo of the user's own move", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    const moved = routeOf(["veg", "dairy", "meat", "other"], 5);
+    callRpc.mockImplementation(() => later({ data: moved, error: null }));
+    readCategories.mockImplementation(() =>
+      later({ data: moved, error: null }, 30),
+    );
+
+    act(() => result.current.move.mutate(categoryStep(ROUTE, ROUTE[2], "up")!));
+    await waitFor(() => expect(result.current.move.isSuccess).toBe(true));
     await waitFor(() => expect(readCategories).toHaveBeenCalledTimes(1));
+    for (const event of eventsOf(ROUTE, moved)) {
+      channel.emit("categories", event);
+    }
+    await wait(900);
+    expect(readCategories).toHaveBeenCalledTimes(1);
+    expect(order(queryClient)).toEqual(idsOf(moved));
+    expect(result.current.announcement.text).toBe("");
+  });
+
+  it("still tells another member's move that the answer to the user's own carried", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    // Another member moved Otros up just before the user's move committed:
+    // the answer to the user's move holds their rows too.
+    const theirs = routeOf(["veg", "meat", "other", "dairy"], 4);
+    const both = routeOf(["meat", "veg", "other", "dairy"], 6, theirs);
+    callRpc.mockImplementation(() => later({ data: both, error: null }));
+    readCategories.mockImplementation(() =>
+      later({ data: both, error: null }, 30),
+    );
+
+    act(() =>
+      result.current.move.mutate(categoryStep(ROUTE, ROUTE[0], "down")!),
+    );
+    await waitFor(() => expect(result.current.move.isSuccess).toBe(true));
+    // Their echo arrives after the user's answer.
+    for (const event of eventsOf(ROUTE, theirs)) {
+      channel.emit("categories", event);
+    }
+    await waitFor(() =>
+      expect(result.current.announcement.text).toBe(
+        texts.remoteChanges.reordered,
+      ),
+    );
+    expect(idsOf(queryClient.getQueryData<Category[]>(routeKey)!)).toEqual(
+      idsOf(both),
+    );
+  });
+
+  it("tells nothing of an echo that comes before the answer, and keeps the move", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    const moved = routeOf(["veg", "dairy", "meat", "other"], 5);
+    const answer = deferred<Result>();
+    callRpc.mockReturnValue(answer.promise);
+    readCategories.mockImplementation(() =>
+      later({ data: moved, error: null }, 30),
+    );
+
+    act(() => result.current.move.mutate(categoryStep(ROUTE, ROUTE[2], "up")!));
+    await waitFor(() => expect(order(queryClient)).toEqual(idsOf(moved)));
+    // The echo beats the answer: it cannot be told by its version yet.
+    for (const event of eventsOf(ROUTE, moved)) {
+      channel.emit("categories", event);
+    }
+    await wait(300);
+    // No read while the move is pending: it would show the route without it.
+    expect(readCategories).not.toHaveBeenCalled();
+    expect(order(queryClient)).toEqual(idsOf(moved));
+
+    await act(async () => answer.resolve({ data: moved, error: null }));
+    await waitFor(() => expect(result.current.move.isSuccess).toBe(true));
+    await wait(900);
+    expect(order(queryClient)).toEqual(idsOf(moved));
+    expect(result.current.announcement.text).toBe("");
+  });
+
+  it("keeps the user's move pending over another member's, then shows both", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    // The user moves Fiambres up; meanwhile another member moves Otros up.
+    const theirs = routeOf(["veg", "meat", "other", "dairy"], 4);
+    const both = routeOf(["veg", "other", "meat", "dairy"], 6, theirs);
+    const answer = deferred<Result>();
+    callRpc.mockReturnValue(answer.promise);
+    readCategories.mockImplementation(() =>
+      later({ data: both, error: null }, 30),
+    );
+    const shown: string[] = [];
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      const ids = order(queryClient)?.join();
+      if (ids && shown.at(-1) !== ids) shown.push(ids);
+    });
+
+    act(() => result.current.move.mutate(categoryStep(ROUTE, ROUTE[2], "up")!));
+    await waitFor(() =>
+      expect(order(queryClient)).toEqual(["veg", "dairy", "meat", "other"]),
+    );
+    for (const event of eventsOf(ROUTE, theirs)) {
+      channel.emit("categories", event);
+    }
+    await wait(300);
+    expect(readCategories).not.toHaveBeenCalled();
+    expect(order(queryClient)).toEqual(["veg", "dairy", "meat", "other"]);
+
+    // The server applied the user's move after theirs.
+    await act(async () => answer.resolve({ data: both, error: null }));
+    await waitFor(() => expect(result.current.move.isSuccess).toBe(true));
+    await wait(300);
+    unsubscribe();
+    expect(order(queryClient)).toEqual(idsOf(both));
+    expect(shown).toEqual(["veg,dairy,meat,other", "veg,other,meat,dairy"]);
+  });
+
+  it("starts the read of settle over when another member's move comes during it", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    const mine = routeOf(["meat", "veg", "dairy", "other"], 4);
+    const theirs = routeOf(["meat", "veg", "other", "dairy"], 6, mine);
+    callRpc.mockImplementation(() => later({ data: mine, error: null }));
+    const settleRead = deferred<Result>();
+    readCategories
+      .mockReturnValueOnce(settleRead.promise)
+      .mockImplementation(() => later({ data: theirs, error: null }, 30));
+
+    act(() =>
+      result.current.move.mutate(categoryStep(ROUTE, ROUTE[0], "down")!),
+    );
+    await waitFor(() => expect(readCategories).toHaveBeenCalledTimes(1));
+    for (const event of eventsOf(mine, theirs)) {
+      channel.emit("categories", event);
+    }
+    // The read of settle, from before their move, answers late.
+    await act(async () => settleRead.resolve({ data: mine, error: null }));
+    await waitFor(() => expect(readCategories).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(order(queryClient)).toEqual(idsOf(theirs)));
+    await wait(300);
+    expect(order(queryClient)).toEqual(idsOf(theirs));
+  });
+
+  it("reads the route again when the channel joins, once no move is pending", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    const moved = routeOf(["veg", "dairy", "meat", "other"], 5);
+    const answer = deferred<Result>();
+    callRpc.mockReturnValue(answer.promise);
+    readCategories.mockImplementation(() =>
+      later({ data: moved, error: null }, 30),
+    );
+
+    act(() => result.current.move.mutate(categoryStep(ROUTE, ROUTE[2], "up")!));
+    await waitFor(() => expect(order(queryClient)).toEqual(idsOf(moved)));
+    channel.status("SUBSCRIBED");
+    await wait(300);
+    expect(readCategories).not.toHaveBeenCalled();
+    expect(order(queryClient)).toEqual(idsOf(moved));
+
+    await act(async () => answer.resolve({ data: moved, error: null }));
+    await waitFor(() => expect(readCategories).toHaveBeenCalled());
+  });
+});
+
+function idsOf(route: { id: string }[]) {
+  return route.map((c) => c.id);
+}
+
+describe("the catalog, when another member changes an item", () => {
+  it("is read again when the change touches what it remembers, and only then", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", category_id: "dairy" });
+    const { channel } = await renderList([milk]);
+
+    channel.emit(
+      "items",
+      updated({ ...milk, note: "Entera", updated_at: at(2) }),
+    );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    expect(readCatalog).not.toHaveBeenCalled();
+
+    channel.emit(
+      "items",
+      updated({
+        ...milk,
+        note: "Entera",
+        category_id: "pantry",
+        updated_at: at(3),
+      }),
+    );
+    await waitFor(() => expect(readCatalog).toHaveBeenCalledTimes(1));
+
+    channel.emit(
+      "items",
+      updated({
+        ...milk,
+        note: "Entera",
+        category_id: "pantry",
+        estimated_price: 45,
+        updated_at: at(4),
+      }),
+    );
+    await waitFor(() => expect(readCatalog).toHaveBeenCalledTimes(2));
   });
 });
 

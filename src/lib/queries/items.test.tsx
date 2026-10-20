@@ -514,6 +514,57 @@ describe("useEditItem", () => {
   });
 });
 
+describe("useEditItem, the category", () => {
+  it("moves the item to the chosen category at once and sends only that", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", category_id: "dairy" });
+    const { result, queryClient } = await renderItems([milk]);
+    const pending = deferred<Result>();
+    update.mockReturnValue(pending.promise);
+
+    act(() =>
+      result.current.edit.mutate({
+        id: "milk",
+        name: "Leche",
+        changes: { category_id: "pantry" },
+      }),
+    );
+    await waitFor(() =>
+      expect(cached(queryClient)[0].category_id).toBe("pantry"),
+    );
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith({ category_id: "pantry" }, [
+        ["id", "milk"],
+      ]),
+    );
+
+    const saved = {
+      ...milk,
+      category_id: "pantry",
+      updated_at: "2026-10-17T00:00:01.000Z",
+    };
+    read.mockResolvedValue({ data: [saved], error: null });
+    await act(async () => pending.resolve({ data: saved, error: null }));
+    await waitFor(() => expect(result.current.edit.isSuccess).toBe(true));
+    expect(cached(queryClient)).toEqual([saved]);
+  });
+
+  it("puts the item back in its category when the server rejects", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", category_id: "dairy" });
+    const { result, queryClient } = await renderItems([milk]);
+    update.mockResolvedValue(rejection);
+
+    act(() =>
+      result.current.edit.mutate({
+        id: "milk",
+        name: "Leche",
+        changes: { category_id: "pantry" },
+      }),
+    );
+    await waitFor(() => expect(result.current.edit.isError).toBe(true));
+    expect(cached(queryClient)).toEqual([milk]);
+  });
+});
+
 describe("useRemoveItem", () => {
   it("drops the item from the list at once and marks it deleted on the server", async () => {
     const milk = serverRow({ id: "milk", name: "Leche" });

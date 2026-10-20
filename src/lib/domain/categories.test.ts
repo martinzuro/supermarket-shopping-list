@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Tables } from "@/lib/supabase/database.types";
 import {
+  adjacentCategory,
   categoryKind,
+  compareRouteOrder,
   fallbackCategory,
   groupByCategory,
+  moveCategory,
   suggestCategory,
 } from "./categories";
 
@@ -163,5 +166,132 @@ describe("groupByCategory", () => {
 
   it("returns nothing for no items", () => {
     expect(groupByCategory([], categories)).toEqual([]);
+  });
+});
+
+describe("compareRouteOrder", () => {
+  it("orders by position, then creation time, then id", () => {
+    const later = "2026-10-18T00:00:01Z";
+    const sorted = [
+      category("b", "Bebidas", 1),
+      category("z", "Mascotas", 0, { created_at: later }),
+      category("y", "Limpieza", 0),
+      category("a", "Almacén", 0),
+    ].sort(compareRouteOrder);
+    expect(sorted.map((c) => c.id)).toEqual(["a", "y", "z", "b"]);
+  });
+});
+
+describe("adjacentCategory", () => {
+  const route = [
+    category("c-dairy", "Fiambres y lácteos", 2),
+    category("c-veg", "Frutas y verduras", 0),
+    category("c-gone", "Mascotas", 1, { deleted_at: NOW }),
+    category("c-other", "Otros", 3),
+  ];
+
+  it("is the live category above or below, in route order", () => {
+    expect(adjacentCategory(route, "c-dairy", "up")?.id).toBe("c-veg");
+    expect(adjacentCategory(route, "c-dairy", "down")?.id).toBe("c-other");
+  });
+
+  it.each([
+    ["the first one, up", "c-veg", "up"],
+    ["the last one, down", "c-other", "down"],
+    ["a soft-deleted one", "c-gone", "up"],
+    ["one that is not there", "c-nope", "down"],
+  ] as const)("is null for %s", (_label, id, direction) => {
+    expect(adjacentCategory(route, id, direction)).toBeNull();
+  });
+});
+
+describe("moveCategory", () => {
+  const route = [
+    category("c-veg", "Frutas y verduras", 0),
+    category("c-meat", "Carnes y pescados", 1),
+    category("c-dairy", "Fiambres y lácteos", 2),
+    category("c-other", "Otros", 3),
+  ];
+  const order = (categories: Tables<"categories">[] | null) =>
+    categories?.map((c) => `${c.position}:${c.id}`);
+
+  it("swaps a category with the one above it and renumbers the route", () => {
+    expect(order(moveCategory(route, "c-dairy", "up", "c-meat"))).toEqual([
+      "0:c-veg",
+      "1:c-dairy",
+      "2:c-meat",
+      "3:c-other",
+    ]);
+  });
+
+  it("swaps a category with the one below it", () => {
+    expect(order(moveCategory(route, "c-veg", "down", "c-meat"))).toEqual([
+      "0:c-meat",
+      "1:c-veg",
+      "2:c-dairy",
+      "3:c-other",
+    ]);
+  });
+
+  it("puts it right before or after a category further away", () => {
+    expect(order(moveCategory(route, "c-other", "up", "c-meat"))).toEqual([
+      "0:c-veg",
+      "1:c-other",
+      "2:c-meat",
+      "3:c-dairy",
+    ]);
+    expect(order(moveCategory(route, "c-veg", "down", "c-dairy"))).toEqual([
+      "0:c-meat",
+      "1:c-dairy",
+      "2:c-veg",
+      "3:c-other",
+    ]);
+  });
+
+  it("moves once when the same move comes twice", () => {
+    const once = moveCategory(route, "c-dairy", "up", "c-meat")!;
+    expect(moveCategory(once, "c-dairy", "up", "c-meat")).toBeNull();
+  });
+
+  it("keeps the rows whose position does not change", () => {
+    const moved = moveCategory(route, "c-dairy", "up", "c-meat")!;
+    expect(moved[0]).toBe(route[0]);
+    expect(moved[3]).toBe(route[3]);
+  });
+
+  it.each([
+    ["a category that is not there", "c-gone", "c-veg"],
+    ["moving past a category that is not there", "c-veg", "c-gone"],
+    ["moving past itself", "c-veg", "c-veg"],
+  ] as const)("changes nothing for %s", (_label, id, past) => {
+    expect(moveCategory(route, id, "up", past)).toBeNull();
+  });
+
+  it("follows the route order the server uses, ties included, from any input order", () => {
+    const tied = [
+      category("b", "Bebidas", 0),
+      category("a", "Almacén", 0),
+      category("c", "Congelados", 1),
+    ];
+    // Route: a, b, c (the tie on position 0 goes by id).
+    expect(order(moveCategory([...tied].reverse(), "c", "up", "b"))).toEqual([
+      "0:a",
+      "1:c",
+      "2:b",
+    ]);
+  });
+
+  it("skips soft-deleted categories and leaves them as they are", () => {
+    const gone = category("c-gone", "Mascotas", 2, { deleted_at: NOW });
+    const withGone = [route[0], route[1], gone, route[2], route[3]];
+    expect(order(moveCategory(withGone, "c-dairy", "up", "c-meat"))).toEqual([
+      "0:c-veg",
+      "1:c-dairy",
+      "2:c-meat",
+      "3:c-other",
+      "2:c-gone",
+    ]);
+    expect(moveCategory(withGone, "c-gone", "up", "c-veg")).toBeNull();
+    expect(moveCategory(withGone, "c-veg", "down", "c-gone")).toBeNull();
   });
 });

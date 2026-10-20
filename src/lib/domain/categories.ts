@@ -1,6 +1,7 @@
 import type { CategoryId } from "@/lib/design/tokens";
 import type { Tables } from "@/lib/supabase/database.types";
 import { normalizeName } from "./normalize-name";
+import { compareTimestamps } from "./timestamps";
 
 type Item = Tables<"items">;
 type Category = Tables<"categories">;
@@ -65,6 +66,77 @@ export function suggestCategory(
   return live?.id ?? null;
 }
 
+/**
+ * Route order, the walk through the supermarket: position, then creation
+ * time, then id, as the server reads it (move_category, fetchCategories).
+ * Positions are 0..n-1 after any move, but a list may hold ties before its
+ * first one.
+ */
+export function compareRouteOrder(a: Category, b: Category): number {
+  return (
+    a.position - b.position ||
+    compareTimestamps(a.created_at, b.created_at) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+}
+
+export type Direction = "up" | "down";
+
+function liveRoute<C extends Category>(categories: readonly C[]): C[] {
+  return categories
+    .filter((category) => category.deleted_at == null)
+    .sort(compareRouteOrder);
+}
+
+/**
+ * The live category next to this one along the route, above it ('up', towards
+ * the start) or below it: the one a step in that direction moves it past.
+ * Null at that end of the route, or when the category is not a live one.
+ */
+export function adjacentCategory<C extends Category>(
+  categories: readonly C[],
+  id: string,
+  direction: Direction,
+): C | null {
+  const route = liveRoute(categories);
+  const here = route.findIndex((category) => category.id === id);
+  if (here === -1) return null;
+  return route[direction === "up" ? here - 1 : here + 1] ?? null;
+}
+
+/**
+ * The categories after moving one up past another (it ends right before it)
+ * or down past it (right after it), as public.move_category does it on the
+ * server, and the live ones renumbered 0..n-1 in route order. Moving past the
+ * adjacent category is a swap; moving past where it already is changes
+ * nothing, so a move sent twice moves once. Soft-deleted categories stay as
+ * they are, after the live ones. Null when nothing changes: either category
+ * is not a live one, they are the same, or it is already in that place.
+ */
+export function moveCategory<C extends Category>(
+  categories: readonly C[],
+  id: string,
+  direction: Direction,
+  pastId: string,
+): C[] | null {
+  const route = liveRoute(categories);
+  const moving = route.find((category) => category.id === id);
+  if (!moving || id === pastId) return null;
+  const rest = route.filter((category) => category !== moving);
+  const past = rest.findIndex((category) => category.id === pastId);
+  if (past === -1) return null;
+  rest.splice(direction === "up" ? past : past + 1, 0, moving);
+  if (rest.every((category, position) => category === route[position])) {
+    return null;
+  }
+  return [
+    ...rest.map((category, position) =>
+      category.position === position ? category : { ...category, position },
+    ),
+    ...categories.filter((category) => category.deleted_at != null),
+  ];
+}
+
 export type ItemGroup<I extends Item = Item, C extends Category = Category> = {
   /** null only when the list has no "Otros" to take orphans. */
   category: C | null;
@@ -84,7 +156,7 @@ export function groupByCategory<I extends Item, C extends Category>(
 ): ItemGroup<I, C>[] {
   const live = categories
     .filter((category) => category.deleted_at == null)
-    .sort((a, b) => a.position - b.position);
+    .sort(compareRouteOrder);
   const fallback = fallbackCategory(live);
   const byId = new Map(live.map((category) => [category.id, category]));
   const buckets = new Map<C | null, I[]>();
