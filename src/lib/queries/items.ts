@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/database.types";
 import { DUPLICATE_KEY, RequestError, unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
+import { isOwnVersion, readAgain, rememberOwn } from "./reconcile";
 
 export type Item = Tables<"items">;
 
@@ -159,6 +160,7 @@ type ItemChanges = Partial<
     | "quantity"
     | "unit"
     | "note"
+    | "category_id"
     | "checked"
     | "checked_at"
     | "deleted_at"
@@ -209,42 +211,6 @@ function nextPosition(items: Item[]) {
 }
 
 /**
- * The versions (id and updated_at) the user's own writes produced, as their
- * answers reported them, per list. Realtime echoes those same writes back
- * with the same updated_at: an event carrying one of them is an echo, never
- * another member's change, whatever the cache shows by then. Kept a minute,
- * far longer than an echo takes.
- */
-const ownVersions = new WeakMap<QueryClient, Map<string, number>>();
-const OWN_VERSION_MS = 60_000;
-
-const versionOf = (listId: string, row: Item) =>
-  `${listId}:${row.id}@${row.updated_at}`;
-
-function rememberOwn(
-  queryClient: QueryClient,
-  listId: string,
-  rows: readonly (Item | null)[],
-) {
-  let versions = ownVersions.get(queryClient);
-  if (!versions) {
-    versions = new Map();
-    ownVersions.set(queryClient, versions);
-  }
-  const now = Date.now();
-  for (const [version, at] of versions) {
-    if (now - at > OWN_VERSION_MS) versions.delete(version);
-  }
-  for (const row of rows) {
-    if (row) versions.set(versionOf(listId, row), now);
-  }
-}
-
-function isOwnVersion(queryClient: QueryClient, listId: string, row: Item) {
-  return ownVersions.get(queryClient)?.has(versionOf(listId, row)) === true;
-}
-
-/**
  * Every write to a list's items runs in one queue (TanStack Query runs
  * mutations of the same scope in series, retries included). The UI does not
  * wait for it: each change is applied to the cache at once. The queue keeps
@@ -285,7 +251,7 @@ function isLastWriteTo(queryClient: QueryClient, listId: string, id: string) {
  */
 export function settle(queryClient: QueryClient, key: readonly unknown[]) {
   if (queryClient.isMutating({ mutationKey: key }) > 1) return;
-  // The catalog changes with adds and renames (database triggers); the next
+  // The catalog changes with adds and edits (database triggers); the next
   // add reads it to pick the category.
   const catalogKey = [...key.slice(0, -1), "catalog"];
   return Promise.all([
@@ -441,7 +407,10 @@ export function useToggleItem(userId: string, listId: string) {
   });
 }
 
-export type EditableFields = Pick<Item, "name" | "quantity" | "unit" | "note">;
+export type EditableFields = Pick<
+  Item,
+  "name" | "quantity" | "unit" | "note" | "category_id"
+>;
 
 export type EditItem = {
   id: string;
@@ -470,9 +439,9 @@ function stillShows(item: Item, changes: Partial<EditableFields>) {
 }
 
 /**
- * Edits name, quantity, unit and note. Same pattern as useToggleItem: only
- * the changed fields are sent, and a rejected edit restores them unless a
- * later edit already replaced them.
+ * Edits name, quantity, unit, note and category. Same pattern as
+ * useToggleItem: only the changed fields are sent, and a rejected edit
+ * restores them unless a later edit already replaced them.
  */
 export function useEditItem(userId: string, listId: string) {
   const queryClient = useQueryClient();
@@ -702,6 +671,31 @@ export type RemoteItemOutcome = {
   name: string;
 };
 
+/**
+ * Fields the catalog trigger follows (migration initial_schema,
+ * upsert_catalog_from_item): another member's add, or a change to any of
+ * these, changes what the catalog remembers. The catalog is not in the
+ * Realtime publication: every change to it comes from one of these events.
+ */
+const CATALOG_FIELDS = [
+  "name",
+  "category_id",
+  "unit",
+  "estimated_price",
+  "currency",
+] as const satisfies readonly (keyof Item)[];
+
+/** The next add reads the catalog to pick the category. */
+function readCatalogAgain(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+) {
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.catalog(userId, listId),
+  });
+}
+
 /** Fields the list shows: a change to any of them pulses the row. */
 const VISIBLE_FIELDS = [
   "name",
@@ -712,75 +706,16 @@ const VISIBLE_FIELDS = [
   "category_id",
 ] as const satisfies readonly (keyof Item)[];
 
-/** How long a read waits for the rest of a burst of events. */
-const READ_AGAIN_MS = 100;
-
-// Lists with a read already scheduled, per query client.
-const scheduledReads = new WeakMap<QueryClient, Set<string>>();
-
 /**
- * The list has to be read again: something changed that the cache may not
- * show, or a read in flight may have been made before a change just received.
- *
- * - A read in flight is cancelled: its answer could overwrite what the
- *   events applied meanwhile, which the cache keeps. While a write is
- *   pending that read can only be the one of settle, made after the last
- *   write reached the server, so cancelling it drops no optimistic change.
- * - One read follows a moment later, once for a whole burst of events (an
- *   emptied cart is one event per row).
- * - While a write is queued or running, that read waits: an earlier one
- *   would drop the optimistic changes still pending. It waits rather than
- *   leaving it to settle, because the read of settle may be the one just
- *   cancelled (the write stays pending until settle's catalog read is in
- *   too). Once no write is pending, it runs.
+ * The list has to be read again (see readAgain): something changed that the
+ * cache may not show, or a read in flight may predate a change just received.
  */
 export function readItemsAgain(
   queryClient: QueryClient,
   userId: string,
   listId: string,
 ) {
-  const key = queryKeys.items(userId, listId);
-  const filters = { queryKey: key, exact: true };
-  // The first load is let through, so the list shows without waiting; the
-  // read below follows it.
-  if (
-    queryClient.getQueryData(key) !== undefined &&
-    queryClient.isFetching(filters) > 0
-  ) {
-    void queryClient.cancelQueries(filters);
-  }
-  let scheduled = scheduledReads.get(queryClient);
-  if (!scheduled) {
-    scheduled = new Set();
-    scheduledReads.set(queryClient, scheduled);
-  }
-  const hash = JSON.stringify(key);
-  if (scheduled.has(hash)) return;
-  scheduled.add(hash);
-  const read = () => {
-    if (queryClient.isMutating({ mutationKey: key }) > 0) {
-      setTimeout(read, READ_AGAIN_MS);
-      return;
-    }
-    scheduled.delete(hash);
-    void fetchAgain(queryClient, key);
-  };
-  setTimeout(read, READ_AGAIN_MS);
-}
-
-function fetchAgain(queryClient: QueryClient, key: readonly unknown[]) {
-  const filters = { queryKey: key, exact: true };
-  // Invalidating starts a fetch in flight over only when the query has data:
-  // the first load is waited for, then the list is read again.
-  if (
-    queryClient.getQueryData(key) === undefined &&
-    queryClient.isFetching(filters) > 0
-  ) {
-    return queryClient
-      .refetchQueries(filters, { cancelRefetch: false })
-      .then(() => queryClient.invalidateQueries(filters));
-  }
-  return queryClient.invalidateQueries(filters);
+  readAgain(queryClient, queryKeys.items(userId, listId));
 }
 
 /**
@@ -866,6 +801,7 @@ export function applyRemoteItem(
     if (change.type === "UPDATE") {
       if (row.deleted_at === null) {
         readItemsAgain(queryClient, userId, listId);
+        readCatalogAgain(queryClient, userId, listId);
         return null;
       }
       // Archived, and the cache no longer has it (a read dropped it first)
@@ -884,12 +820,8 @@ export function applyRemoteItem(
   } else {
     patchItem(queryClient, key, id, () => row);
   }
-  // The catalog changes with adds and renames (database triggers); the next
-  // add reads it to pick the category.
-  if (!cached || cached.name !== row.name) {
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.catalog(userId, listId),
-    });
+  if (!cached || CATALOG_FIELDS.some((field) => cached[field] !== row[field])) {
+    readCatalogAgain(queryClient, userId, listId);
   }
   return own ? null : outcome(row, cached);
 }

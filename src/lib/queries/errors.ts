@@ -94,15 +94,17 @@ export function sharingErrorOf(error: unknown): SharingError {
 
 /**
  * A write the server refused in a way that may mean the user is no longer in
- * the list: RLS rejected an insert (42501, 403), or an update found no row
- * to change (PGRST116, from `.single()`). Either way the lists are read
- * again, which tells (see useCurrentList).
+ * the list: RLS rejected an insert (42501, 403), an update found no row to
+ * change (PGRST116, from `.single()`), or move_category found no category
+ * the caller can see. Either way the lists are read again, which tells (see
+ * useCurrentList).
  */
 export function isAccessRejection(error: unknown): boolean {
   if (!(error instanceof RequestError)) return false;
   return (
     error.code === "42501" ||
     error.code === "PGRST116" ||
+    error.message === "category_not_found" ||
     error.status === 401 ||
     error.status === 403
   );

@@ -9,9 +9,12 @@ export { canonicalUnit, parseItemInput } from "./parse-item-input";
 export type { ParsedItemInput } from "./parse-item-input";
 export { formatQuantityField, parseQuantityField } from "./quantity-field";
 export {
+  adjacentCategory,
   categoryKind,
+  compareRouteOrder,
   fallbackCategory,
   groupByCategory,
+  moveCategory,
   suggestCategory,
 } from "./categories";
-export type { ItemGroup } from "./categories";
+export type { Direction, ItemGroup } from "./categories";

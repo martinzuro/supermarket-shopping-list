@@ -87,6 +87,8 @@ export const texts = {
       removed: (count: number) => `Sacaron ${count} productos de la lista`,
     },
     mixed: (count: number) => `Hubo cambios en ${count} productos`,
+    /** Otro miembro movió una categoría en la hoja del recorrido. */
+    reordered: "Cambiaron el orden del recorrido",
   },
   sheet: {
     close: "Cerrar",

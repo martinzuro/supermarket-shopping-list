@@ -202,6 +202,23 @@ isOneToOne: false
         isOneToOne: false
         isSetofReturn: true
       } },
+"move_category":
+{ Args: { "direction": string,"past_category_id": string,"target_category_id": string }; Returns: {
+              "created_at": string,
+"deleted_at": string | null,
+"id": string,
+"is_default": boolean,
+"list_id": string,
+"name": string,
+"position": number,
+"updated_at": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "categories"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "normalize_name":
 { Args: { "value": string }; Returns: string
                            }

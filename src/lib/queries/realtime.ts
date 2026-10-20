@@ -10,6 +10,11 @@ import { motionTokens } from "@/lib/design/motion";
 import { createClient } from "@/lib/supabase/client";
 import { texts } from "@/lib/texts";
 import {
+  applyRemoteCategory,
+  type Category,
+  type RemoteCategoryChange,
+} from "./categories";
+import {
   applyRemoteItem,
   readItemsAgain,
   type Item,
@@ -19,6 +24,7 @@ import {
 import { queryKeys } from "./keys";
 import { dropList } from "./lists";
 import { noteMemberGone, type Member } from "./members";
+import { readAgain } from "./reconcile";
 
 /**
  * Keeps the cache of the user's current list in step with what the other
@@ -92,6 +98,27 @@ function openListChannel(
     announce(announcementsOf(queryClient, userId, listId), told);
   }
 
+  function handleCategory(payload: RealtimePostgresChangesPayload<Category>) {
+    if (lost) return;
+    let change: RemoteCategoryChange;
+    if (payload.eventType === "DELETE") {
+      if (!payload.old.id) {
+        readAgain(queryClient, queryKeys.categories(userId, listId));
+        return;
+      }
+      change = { type: "DELETE", id: payload.old.id };
+    } else {
+      change = {
+        type: payload.eventType,
+        row: payload.new,
+        previous: payload.eventType === "UPDATE" ? payload.old : undefined,
+      };
+    }
+    if (applyRemoteCategory(queryClient, userId, listId, change)) {
+      announceReorder(announcementsOf(queryClient, userId, listId));
+    }
+  }
+
   function handleMember(
     payload: RealtimePostgresChangesPayload<{ user_id: string }>,
   ) {
@@ -141,9 +168,7 @@ function openListChannel(
       queryKey: queryKeys.members(userId, listId),
     });
     readItemsAgain(queryClient, userId, listId);
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.categories(userId, listId),
-    });
+    readAgain(queryClient, queryKeys.categories(userId, listId));
     void queryClient.invalidateQueries({
       queryKey: queryKeys.catalog(userId, listId),
     });
@@ -170,15 +195,10 @@ function openListChannel(
         { event: "*", schema: "public", table: "items", filter },
         handleItem,
       )
-      .on(
+      .on<Category>(
         "postgres_changes",
         { event: "*", schema: "public", table: "categories", filter },
-        () => {
-          if (lost) return;
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.categories(userId, listId),
-          });
-        },
+        handleCategory,
       )
       .on<{ user_id: string }>(
         "postgres_changes",
@@ -310,6 +330,8 @@ type Kind = RemoteItemOutcome["kind"];
 type Announcements = {
   /** Per row in the burst: its latest name and everything done to it. */
   burst: Map<string, { name: string; kinds: Kind[] }>;
+  /** Whether another member moved a category during the burst. */
+  reordered: boolean;
   timer: ReturnType<typeof setTimeout> | undefined;
   clear: ReturnType<typeof setTimeout> | undefined;
   current: Announcement;
@@ -338,6 +360,7 @@ function announcementsOf(
   if (!store) {
     store = {
       burst: new Map(),
+      reordered: false,
       timer: undefined,
       clear: undefined,
       current: SILENT,
@@ -376,6 +399,16 @@ function announce(store: Announcements, told: RemoteItemOutcome) {
     name: told.name,
     kinds: [...(row?.kinds ?? []), told.kind],
   });
+  tellBurst(store);
+}
+
+/** Another member moved a category: told once per burst, after the items. */
+function announceReorder(store: Announcements) {
+  store.reordered = true;
+  tellBurst(store);
+}
+
+function tellBurst(store: Announcements) {
   if (store.timer) return;
   store.timer = setTimeout(() => {
     store.timer = undefined;
@@ -385,7 +418,14 @@ function announce(store: Announcements, told: RemoteItemOutcome) {
       if (kind) changes.push({ kind, id, name });
     }
     store.burst.clear();
-    const text = describeRemoteChanges(changes);
+    const reordered = store.reordered;
+    store.reordered = false;
+    const text = [
+      describeRemoteChanges(changes),
+      reordered ? texts.remoteChanges.reordered : "",
+    ]
+      .filter(Boolean)
+      .join(". ");
     if (!text) return;
     store.current = { text, seq: store.current.seq + 1 };
     notify(store);
@@ -411,6 +451,7 @@ function silence(store: Announcements) {
   store.timer = undefined;
   store.clear = undefined;
   store.burst.clear();
+  store.reordered = false;
   if (store.current.text) {
     store.current = { text: "", seq: store.current.seq };
     notify(store);
