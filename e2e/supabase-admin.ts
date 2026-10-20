@@ -50,6 +50,11 @@ export function adminClient(): Client {
   return createClient<Database>(API_URL, secretKey(), noSession);
 }
 
+/** Cliente con la clave pública y sin sesión: el rol `anon` de PostgREST. */
+export function noSessionClient(): Client {
+  return createClient<Database>(API_URL, publishableKey(), noSession);
+}
+
 /** Un usuario anónimo nuevo, con su propio cliente, como la app al primer uso. */
 export async function anonymousUser(): Promise<{ client: Client; id: string }> {
   const client = createClient<Database>(API_URL, publishableKey(), noSession);
