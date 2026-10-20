@@ -33,3 +33,11 @@ export {
   suggestCategory,
 } from "./categories";
 export type { Direction, ItemGroup } from "./categories";
+export {
+  FREQUENT_LIMIT,
+  SUGGESTION_LIMIT,
+  USUAL_LIMIT,
+  frequentsOf,
+  suggestionsFor,
+  usualsOf,
+} from "./catalog";

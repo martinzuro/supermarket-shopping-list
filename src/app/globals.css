@@ -82,7 +82,9 @@
   --cat-otros: oklch(90% 0 0);
   --cat-otros-thread: oklch(55% 0 0);
 
-  /* Alto de la barra inferior para añadir, sin contar el safe area. */
+  /* Alto de la barra inferior para añadir antes de medirla, sin contar el
+     safe area. Medida, la barra publica su alto real (con el safe area y
+     lo que muestre: aviso, sugerencias, frecuentes) en --add-bar-measured. */
   --add-bar-height: 4.75rem;
 }
 
@@ -365,10 +367,15 @@
   padding-right: max(var(--spacing-margin), env(safe-area-inset-right, 0px));
 }
 
-/* Reserva espacio para que la barra fija no tape el final del contenido. */
+/* Reserva espacio para que la barra fija no tape el final del contenido: su
+   alto medido (use-bar-height.ts), o el nominal hasta que se mide. */
 @utility pb-add-bar {
   padding-bottom: calc(
-    var(--add-bar-height) + env(safe-area-inset-bottom, 0px) + --spacing(6)
+    var(
+        --add-bar-measured,
+        var(--add-bar-height) + env(safe-area-inset-bottom, 0px)
+      ) +
+      --spacing(6)
   );
 }
 
