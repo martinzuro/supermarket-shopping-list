@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, totalsByCurrency } from "./totals";
+import { estimateOf, formatMoney, totalsByCurrency } from "./totals";
 
 const item = (
   estimated_price: number | null,
@@ -78,7 +78,70 @@ describe("totalsByCurrency", () => {
   });
 });
 
+describe("totalsByCurrency, line totals", () => {
+  it("multiplies the price by the quantity in the price's basis", () => {
+    expect(
+      totalsByCurrency([
+        { estimated_price: 45, currency: "UYU", quantity: 3, unit: null },
+        { estimated_price: 450, currency: "UYU", quantity: 200, unit: "g" },
+        { estimated_price: 89, currency: "UYU", quantity: null, unit: "kg" },
+        { estimated_price: 2, currency: "USD", quantity: 1.5, unit: "L" },
+      ]),
+    ).toEqual([
+      // 135 + 90 + 89
+      { currency: "UYU", total: 314 },
+      { currency: "USD", total: 3 },
+    ]);
+  });
+});
+
+describe("estimateOf", () => {
+  it("tells how many live items the totals cover", () => {
+    expect(
+      estimateOf([
+        { estimated_price: 10, currency: "UYU" },
+        { estimated_price: null, currency: "UYU" },
+        { estimated_price: 5, currency: "USD" },
+        {
+          estimated_price: 7,
+          currency: "UYU",
+          deleted_at: "2026-01-01T00:00:00Z",
+        },
+      ]),
+    ).toEqual({
+      totals: [
+        { currency: "UYU", total: 10 },
+        { currency: "USD", total: 5 },
+      ],
+      priced: 2,
+      count: 3,
+    });
+  });
+
+  it("has no totals when nothing has a price", () => {
+    expect(estimateOf([{ estimated_price: null, currency: null }])).toEqual({
+      totals: [],
+      priced: 0,
+      count: 1,
+    });
+  });
+});
+
 describe("formatMoney", () => {
+  it("writes whole amounts without decimals and any other with two", () => {
+    const uyu = (amount: number, digits: number) =>
+      new Intl.NumberFormat("es-UY", {
+        style: "currency",
+        currency: "UYU",
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      }).format(amount);
+    expect(formatMoney(1234, "UYU")).toBe(uyu(1234, 0));
+    expect(formatMoney(133.5, "UYU")).toBe(uyu(133.5, 2));
+    expect(formatMoney(1234, "UYU").replace(/\D/g, "")).toBe("1234");
+    expect(formatMoney(133.5, "UYU").replace(/\D/g, "")).toBe("13350");
+  });
+
   it("matches Intl.NumberFormat es-UY", () => {
     expect(formatMoney(1234.5, "UYU")).toBe(
       new Intl.NumberFormat("es-UY", {
