@@ -474,8 +474,9 @@ mutación optimista testeado, y deploy continuo en Vercel con variables
 hacia Supabase staging. Estado al 2026-10-18: el sistema de diseño Fresh
 Editorial está construido y las pantallas existentes lo usan (PR 13 a 20,
 ver `docs/DESIGN_SYSTEM.md`). Pendiente de la Fase 1: instalación probada
-en iOS y Android (dispositivo real) y la revisión cruzada del sistema por
-un modelo distinto al que lo construyó. Limitación
+en iOS y Android (dispositivo real), que cubre el punto 1 de
+[device-checklist.md](device-checklist.md), y la revisión cruzada del sistema
+por un modelo distinto al que lo construyó. Limitación
 conocida: en staging los correos solo traen el enlace, no el código,
 hasta configurar Resend (plan gratuito de Supabase).
 
@@ -507,7 +508,7 @@ cada flujo, incluido el criterio de salida de la 2a en
 Fase 3, se adelantó a la 2a. Desde el 2026-10-19 esos e2e también corren en
 CI: el job "E2E" levanta el stack local con `npx supabase start` (sin los
 servicios que los tests no usan) y compila contra sus claves. El selector
-manual de categoría sigue en la Fase 3.
+manual de categoría llegó en la Fase 3a.
 
 **2b. Tiempo real (0,5 a 1 día).** Canal Realtime por lista,
 invalidación o parche de caché al recibir cambios. Test e2e con dos
@@ -618,8 +619,82 @@ ven los cambios de la otra en menos de un segundo.
   moneda en el ítem, recuerda último precio y moneda del catálogo, totales
   por moneda para pendientes y carro.
 
+Estado al 2026-10-20: la Fase 3 está en `main` (PR 39, 40 y 41, y este, el
+cierre, con los arreglos de la revisión cruzada final en `5446615`).
+
+- **3a, recorrido y categoría (PR 39).** RPC `move_category` (migración
+  `20261020125038_category_order.sql`, `SECURITY INVOKER`) que mueve una
+  categoría más allá de una vecina nombrada, con las categorías de la lista
+  bloqueadas. Mover "más allá de la vecina que había al tocar" y no "a la
+  posición N" es lo que hace idempotente el reintento tras perder la respuesta.
+  `useMoveCategory` con su cola propia, Realtime de categorías con una lectura
+  por ráfaga y detección de eco, la frase "Cambiaron el orden del recorrido",
+  el selector de categoría en la hoja de edición y la hoja "Recorrido" desde la
+  cabecera de Pendientes (ver 2.3).
+- **3b, precio y totales (PR 40).** El precio estimado es el de góndola: por
+  kilo con g o kg, por litro con ml o L, por unidad en el resto; el total de la
+  línea es precio por cantidad en esa base. Monedas UYU y USD ("$" y "US$"). Se
+  escribe con coma decimal y puntos de miles ("49,90", "1.200"; un punto con
+  una o dos cifras detrás se lee como decimal). El alta rápida no interpreta
+  precios. Al agregar entran el último precio y la última moneda del catálogo,
+  solo si la unidad del ítem nuevo tiene la misma base que la última unidad del
+  catálogo (desde `5446615`); la unidad nunca se precarga. Totales por moneda al
+  pie de Pendientes y del carro, con "N de M con precio" cuando falta alguno.
+- **3c, sugerencias, frecuentes y "Lo de siempre" (PR 41).** Campo de añadir
+  como combobox con hasta 5 sugerencias del catálogo, fila de frecuentes
+  (productos con 2 o más altas, hasta 12) y "Lo de siempre" (3 o más altas en
+  los últimos 60 días, hasta 15, y se muestra con al menos 2 sin pendiente),
+  que agrega todo en una escritura (`useAddItems`) y se deshace con otra
+  (`useUndoAdd`, "Deshacer" 8 s). Guarda contra el doble toque, y la reserva de
+  abajo de la página sale de medir la barra, también con el teclado de iOS.
+- **Notas por ítem.** Ya existían desde la 2a y se verificaron: se editan y se
+  borran en la hoja, se ven en la fila y viajan por Realtime
+  (`e2e/phase-2a.spec.ts`, `e2e/list.spec.ts`, paso 3 de `e2e/phase-2b.spec.ts`).
+- **Catálogo y Realtime.** El catálogo no está en la publicación de Realtime:
+  se relee una vez por ráfaga con las altas remotas y con los cambios de nombre,
+  categoría, unidad, precio o moneda (ver 2.3).
+
+Pruebas: 709 tests unitarios. Los e2e con Supabase local, todos en CI, son
+`e2e/phase-3a.spec.ts`, `phase-3a-members.spec.ts`, `phase-3b.spec.ts`,
+`phase-3b-members.spec.ts`, `phase-3c.spec.ts`, `phase-3c-members.spec.ts` y
+`categories-db.spec.ts` (la RPC y las policies de categorías). Revisiones:
+Fable revisó la seguridad de la migración y cada parte, y al final hizo una
+revisión cruzada de toda la fase (veredicto: lista para cerrar); sus hallazgos
+quedaron arreglados en `5446615` o están abajo.
+
+Limitaciones conocidas de la Fase 3:
+
+- La policy de UPDATE de `categories` (de la migración inicial) deja que un
+  miembro cambie cualquier columna de una categoría, `position` incluida, y así
+  salta las invariantes de `move_category` (el cliente tolera empates). A
+  endurecer en la Fase 4 con un trigger de guarda o una RPC `DEFINER` con los
+  permisos de columna revocados.
+- El historial del catálogo que trae una fusión sin ítems nuevos le llega al
+  otro miembro recién en su próxima lectura.
+- Un movimiento cuya respuesta se perdió y se reintenta no recuerda las
+  versiones del primer intento, así que su eco puede anunciársele a su propio
+  autor; con una renumeración concurrente, un movimiento propio puede
+  anunciarse como "Cambiaron el orden del recorrido".
+- Un ítem agregado antes de que cargue el catálogo no tiene categoría ni precio
+  sugeridos.
+- Un precio recordado por kilo o por litro no acompaña a un ítem agregado sin
+  unidad (frecuentes, "Lo de siempre" o "tomates" a secas): empieza sin precio
+  antes que con un total equivocado.
+- Borrar el precio de un ítem hace que el catálogo lo olvide (así funciona el
+  trigger); la moneda sola nunca se manda para un ítem sin precio.
+- Un "Lo de siempre" deshecho igual cuenta en `times_added`, y un aviso
+  posterior puede reemplazar al de "Agregaste N productos" antes de sus 8 s.
+- El camino del teclado de iOS (`visualViewport`) no está cubierto por e2e
+  (Playwright no puede abrirlo): lo cubre la checklist de dispositivo.
+- Los e2e locales de dos miembros pueden fallar de forma intermitente si la
+  máquina está cargada o el Realtime local reinicia su tenant ("rebalancing");
+  la referencia es CI.
+
 **Salida:** roadmap "Esencial" (menos offline) y "Diferencial" completos y
-probados en dispositivo real.
+probados en dispositivo real. Estado al 2026-10-20: implementado y cubierto por
+e2e en CI. Pendiente: la prueba en dispositivo real
+([device-checklist.md](device-checklist.md), iPhone y Android con la PWA
+instalada, que también cierra el pendiente de la Fase 1), a cargo del usuario.
 
 ### Fase 4. Preparación para producción — 3 a 4 días
 

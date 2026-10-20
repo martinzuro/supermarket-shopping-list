@@ -9,7 +9,11 @@ Estado: construido entre el 2026-10-17 y el 2026-10-18 en los PR 13 a 20.
 Actualizado el 2026-10-19 con lo que sumó la Fase 2a (`ListRow` y `Section`
 con las agrupaciones por categoría, las coreografías de la lista, la
 excepción del pulso remoto y los e2e con Supabase local) y la 2c (compartir,
-invitación, miembros, avisos de lista perdida y "traer lo de otra lista").
+invitación, miembros, avisos de lista perdida y "traer lo de otra lista"), y
+el 2026-10-20 con la Fase 3 (selector de categoría y hoja "Recorrido", precio
+y totales, combobox, frecuentes y "Lo de siempre", guarda del doble toque y
+alto medido de la barra). Todo lo de la Fase 3 se armó con tokens y
+componentes existentes, sin tokens nuevos.
 
 ---
 
@@ -163,7 +167,9 @@ Primitivas en `src/components/motion` (Motion for React, ADR 0009):
   `delayChildren`) + `StaggerItem` (listas coreografiadas), `Collapse`
   (bloques que aparecen y desaparecen, como el banner de conexión: fundido
   y desplazamiento de `--motion-shift`, sin animar la altura, que cambia de
-  golpe).
+  golpe; mientras se desvanece lleva `pointerEvents: none`, para que su
+  contenido, que ya no corresponde, no reciba un toque pensado para lo que
+  quedó debajo).
 - Transiciones reutilizables: `transitions`.
 
 Reglas: solo `transform` y `opacity` en interacciones frecuentes; las
@@ -308,6 +314,45 @@ reducido de `visual.spec.ts` lo desactivan.
   si la lectura falla, queda la invitación sin aviso. Al tocar "Unirme igual"
   el aviso queda fijo hasta que termina, aunque las listas cambien.
 
+### Categorías y recorrido
+
+- **Selector de categoría** (hoja de edición, `data-slot="category-picker"`):
+  un `role="group"` con la etiqueta "Categoría" y un `CategoryChip
+  interactive` por categoría viva, en el orden del recorrido. Los chips van
+  separados 16px en las dos direcciones: cada uno extiende su área táctil 8px
+  por lado y así las extensiones nunca se pisan. Mientras no se toca nada
+  muestra la categoría que la lista le da al ítem (la propia, o la de
+  respaldo), y sigue a la lista si cambia; Guardar manda `category_id` solo si
+  se eligió otra.
+- **Hoja "Recorrido"** (`RouteSheet`, `src/components/list/route-sheet.tsx`;
+  la abre el botón "Ordenar el recorrido" de la cabecera de Pendientes): una
+  `Sheet` desde abajo con una fila por categoría viva, también las vacías
+  (Pendientes las oculta, así que acá es el único lugar para ubicarlas): hilo
+  de categoría a la izquierda, icono, nombre, cuántos pendientes hay (en mono,
+  solo si hay; el lector oye "2 pendientes") y dos botones `ghost` de 44px,
+  "Subir “Nombre”" y "Bajar “Nombre”". Sin arrastrar. Cada toque mueve la
+  categoría un lugar, optimista.
+- **Movimiento.** Las filas se deslizan a su lugar con `layout="position"` y
+  `transitions.base`, solo por `transform` y sin entrada propia
+  (`initial={false}`); con movimiento reducido cambian de lugar sin deslizar.
+  Pendientes sigue el mismo orden: los grupos se deslizan por su `layout`, sin
+  pulso, y un reorden de otro miembro se anuncia sin autor ("Cambiaron el
+  orden del recorrido").
+- **Foco.** Al abrir, el foco va a la hoja y no a la primera flecha; al
+  cerrar, vuelve al botón que la abrió (`onCloseAutoFocus`). Los botones de
+  los extremos usan `aria-disabled` y no `disabled`, así el foco no se pierde
+  cuando la categoría llega a un extremo (se ven atenuados y no hacen nada).
+  Si al reordenar React mueve el nodo que tenía el foco y este cae al
+  `body` o a la hoja, vuelve a la misma flecha de la misma categoría en su
+  lugar nuevo, y nunca se lo quita a quien ya fue a otro lado.
+- **Anuncio y error.** Una región `role="status"` siempre montada
+  (`data-slot="route-announcement"`) dice una vez dónde quedó la categoría
+  ("“Bebidas”, 3 de 9") cuando la lista propia muestra el movimiento; no se
+  recalcula si otro miembro la mueve después. Si el servidor rechaza, la
+  categoría vuelve y un `Banner` de error dentro de un `Collapse` lo dice, con
+  botón de cerrar; los rechazos de una apertura no se vuelven a mostrar en la
+  barra de añadir.
+
 ### Precio y totales
 
 - **Hoja de edición.** Bajo cantidad y unidad: el campo de precio (la misma
@@ -325,7 +370,9 @@ reducido de `visual.spec.ts` lo desactivan.
   nuevo y olvidaría el último precio). El pie de la hoja (Guardar, Borrar)
   queda fijo abajo, sobre papel y con una regla de 1px, mientras el cuerpo
   se desplaza.
-- **Fila.** `ListRow total`: el total de la línea bajo la cantidad.
+- **Fila.** `ListRow total`: el total de la línea bajo la cantidad, a la
+  derecha y en mono (ver la tabla de componentes). `Field help` acepta un nodo,
+  no solo texto: así sale "Total: $ 135" con el monto en mono.
 - **Totales** (`EstimateLine`, `src/components/list/estimate-line.tsx`, con
   muestra en `/design`): al pie de Pendientes y dentro del pistacho del carro,
   "Estimado" como eyebrow y un monto por moneda en mono (`$ 1.234 · US$ 12`);
@@ -366,11 +413,17 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   (`data-slot="add-announcement"`) siempre montada lo lee. Un rechazo del alta
   de varios o del deshacer tiene su propio texto (`itemErrors.addMany`,
   `itemErrors.undoAdd`) y reemplaza al aviso.
+- **Guarda del doble toque.** En la lista de sugerencias y en la fila de
+  frecuentes, un segundo toque casi en el mismo lugar (menos de 24px) antes de
+  350 ms no agrega nada: lo que quedó bajo el dedo después de que la primera
+  opción salió puede ser otra opción u otra píldora. El teclado (Enter, o
+  `event.detail === 0`) no tiene doble toque.
 - **Alto de la barra.** `useBarHeight` mide la barra con un `ResizeObserver` y
   publica su alto real en `--add-bar-measured`, que lee `pb-add-bar` en la
-  página (con el alto nominal de respaldo hasta medirla). Si la página estaba
-  al final cuando la barra crece, se desplaza lo mismo: las últimas filas no
-  quedan debajo, con el teclado abierto o cerrado.
+  página (con el alto nominal de respaldo hasta medirla). También cuenta el
+  teclado de iOS (`visualViewport`, `use-keyboard-inset.ts`). Si la página
+  estaba al final cuando la barra crece, un `window.scrollTo` la desplaza lo
+  mismo: las últimas filas no quedan debajo, con el teclado abierto o cerrado.
 
 ### Miembros, avisos y "traer lo de otra lista"
 
@@ -521,7 +574,21 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   nodo, estado de carga, aviso conservado) y la guarda de la invitación.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
-  categorías, ya que el selector manual llega en la Fase 3.
+  categorías, para dejar el escenario armado sin pasar por la interfaz.
+- `e2e/phase-3a.spec.ts` y `e2e/phase-3a-members.spec.ts`: cambiar la
+  categoría de un ítem en su hoja (y que el catálogo lo aprenda), reordenar
+  desde "Recorrido" con Pendientes siguiéndolo, un movimiento rechazado (la
+  categoría vuelve y la hoja lo dice) y, con movimiento reducido, que las filas
+  y los grupos no se trasladen; entre dos miembros, que el reorden y el cambio
+  de categoría lleguen en menos de 1 s. `e2e/categories-db.spec.ts` prueba
+  contra la base la RPC `move_category` (los dos cambios de fila, el reintento
+  idempotente, los casos sin efecto, los permisos de miembros y de ajenos, y
+  dos miembros a la vez con posiciones 0..n-1).
+- `e2e/phase-3b.spec.ts` y `e2e/phase-3b-members.spec.ts`: un precio por kilo
+  en dólares, los totales, el carro y el catálogo; el nombre largo que sigue
+  recortándose sin empujar el check; "Guardar" y "Borrar" a la vista mientras el
+  formulario se desplaza; y entre dos miembros, que un cambio de precio y de
+  moneda llegue en menos de 1 s.
 - `e2e/phase-3c.spec.ts` y `e2e/phase-3c-members.spec.ts`: las sugerencias,
   los frecuentes y "Lo de siempre" (una sola petición para agregar y otra
   para deshacer), el alto de la barra, y entre dos miembros el criterio de
