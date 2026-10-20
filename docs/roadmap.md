@@ -48,6 +48,14 @@ moneda y totales por moneda. Falta la prueba en dispositivo real
 - Importar ítems desde texto pegado.
 - Notificaciones push cuando alguien añade algo.
 
+## Mejoras y arreglos
+
+Propuestas de experiencia de uso, sin fase asignada, en
+[improvements.md](improvements.md): categoría automática para productos
+nuevos, aviso de duplicados, repaso de "Lo de siempre" con cantidades,
+deshacer al marcar y al vaciar, modo compra, pegar una lista, historial de
+compras y otras.
+
 ## Fuera de alcance
 
 - Recetas, inventario de despensa, escaneo de códigos de barras.

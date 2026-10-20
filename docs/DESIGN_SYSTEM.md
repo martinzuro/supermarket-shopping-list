@@ -391,7 +391,8 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   `aria-activedescendant`) y siempre conserva el foco. Las opciones son su
   `listbox`, sobre el campo, en papel con reglas de 1px y sin sombra: hasta 5,
   desde el primer carácter, para la parte del nombre de lo escrito
-  (`parseItemInput`), sin lo que ya está pendiente. Cada una lleva el icono
+  (`parseItemInput`). Lo que ya está pendiente no se propone para agregar:
+  va primero, como "En la lista · 3" (ver abajo). Cada una lleva el icono
   de su categoría, el nombre y el último precio en mono. **La mejor queda
   pegada al campo** (la lista no salta al afinar la búsqueda) y las flechas
   siguen lo que se ve: arriba desde el campo llega primero a ella. Enter agrega
@@ -413,6 +414,19 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   (`data-slot="add-announcement"`) siempre montada lo lee. Un rechazo del alta
   de varios o del deshacer tiene su propio texto (`itemErrors.addMany`,
   `itemErrors.undoAdd`) y reemplaza al aviso.
+- **Ya está en la lista** (`docs/improvements.md`, A-2). Un producto pendiente
+  (mismo nombre normalizado; lo del carro no cuenta) no se agrega dos veces.
+  En las sugerencias, lo pendiente que coincide va primero, pegado al campo,
+  con "En la lista" y su cantidad en lugar del precio. Enter con ese nombre, o
+  tocar esa opción, vacía el campo sin crear otra fila y la barra avisa
+  "“Leche” ya está en la lista" (`Banner` info, con "Cantidad: 3" si la
+  tiene). Si las cantidades se suman (la misma unidad, o ninguna; sin
+  cantidad cuenta uno), el aviso trae "Sumar 2" (lo escrito, o uno), que
+  edita la fila en una escritura; si no ("2 kg" contra "3"), solo un cierre.
+  Se va a los 8 s como los otros avisos y lo lee la misma región
+  `add-announcement`. No es una escritura: un rechazo que llega mientras se
+  ve lo tapa, y cerrarlo no cierra otros avisos. No se suma solo: dos
+  personas que anotan "pan" quieren un pan, no dos.
 - **Guarda del doble toque.** En la lista de sugerencias y en la fila de
   frecuentes, un segundo toque casi en el mismo lugar (menos de 24px) antes de
   350 ms no agrega nada: lo que quedó bajo el dedo después de que la primera
@@ -595,6 +609,10 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   para deshacer), el alto de la barra, y entre dos miembros el criterio de
   `phase-2b` con N filas (menos de 1 s, pulso solo en el otro, una frase para
   su lector de pantalla). Con capturas a 375px en claro y oscuro.
+- `e2e/a2-duplicates.spec.ts`: un producto pendiente no se agrega dos veces,
+  el aviso con su cantidad y "Sumar" (una sola edición), la opción "En la
+  lista" de las sugerencias, unidades que no se suman, y lo del carro que se
+  agrega como siempre. Con capturas a 375px en claro y oscuro.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.

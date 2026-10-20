@@ -55,6 +55,19 @@ export const texts = {
       added: (count: number) => `Agregaste ${count} productos`,
       undo: "Deshacer",
     },
+    /**
+     * Lo escrito ya está pendiente: no se agrega otra fila. Se avisa y, si las
+     * cantidades se pueden sumar, se ofrece sumar lo escrito (o uno).
+     */
+    duplicate: {
+      /** Junto a la opción de lo que ya está pendiente, con su cantidad. */
+      inList: (quantity?: string) =>
+        quantity ? `En la lista · ${quantity}` : "En la lista",
+      title: (name: string) => `“${name}” ya está en la lista`,
+      quantity: (quantity: string) => `Cantidad: ${quantity}`,
+      add: (amount: string) => `Sumar ${amount}`,
+      addAria: (amount: string, name: string) => `Sumar ${amount} a “${name}”`,
+    },
   },
   editItem: {
     title: "Editar producto",

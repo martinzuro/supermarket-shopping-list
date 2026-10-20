@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseItemInput } from "./parse-item-input";
+import { parseItemInput, sameUnit, unitForQuantity } from "./parse-item-input";
 
 type Case = [string, string, number | null, string | null];
 
@@ -236,5 +236,44 @@ describe("parseItemInput", () => {
     it("prefers a multiplier over a plain count", () => {
       check(["3x leche 2", "leche 2", 3, null]);
     });
+  });
+});
+
+describe("sameUnit", () => {
+  it("is true for the same canonical unit, or no unit on either side", () => {
+    expect(sameUnit(null, null)).toBe(true);
+    expect(sameUnit("kg", "kilos")).toBe(true);
+    expect(sameUnit("L", "litro")).toBe(true);
+    expect(sameUnit("sachet", "sachet")).toBe(true);
+    // A unit the parser does not know is kept as typed: case does not matter.
+    expect(sameUnit("Sachet", "sachet")).toBe(true);
+  });
+
+  it("takes a count word in singular or plural as the same", () => {
+    expect(sameUnit("lata", "latas")).toBe(true);
+    expect(sameUnit("Paquetes", "paquete")).toBe(true);
+  });
+
+  it("is false for different units, or a unit against none", () => {
+    expect(sameUnit("kg", "g")).toBe(false);
+    expect(sameUnit("lata", "caja")).toBe(false);
+    expect(sameUnit("kg", null)).toBe(false);
+    expect(sameUnit(null, "lata")).toBe(false);
+    // "unidades" is a bare count, the same as no unit.
+    expect(sameUnit("unidades", null)).toBe(true);
+  });
+});
+
+describe("unitForQuantity", () => {
+  it("puts a count word in plural from two up and in singular below", () => {
+    expect(unitForQuantity("paquete", 2)).toBe("paquetes");
+    expect(unitForQuantity("paquetes", 1)).toBe("paquete");
+    expect(unitForQuantity("latas", 1.5)).toBe("latas");
+  });
+
+  it("keeps any other unit, and no unit, as they are", () => {
+    expect(unitForQuantity("kg", 3)).toBe("kg");
+    expect(unitForQuantity("sachet", 2)).toBe("sachet");
+    expect(unitForQuantity(null, 2)).toBeNull();
   });
 });

@@ -34,6 +34,9 @@ Las decisiones de arquitectura están cerradas y documentadas:
 - `docs/decisions/`: un ADR por decisión. Para cambiar una decisión se
   escribe un ADR nuevo, no se edita el existente.
 - `docs/roadmap.md`: alcance funcional.
+- `docs/improvements.md`: backlog de mejoras y arreglos de experiencia
+  (ids A-, M- y F-), sin fase asignada. Una entrada se implementa solo
+  cuando el usuario la asigna a una fase.
 
 Resumen de lo decidido (2026-10-17):
 

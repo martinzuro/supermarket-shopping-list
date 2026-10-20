@@ -25,13 +25,19 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  SUGGESTION_LIMIT,
+  addedQuantity,
   categoryKind,
+  findPending,
   formatMoney,
+  formatQuantity,
   frequentsOf,
   parseItemInput,
+  pendingMatchesFor,
   rememberedPrice,
   suggestCategory,
   suggestionsFor,
+  unitForQuantity,
   usualsOf,
   type ParsedItemInput,
 } from "@/lib/domain";
@@ -43,6 +49,7 @@ import {
   queryKeys,
   useAddItem,
   useAddItems,
+  useEditItem,
   useUndoAdd,
   useCatalog,
   useCategories,
@@ -52,6 +59,7 @@ import {
   type AddItems,
   type CatalogEntry,
   type EditItem,
+  type Item,
   type MoveCategory,
   type RemoveItem,
   type ToggleItem,
@@ -76,10 +84,12 @@ const DOUBLE_TAP_PX = 24;
 /** Mismo límite que la columna `items.name`. */
 export const MAX_NAME_LENGTH = 200;
 
+type Amount = Pick<ParsedItemInput, "quantity" | "unit">;
+
 /**
  * Un aviso de la barra: un rechazo del servidor (tono error, con su cierre)
- * o, con `undo`, lo que "Lo de siempre" acaba de agregar (tono info, con
- * "Deshacer").
+ * o, en tono info, lo que "Lo de siempre" acaba de agregar (`undo`, con
+ * "Deshacer") o un producto que ya estaba pendiente (`duplicate`).
  */
 type Notice = {
   key: string;
@@ -87,6 +97,16 @@ type Notice = {
   title: string;
   body?: string;
   undo?: { ids: readonly string[] };
+  /**
+   * Lo escrito ya estaba pendiente y no se agregó (A-2). `add` es el botón
+   * que le suma lo escrito ("Sumar 2", con su nombre accesible); sin él las
+   * cantidades no se suman y el aviso solo se cierra.
+   */
+  duplicate?: {
+    name: string;
+    added: Amount;
+    add?: { label: string; aria: string };
+  };
 };
 
 /** Las escrituras sobre ítems que avisan si el servidor las rechaza. */
@@ -252,6 +272,7 @@ export function AddItemBar() {
   const add = useAddItem(userId ?? "", listId ?? "");
   const addMany = useAddItems(userId ?? "", listId ?? "");
   const undoAdd = useUndoAdd(userId ?? "", listId ?? "");
+  const edit = useEditItem(userId ?? "", listId ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // El campo no es controlado (se vacía y se llena a mano al agregar y al
@@ -265,42 +286,91 @@ export function AddItemBar() {
 
   const [addFailure, setAddFailure] = useState<Notice | null>(null);
   const [usualsNotice, setUsualsNotice] = useState<Notice | null>(null);
+  const [duplicateNotice, setDuplicateNotice] = useState<Notice | null>(null);
   const writeFailures = useWriteFailures(userId ?? "", listId ?? "");
   const routeFailures = useRouteFailures(userId ?? "", listId ?? "");
   const [dismissedAt, setDismissedAt] = useState(0);
   // Los rechazos van después: si empatan con el aviso de lo agregado, gana
   // el rechazo.
-  const notice = latestNotice(
+  const written = latestNotice(
     [usualsNotice, addFailure, ...writeFailures, ...routeFailures],
     dismissedAt,
   );
+  // "Ya está en la lista" no es una escritura, así que no entra en el orden
+  // de la cola: un rechazo que llega mientras se ve lo tapa (es una novedad),
+  // y cerrarlo no cierra nada más (el rechazo de algo enviado antes sigue por
+  // mostrarse).
+  const notice =
+    duplicateNotice &&
+    (!written ||
+      (written.undo !== undefined && written.at < duplicateNotice.at))
+      ? duplicateNotice
+      : written;
 
   function dismiss(at: number) {
     setDismissedAt((current) => Math.max(current, at));
   }
 
+  /** Cierra el aviso que se ve: el de "ya está" sin tocar los demás. */
+  function close(shown: Notice) {
+    if (shown.duplicate) {
+      setDuplicateNotice((current) =>
+        current?.key === shown.key ? null : current,
+      );
+    } else {
+      dismiss(shown.at);
+    }
+  }
+
   const noticeAt = notice?.at ?? null;
+  const noticeKey = notice?.key ?? null;
+  const noticeIsDuplicate = notice?.duplicate !== undefined;
   useEffect(() => {
     if (noticeAt === null) return;
-    const timer = setTimeout(() => dismiss(noticeAt), NOTICE_MS);
+    const timer = setTimeout(() => {
+      if (noticeIsDuplicate) {
+        setDuplicateNotice((current) =>
+          current?.key === noticeKey ? null : current,
+        );
+      } else {
+        dismiss(noticeAt);
+      }
+    }, NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [noticeAt]);
+  }, [noticeAt, noticeKey, noticeIsDuplicate]);
 
-  // Lo que se propone sale del catálogo, sin lo que ya está pendiente.
+  // Lo que se propone sale del catálogo, sin lo que ya está pendiente: eso
+  // se ofrece aparte, como lo que ya está en la lista.
   const entries = ready ? (catalog.data ?? NO_ENTRIES) : NO_ENTRIES;
-  const pendingNames = useMemo(
+  const pendingItems = useMemo(
     () =>
-      new Set(
-        (items.data ?? [])
-          .filter((item) => item.deleted_at == null && !item.checked)
-          .map((item) => item.name_normalized),
-      ),
-    [items.data],
+      ready
+        ? (items.data ?? []).filter(
+            (item) => item.deleted_at == null && !item.checked,
+          )
+        : [],
+    [ready, items.data],
+  );
+  const pendingNames = useMemo(
+    () => new Set(pendingItems.map((item) => item.name_normalized)),
+    [pendingItems],
   );
   const parsed = useMemo(() => parseItemInput(query), [query]);
+  // Lo pendiente que coincide va primero: es lo que más importa saber antes
+  // de agregar algo que ya está. El catálogo completa hasta el límite.
+  const inList = useMemo(
+    () => pendingMatchesFor(parsed.name, pendingItems),
+    [parsed.name, pendingItems],
+  );
   const suggestions = useMemo(
-    () => suggestionsFor(parsed.name, entries, pendingNames),
-    [parsed.name, entries, pendingNames],
+    () =>
+      suggestionsFor(
+        parsed.name,
+        entries,
+        pendingNames,
+        SUGGESTION_LIMIT - inList.length,
+      ),
+    [parsed.name, entries, pendingNames, inList.length],
   );
   const typing = query.trim() !== "";
   const frequents = useMemo(
@@ -319,31 +389,40 @@ export function AddItemBar() {
   // Con uno solo no hay nada que agregar "de una vez".
   const usualsCount = usuals.length >= 2 ? usuals.length : 0;
 
-  const open = suggestions.length > 0 && !away && closedFor !== query;
   // La mejor opción queda pegada al campo: arriba, las demás.
-  const options = useMemo<Suggestion[]>(
-    () =>
-      [...suggestions].reverse().map((entry) => {
-        const category = categories.data?.find(
-          (one) => one.id === entry.last_category_id,
-        );
-        // The price the add would bring, in the unit typed: none when the
-        // remembered one is in another basis (a price per kilo for a bare
-        // "tom"), rather than a price the row would not show.
-        const price = rememberedPrice(
-          entry.name_normalized,
-          [entry],
-          parsed.unit,
-        );
-        return {
-          key: entry.name_normalized,
-          name: entry.display_name,
-          category: category ? categoryKind(category) : "otros",
-          price: price && formatMoney(price.price, price.currency),
-        };
-      }),
-    [suggestions, categories.data, parsed.unit],
-  );
+  const options = useMemo<Suggestion[]>(() => {
+    const kindOf = (categoryId: string | null) => {
+      const category = categories.data?.find((one) => one.id === categoryId);
+      return category ? categoryKind(category) : "otros";
+    };
+    const pendingOptions = inList.map((item): Suggestion => ({
+      key: item.name_normalized,
+      name: item.name,
+      category: kindOf(item.category_id),
+      price: null,
+      inList: texts.addItem.duplicate.inList(
+        formatQuantity(item.quantity, item.unit),
+      ),
+    }));
+    const catalogOptions = suggestions.map((entry): Suggestion => {
+      // The price the add would bring, in the unit typed: none when the
+      // remembered one is in another basis (a price per kilo for a bare
+      // "tom"), rather than a price the row would not show.
+      const price = rememberedPrice(
+        entry.name_normalized,
+        [entry],
+        parsed.unit,
+      );
+      return {
+        key: entry.name_normalized,
+        name: entry.display_name,
+        category: kindOf(entry.last_category_id),
+        price: price && formatMoney(price.price, price.currency),
+      };
+    });
+    return [...pendingOptions, ...catalogOptions].reverse();
+  }, [inList, suggestions, categories.data, parsed.unit]);
+  const open = options.length > 0 && !away && closedFor !== query;
   const activeIndex = open
     ? options.findIndex((option) => option.key === activeKey)
     : -1;
@@ -365,7 +444,7 @@ export function AddItemBar() {
     details: Pick<ParsedItemInput, "quantity" | "unit">,
     raw: string,
   ) {
-    if (notice) dismiss(notice.at);
+    if (notice) close(notice);
     const item = newItem(name, {
       ...details,
       categoryId: suggestCategory(
@@ -393,6 +472,63 @@ export function AddItemBar() {
     });
   }
 
+  /**
+   * Lo escrito ya está pendiente (docs/improvements.md, A-2): no se agrega
+   * otra fila. El aviso lo dice y, si las cantidades se suman, ofrece sumar
+   * lo escrito (o uno, sin cantidad).
+   */
+  function remindPending(item: Item, added: Amount) {
+    if (notice) close(notice);
+    const quantity = formatQuantity(item.quantity, item.unit);
+    const count = added.quantity ?? 1;
+    const amount =
+      formatQuantity(count, unitForQuantity(added.unit, count)) ?? "";
+    const at = Date.now();
+    setDuplicateNotice({
+      key: `duplicate:${item.id}:${at}`,
+      at,
+      title: texts.addItem.duplicate.title(item.name),
+      body: quantity && texts.addItem.duplicate.quantity(quantity),
+      duplicate: {
+        name: item.name,
+        added,
+        add: addedQuantity(item, added)
+          ? {
+              label: texts.addItem.duplicate.add(amount),
+              aria: texts.addItem.duplicate.addAria(amount, item.name),
+            }
+          : undefined,
+      },
+    });
+  }
+
+  /**
+   * "Sumar": lo escrito va al pendiente de ese producto, el que esté ahora
+   * (otro miembro pudo cambiarlo). Si ya no hay ninguno (se marcó o se
+   * borró mientras tanto), se agrega como nuevo.
+   */
+  function addToPending(
+    shown: Notice & { duplicate: NonNullable<Notice["duplicate"]> },
+    event: MouseEvent<HTMLButtonElement>,
+  ) {
+    if (isDoubleTap(event)) return;
+    if (document.activeElement === event.currentTarget) {
+      inputRef.current?.focus();
+    }
+    close(shown);
+    const { name, added } = shown.duplicate;
+    const current = findPending(name, pendingItems);
+    if (!current) {
+      addNamed(name, added, "");
+      return;
+    }
+    const merged = addedQuantity(current, added);
+    if (!merged) return;
+    const changes: EditItem["changes"] = { quantity: merged.quantity };
+    if (merged.unit !== current.unit) changes.unit = merged.unit;
+    edit.mutate({ id: current.id, name: current.name, changes });
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const field = inputRef.current;
@@ -404,7 +540,12 @@ export function AddItemBar() {
     if (!typed.name || !ready) return;
 
     setFieldText("");
-    addNamed(typed.name, typed, raw);
+    const existing = findPending(typed.name, pendingItems);
+    if (existing) {
+      remindPending(existing, { quantity: typed.quantity, unit: typed.unit });
+    } else {
+      addNamed(typed.name, typed, raw);
+    }
   }
 
   // El último toque que agregó algo desde la lista o la fila: un segundo
@@ -425,21 +566,23 @@ export function AddItemBar() {
     );
   }
 
-  /** Una opción de la lista: el producto del catálogo con lo escrito. */
+  /**
+   * Una opción de la lista: el producto del catálogo con lo escrito, o lo
+   * que ya está pendiente, que no se agrega de nuevo.
+   */
   function pick(key: string, event?: MouseEvent<HTMLElement>) {
     // Enter on the active option comes with no event: no double tap there.
     if (event && isDoubleTap(event)) return;
+    const pendingItem = inList.find((one) => one.name_normalized === key);
     const entry = suggestions.find((one) => one.name_normalized === key);
     const field = inputRef.current;
-    if (!entry || !field || !ready) return;
+    if ((!pendingItem && !entry) || !field || !ready) return;
     field.focus();
     const raw = field.value;
     setFieldText("");
-    addNamed(
-      entry.display_name,
-      { quantity: parsed.quantity, unit: parsed.unit },
-      raw,
-    );
+    const details = { quantity: parsed.quantity, unit: parsed.unit };
+    if (pendingItem) remindPending(pendingItem, details);
+    else if (entry) addNamed(entry.display_name, details, raw);
   }
 
   /** Un frecuente de la fila: sin cantidad, con lo del catálogo. */
@@ -460,7 +603,7 @@ export function AddItemBar() {
     if (document.activeElement === event.currentTarget) {
       inputRef.current?.focus();
     }
-    if (notice) dismiss(notice.at);
+    if (notice) close(notice);
     const created = usuals.map((entry) =>
       newItem(entry.display_name, {
         categoryId: suggestCategory(
@@ -512,7 +655,7 @@ export function AddItemBar() {
       setActiveKey(null);
       return;
     }
-    if ((key === "ArrowUp" || key === "ArrowDown") && suggestions.length > 0) {
+    if ((key === "ArrowUp" || key === "ArrowDown") && options.length > 0) {
       event.preventDefault();
       if (!open) {
         setClosedFor(null);
@@ -545,6 +688,13 @@ export function AddItemBar() {
     notice?.undo !== undefined
       ? (notice as Notice & { undo: NonNullable<Notice["undo"]> })
       : null;
+  const duplicateShown =
+    notice?.duplicate !== undefined
+      ? (notice as Notice & { duplicate: NonNullable<Notice["duplicate"]> })
+      : null;
+  // Los avisos info los lee la región de abajo; los de error se anuncian
+  // solos (role="alert").
+  const infoNotice = undoNotice ?? duplicateShown;
 
   return (
     <div
@@ -575,6 +725,39 @@ export function AddItemBar() {
               </Button>
             }
           />
+        ) : duplicateShown ? (
+          <Banner
+            tone="info"
+            title={duplicateShown.title}
+            body={duplicateShown.body}
+            liveRegion={false}
+            action={
+              duplicateShown.duplicate.add ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label={duplicateShown.duplicate.add.aria}
+                  onPointerDown={keepFocus}
+                  onMouseDown={keepFocus}
+                  onClick={(event) => addToPending(duplicateShown, event)}
+                >
+                  {duplicateShown.duplicate.add.label}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  aria-label={texts.itemErrors.dismiss}
+                  onPointerDown={keepFocus}
+                  onMouseDown={keepFocus}
+                  onClick={() => close(duplicateShown)}
+                >
+                  <XIcon aria-hidden strokeWidth={1.5} />
+                </Button>
+              )
+            }
+          />
         ) : notice ? (
           <Banner
             tone="error"
@@ -595,7 +778,13 @@ export function AddItemBar() {
         ) : null}
       </Collapse>
       <div role="status" data-slot="add-announcement" className="sr-only">
-        {undoNotice?.title}
+        {/* Keyed by the notice: the same sentence twice is read twice. */}
+        {infoNotice ? (
+          <span key={infoNotice.key}>
+            {infoNotice.title}
+            {infoNotice.body ? ` ${infoNotice.body}` : null}
+          </span>
+        ) : null}
       </div>
       <Collapse show={open || showRow} className="mx-auto max-w-xl pt-2">
         {open ? (

@@ -46,11 +46,30 @@ function notPending<E extends Entry>(
 }
 
 /**
+ * How a normalized name matches what is being typed (already normalized):
+ * "start" when the name starts with it, "word" when a later word does
+ * ("leche descremada" for "desc"), null when it does not match.
+ */
+export function matchOf(
+  nameNormalized: string,
+  key: string,
+): "start" | "word" | null {
+  if (key === "") return null;
+  if (nameNormalized.startsWith(key)) return "start";
+  return nameNormalized
+    .split(" ")
+    .some((word, index) => index > 0 && word.startsWith(key))
+    ? "word"
+    : null;
+}
+
+/**
  * Products for what is being typed (the name part of the add bar's text):
  * those whose name starts with it come first, then those with a word that
  * starts with it ("leche" for "desc" in "leche descremada"), each in order
  * of use. Matching is on the normalized name, so "cafe" finds "Café".
- * `pending` holds the normalized names of the pending items.
+ * `pending` holds the normalized names of the pending items: those are
+ * offered by pendingMatchesFor, as what is already on the list.
  */
 export function suggestionsFor<E extends Entry>(
   query: string,
@@ -59,18 +78,12 @@ export function suggestionsFor<E extends Entry>(
   limit = SUGGESTION_LIMIT,
 ): E[] {
   const key = normalizeName(query);
-  if (key === "") return [];
   const starts: E[] = [];
   const words: E[] = [];
   for (const entry of notPending(catalog, pending)) {
-    if (entry.name_normalized.startsWith(key)) starts.push(entry);
-    else if (
-      entry.name_normalized
-        .split(" ")
-        .some((word, index) => index > 0 && word.startsWith(key))
-    ) {
-      words.push(entry);
-    }
+    const match = matchOf(entry.name_normalized, key);
+    if (match === "start") starts.push(entry);
+    else if (match === "word") words.push(entry);
   }
   return [...starts.sort(byUse), ...words.sort(byUse)].slice(0, limit);
 }
