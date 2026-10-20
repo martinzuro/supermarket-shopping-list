@@ -178,7 +178,9 @@ export function Collapse({ show, className, children }: CollapseProps) {
           key="collapse"
           initial={hidden}
           animate={visible}
-          exit={hidden}
+          // While it fades out it keeps its last content and handlers: it
+          // must not take a tap meant for what is already there.
+          exit={{ ...hidden, pointerEvents: "none" }}
           transition={transitions.base}
           className={className}
         >

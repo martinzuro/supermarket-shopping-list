@@ -313,6 +313,9 @@ describe("the add field as a combobox", () => {
 
     type(field, "lech");
     expect(field).toHaveAttribute("aria-expanded", "true");
+    // Back to the text Escape closed it on: it is a change, it stays open.
+    type(field, "lec");
+    expect(field).toHaveAttribute("aria-expanded", "true");
   });
 
   it("adds an option with a tap, keeping the quantity typed and the focus", async () => {
@@ -341,6 +344,40 @@ describe("the add field as a combobox", () => {
     expect(field.value).toBe("");
     expect(field).toHaveFocus();
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("takes a second tap at the same spot right after as a double tap, not as another add", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar();
+    type(field, "tom");
+    const at = { clientX: 120, clientY: 640 };
+    const leche = () =>
+      screen.queryByRole("button", { name: texts.addItem.addProduct("Leche") });
+
+    fireEvent.click(screen.getByRole("option", { name: /^Tomates/ }), {
+      detail: 1,
+      ...at,
+    });
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    // Under the finger now: the frequents row, back with the field empty.
+    fireEvent.click(leche()!, { detail: 2, ...at });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    // Not added: it would have left the row (pending at once).
+    expect(leche()).not.toBeNull();
+  });
+
+  it("adds both when two taps land on two different products, however quick", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    await renderBar();
+    const chip = (name: string) =>
+      screen.queryByRole("button", { name: texts.addItem.addProduct(name) });
+
+    fireEvent.click(chip("Leche")!, { detail: 1, clientX: 120, clientY: 700 });
+    fireEvent.click(chip("Yerba")!, { detail: 1, clientX: 260, clientY: 700 });
+    // Both pending at once (the second insert waits for the first in the
+    // list's queue): both left the row.
+    await waitFor(() => expect(chip("Leche")).toBeNull());
+    await waitFor(() => expect(chip("Yerba")).toBeNull());
   });
 
   it("puts what was typed back, and says so, when the server rejects a tap", async () => {
@@ -544,7 +581,11 @@ describe("Lo de siempre", () => {
       );
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(8100);
+        await vi.advanceTimersByTimeAsync(7900);
+      });
+      expect(banner()).toHaveTextContent(texts.addItem.usuals.added(4));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
       });
       await waitFor(() => expect(banner()).toBeNull());
     } finally {

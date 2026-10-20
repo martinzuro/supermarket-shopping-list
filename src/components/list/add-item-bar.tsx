@@ -67,6 +67,13 @@ const INPUT_ID = ADD_ITEM_INPUT_ID;
 /** El aviso se va solo; para entonces el cambio ya se deshizo a la vista. */
 const NOTICE_MS = 8000;
 
+/**
+ * Un segundo toque antes de esto y casi en el mismo lugar es un doble toque
+ * accidental (el mismo criterio que la confirmación de borrar de la hoja).
+ */
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_PX = 24;
+
 /** Mismo límite que la columna `items.name`. */
 export const MAX_NAME_LENGTH = 200;
 
@@ -218,7 +225,7 @@ export function AddItemBar() {
   const keyboardInset = useKeyboardInset();
   const keyboardOpen = keyboardInset > 0;
   const barRef = useRef<HTMLDivElement>(null);
-  useBarHeight(barRef);
+  useBarHeight(barRef, keyboardInset);
 
   const { user } = useSession();
   const userId = user?.id ?? null;
@@ -399,8 +406,28 @@ export function AddItemBar() {
     addNamed(typed.name, typed, raw);
   }
 
+  // El último toque que agregó algo desde la lista o la fila: un segundo
+  // toque casi en el mismo lugar antes de DOUBLE_TAP_MS es un doble toque
+  // accidental, no otro pedido (lo que quedó bajo el dedo puede ser otra
+  // opción u otra píldora). Con teclado no hay doble toque.
+  const lastTap = useRef<{ x: number; y: number; at: number } | null>(null);
+  function isDoubleTap(event: MouseEvent<HTMLElement>) {
+    if (event.detail === 0) return false;
+    const now = Date.now();
+    const previous = lastTap.current;
+    lastTap.current = { x: event.clientX, y: event.clientY, at: now };
+    return (
+      previous !== null &&
+      now - previous.at < DOUBLE_TAP_MS &&
+      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <
+        DOUBLE_TAP_PX
+    );
+  }
+
   /** Una opción de la lista: el producto del catálogo con lo escrito. */
-  function pick(key: string) {
+  function pick(key: string, event?: MouseEvent<HTMLElement>) {
+    // Enter on the active option comes with no event: no double tap there.
+    if (event && isDoubleTap(event)) return;
     const entry = suggestions.find((one) => one.name_normalized === key);
     const field = inputRef.current;
     if (!entry || !field || !ready) return;
@@ -416,6 +443,7 @@ export function AddItemBar() {
 
   /** Un frecuente de la fila: sin cantidad, con lo del catálogo. */
   function pickFrequent(key: string, event: MouseEvent<HTMLButtonElement>) {
+    if (isDoubleTap(event)) return;
     const entry = frequents.find((one) => one.name_normalized === key);
     if (!entry || !ready) return;
     // Con teclado, la píldora que se va se lleva el foco: vuelve al campo.
@@ -427,7 +455,7 @@ export function AddItemBar() {
 
   /** "Lo de siempre": todo lo habitual que no está pendiente, en una escritura. */
   function addUsuals(event: MouseEvent<HTMLButtonElement>) {
-    if (!ready || usualsCount === 0) return;
+    if (isDoubleTap(event) || !ready || usualsCount === 0) return;
     if (document.activeElement === event.currentTarget) {
       inputRef.current?.focus();
     }
@@ -618,6 +646,8 @@ export function AddItemBar() {
           onChange={(event) => {
             setQuery(event.target.value);
             setActiveKey(null);
+            // Escape cerró la lista para ese texto; cualquier cambio la abre.
+            setClosedFor(null);
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => setAway(false)}

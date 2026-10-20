@@ -429,7 +429,22 @@ for (const scheme of SCHEMES) {
       await expect(listbox(page)).toHaveCount(0);
     });
 
-    test("a row with nothing frequent but usual-less history offers no Lo de siempre", async ({
+    test("a double tap on a suggestion adds it once", async ({ page }) => {
+      test.setTimeout(60_000);
+      await openWithHistory(page);
+      const writes = recordItemWrites(page);
+      await field(page).fill("lec");
+      await expect(options(page)).toHaveCount(2);
+      // Two clicks at the same spot, as quick as a double tap: the second
+      // lands on what fades out or on what took its place.
+      await options(page).nth(1).dblclick();
+      await expect(row(pending(page), "Leche")).toBeVisible();
+      await page.waitForTimeout(600);
+      await expect(pending(page).getByRole("checkbox")).toHaveCount(1);
+      expect(writes.filter((w) => w.method === "POST")).toHaveLength(1);
+    });
+
+    test("with a single usual product there is no Lo de siempre, only the frequents", async ({
       page,
     }) => {
       test.setTimeout(60_000);

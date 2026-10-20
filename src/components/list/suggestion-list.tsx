@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import type { CategoryId } from "@/lib/design/tokens";
 import { texts } from "@/lib/texts";
@@ -21,7 +22,7 @@ type SuggestionListProps = {
   /** De arriba hacia abajo: la mejor queda pegada al campo. */
   options: readonly Suggestion[];
   activeKey: string | null;
-  onPick: (key: string) => void;
+  onPick: (key: string, event: MouseEvent<HTMLElement>) => void;
 };
 
 /**
@@ -55,7 +56,7 @@ export function SuggestionList({
             data-active={active || undefined}
             onPointerDown={(event) => event.preventDefault()}
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onPick(option.key)}
+            onClick={(event) => onPick(option.key, event)}
             className={cn(
               "text-row min-h-touch duration-instant -mx-3 flex cursor-pointer items-center gap-3 px-3 transition-colors ease-out",
               "hover:bg-paper-hover active:bg-paper-pressed data-active:bg-paper-2",
