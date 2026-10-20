@@ -619,8 +619,9 @@ ven los cambios de la otra en menos de un segundo.
   moneda en el ítem, recuerda último precio y moneda del catálogo, totales
   por moneda para pendientes y carro.
 
-Estado al 2026-10-20: la Fase 3 está en `main` (PR 39, 40 y 41, y este, el
-cierre, con los arreglos de la revisión cruzada final en `5446615`).
+Estado al 2026-10-20: la Fase 3 está en `main` (PR 39, 40 y 41, y el 42, el
+cierre, con los arreglos de la revisión cruzada final y la migración
+`catalog_price_unit_pair`).
 
 - **3a, recorrido y categoría (PR 39).** RPC `move_category` (migración
   `20261020125038_category_order.sql`, `SECURITY INVOKER`) que mueve una
