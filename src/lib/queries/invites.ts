@@ -15,29 +15,70 @@ export function inviteUrl(token: string, origin = window.location.origin) {
 export type Invite = { token: string; url: string; expiresAt: string };
 
 /**
- * The owner creates a link to share the list: single use, valid seven days
- * (migration sharing caps it). Not optimistic: the token comes from the
- * server. A retry after a lost answer may leave an unused invite behind,
- * which is harmless. The screen can create it as soon as it opens, so the
- * link is ready for the share sheet when the user taps.
+ * An invite reused when the share sheet opens again must still have this
+ * long to live: a link about to expire is not worth sending.
+ */
+const REUSE_MIN_MS = 24 * 60 * 60 * 1000;
+
+type InviteRow = { token: string; expires_at: string };
+
+const toInvite = (row: InviteRow): Invite => ({
+  token: row.token,
+  url: inviteUrl(row.token),
+  expiresAt: row.expires_at,
+});
+
+/** The newest share invite of the list nobody used yet, if it lasts a day more. */
+async function unusedInvite(listId: string): Promise<InviteRow | null> {
+  const rows = unwrap<InviteRow[]>(
+    await createClient()
+      .from("list_invites")
+      .select("token, expires_at")
+      .eq("list_id", listId)
+      .eq("purpose", "share")
+      .is("used_at", null)
+      .gt("expires_at", new Date(Date.now() + REUSE_MIN_MS).toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .abortSignal(writeSignal()),
+  );
+  return rows[0] ?? null;
+}
+
+export type CreateInvite = {
+  /** A new link even if an unused one exists ("another link"). */
+  fresh?: boolean;
+};
+
+/**
+ * The owner's link to share the list: single use, valid seven days
+ * (migration sharing caps it). Opening the share sheet again shows the
+ * newest link nobody used yet, so the owner does not take the one already
+ * sent for a dead one, and unused rows do not pile up; `fresh` makes a new
+ * one for the next person. Not optimistic: the token comes from the server.
+ * A retry after a lost answer may leave an unused invite behind, which the
+ * next opening reuses. The screen can ask as soon as it opens, so the link
+ * is ready for the share sheet when the user taps.
  */
 export function useCreateInvite(userId: string, listId: string) {
   return useMutation({
     mutationKey: [...queryKeys.list(userId, listId), "invite"],
-    mutationFn: async (): Promise<Invite> => {
-      const row = unwrap<{ token: string; expires_at: string }>(
-        await createClient()
-          .from("list_invites")
-          .insert({ list_id: listId })
-          .select("token, expires_at")
-          .abortSignal(writeSignal())
-          .single(),
+    mutationFn: async (variables: CreateInvite | void): Promise<Invite> => {
+      const fresh = variables?.fresh ?? false;
+      if (!fresh) {
+        const unused = await unusedInvite(listId);
+        if (unused) return toInvite(unused);
+      }
+      return toInvite(
+        unwrap<InviteRow>(
+          await createClient()
+            .from("list_invites")
+            .insert({ list_id: listId })
+            .select("token, expires_at")
+            .abortSignal(writeSignal())
+            .single(),
+        ),
       );
-      return {
-        token: row.token,
-        url: inviteUrl(row.token),
-        expiresAt: row.expires_at,
-      };
     },
   });
 }

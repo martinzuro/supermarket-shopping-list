@@ -43,10 +43,17 @@ export function makeTable(handlers: {
     let operation: "read" | "insert" | "update" | "delete" = "read";
     const filters: [string, unknown][] = [];
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "is", "order", "single", "abortSignal"]) {
+    for (const method of [
+      "select",
+      "is",
+      "order",
+      "limit",
+      "single",
+      "abortSignal",
+    ]) {
       chain[method] = vi.fn(() => chain);
     }
-    for (const method of ["eq", "in", "is"]) {
+    for (const method of ["eq", "in", "is", "gt"]) {
       chain[method] = vi.fn((column: string, value: unknown) => {
         filters.push([column, value]);
         return chain;

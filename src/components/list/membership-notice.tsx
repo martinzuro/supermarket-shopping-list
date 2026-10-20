@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert, LogOut, UserMinus, XIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { Collapse } from "@/components/motion";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -23,10 +24,23 @@ const copy = {
  * only explanation of why the list changed, so it does not leave by itself).
  * The sentence is also read out through a region that is always mounted;
  * the banner's own role would not be, as it appears with its text.
+ *
+ * When the place the user was in is gone with the list (the sheet they left
+ * it from: requestNoticeFocus), the focus goes to the notice's close button,
+ * the way the cart-emptied moment takes it to its action: a keyboard user
+ * continues from what changed, and the region above says what it was (the
+ * button's name alone would not).
  */
 export function MembershipNotices() {
-  const { notice, dismiss } = useMembershipNotice();
+  const { notice, dismiss, focusRequested, takeFocusRequest } =
+    useMembershipNotice();
   const shown = notice ? copy[notice.kind] : null;
+  const dismissButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!notice || !focusRequested) return;
+    if (takeFocusRequest()) dismissButton.current?.focus();
+  }, [notice, focusRequested, takeFocusRequest]);
 
   return (
     <>
@@ -58,6 +72,7 @@ export function MembershipNotices() {
             data-kind={notice?.kind}
             action={
               <Button
+                ref={dismissButton}
                 type="button"
                 variant="ghost"
                 size="icon-touch"

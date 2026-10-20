@@ -6,8 +6,11 @@ import { queryKeys } from "./keys";
 import { useLeaveList } from "./members";
 import {
   currentListOf,
+  isSharedOwnList,
   leftoversOf,
   membershipMutationKeys,
+  requestNoticeFocus,
+  setMembershipNotice,
   readListsAfterRejection,
   useCurrentList,
   useMembershipNotice,
@@ -133,6 +136,26 @@ describe("leftoversOf", () => {
 
   it("nothing without a current list", () => {
     expect(leftoversOf([current], null)).toEqual([]);
+  });
+});
+
+describe("isSharedOwnList", () => {
+  it("is a list of their own that others are in", () => {
+    expect(isSharedOwnList(list({ id: "mine", member_count: 2 }))).toBe(true);
+  });
+
+  it("not a list of their own nobody else is in", () => {
+    expect(isSharedOwnList(list({ id: "mine" }))).toBe(false);
+  });
+
+  it("not a list of others, however many are in it", () => {
+    expect(
+      isSharedOwnList(list({ id: "theirs", role: "member", member_count: 4 })),
+    ).toBe(false);
+  });
+
+  it("not when there is no list", () => {
+    expect(isSharedOwnList(null)).toBe(false);
   });
 });
 
@@ -609,6 +632,56 @@ describe("leaving with the list screen on", () => {
     await waitFor(() => expect(result.current.current.list?.id).toBe("shared"));
     expect(notices).toEqual(["left", "leave_failed"]);
     expect(lists.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("asking the focus to go to the notice", () => {
+  function setup() {
+    const queryClient = makeTestQueryClient();
+    const hook = renderHook(() => useMembershipNotice(), {
+      wrapper: makeWrapper(queryClient),
+    });
+    return { queryClient, hook };
+  }
+
+  it("is told once, and only to a request that was made", () => {
+    const { queryClient, hook } = setup();
+    expect(hook.result.current.focusRequested).toBe(false);
+    expect(hook.result.current.takeFocusRequest()).toBe(false);
+
+    act(() => requestNoticeFocus(queryClient));
+    expect(hook.result.current.focusRequested).toBe(true);
+    let first = false;
+    act(() => {
+      first = hook.result.current.takeFocusRequest();
+    });
+    expect(first).toBe(true);
+    expect(hook.result.current.focusRequested).toBe(false);
+    expect(hook.result.current.takeFocusRequest()).toBe(false);
+  });
+
+  it("holds for a notice that comes a moment later", () => {
+    const { queryClient, hook } = setup();
+    act(() => requestNoticeFocus(queryClient));
+    act(() => setMembershipNotice(queryClient, { kind: "left", listId: "l1" }));
+    expect(hook.result.current.notice?.kind).toBe("left");
+    expect(hook.result.current.focusRequested).toBe(true);
+  });
+
+  it("lapses when no notice comes for a long time", () => {
+    vi.useFakeTimers();
+    try {
+      const { queryClient, hook } = setup();
+      act(() => requestNoticeFocus(queryClient));
+      vi.advanceTimersByTime(16_000);
+      let taken = true;
+      act(() => {
+        taken = hook.result.current.takeFocusRequest();
+      });
+      expect(taken).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

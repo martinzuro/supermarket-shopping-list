@@ -498,8 +498,14 @@ test.describe("members", () => {
         .delete()
         .eq("list_id", owner.listId)
         .eq("user_id", guest.id);
+      // Only the removal: under load the INSERT of the guest's own accept,
+      // committed just before the channel joined, may still reach it late.
       await expect
-        .poll(() => heard.filter((h) => h.table === "list_members"))
+        .poll(() =>
+          heard.filter(
+            (h) => h.table === "list_members" && h.event === "DELETE",
+          ),
+        )
         .toEqual([
           {
             table: "list_members",

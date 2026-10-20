@@ -9,6 +9,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Enter } from "@/components/motion";
 import {
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   currentListOf,
+  requestNoticeFocus,
   sharingErrorOf,
   useCreateInvite,
   useLists,
@@ -56,30 +58,73 @@ type ShareSheetProps = {
  * list_invites): an anonymous owner converts first, with the same email and
  * code step as the menu; an account gets the invitation.
  *
- * The sheet belongs to one list: when the list on screen changes (the user
- * left it, was taken out of it) it starts over, closed.
+ * The sheet and its trigger stay mounted while the lists are not known
+ * (a calm loading text inside), because that happens with the sheet open:
+ * signing in to an account that exists changes the user, whose lists are not
+ * read yet, and the "signed in" feedback must survive until their list
+ * shows. A different list for the same person (they left it, or were taken
+ * out of it) starts the sheet over, closed, and the focus goes to the
+ * membership notice (the sheet they were in is gone).
  */
-export function ShareSheet(props: ShareSheetProps) {
-  const { user } = useSession();
+export function ShareSheet({
+  pendingSignIn,
+  onPendingSignInChange,
+}: ShareSheetProps) {
+  const queryClient = useQueryClient();
+  const { status, user } = useSession();
   const lists = useLists(user?.id ?? null);
   // Not useCurrentList: that one also creates a list when there is none.
   const list = currentListOf(lists.data);
-  if (!list) return null;
-  return <ListSheet key={list.id} list={list} {...props} />;
-}
-
-function ListSheet({
-  list,
-  pendingSignIn,
-  onPendingSignInChange,
-}: ShareSheetProps & { list: List }) {
-  const { status, user } = useSession();
   const [open, setOpen] = useState(false);
   const [converted, setConverted] = useState(false);
-  const isOwner = list.role === "owner";
+  // The sheet closed because the list under it went away: the focus is not
+  // to return to the trigger (Radix does), but to the notice that says why.
+  const [handOff, setHandOff] = useState(false);
+  // What the sheet's close handler reads: the sheet fades out as an exiting
+  // child that keeps the props of its last render (AnimatePresence), so a
+  // closure over the state would still see "false".
+  const handingOff = useRef(false);
+  useEffect(() => {
+    handingOff.current = handOff;
+  }, [handOff]);
+  // The last list shown and whose it was, to tell a new person (their lists
+  // are loading) from the same person with another list. Adjusted while
+  // rendering, so the sheet never shows a frame with the old list's sheet.
+  const [shown, setShown] = useState<{ userId: string; list: List } | null>(
+    null,
+  );
+  if (user && list && (shown?.list !== list || shown.userId !== user.id)) {
+    const changed = shown?.userId === user.id && shown.list.id !== list.id;
+    setShown({ userId: user.id, list });
+    if (changed) {
+      if (open) {
+        setOpen(false);
+        setHandOff(true);
+      }
+      setConverted(false);
+    }
+  }
+
+  // While the sheet fades out after leaving, the list may already be gone
+  // from the cache: it keeps what it was showing instead of swapping its
+  // content for the loading text mid-fade.
+  const fading =
+    !open && shown !== null && shown.userId === user?.id ? shown.list : null;
+  const current = list ?? fading;
+  // The trigger needs what the list was while the new one loads.
+  const known = current ?? shown?.list ?? null;
+  if (!known) return null;
+
+  const isOwner = known.role === "owner";
   // Someone else is in the list: it is worth showing who.
-  const shared = list.member_count > 1;
-  const Icon = shared || !isOwner ? Users : UserPlus;
+  const shared = current !== null && current.member_count > 1;
+  const Icon =
+    (current ?? known).member_count > 1 || !isOwner ? Users : UserPlus;
+
+  function leave() {
+    setOpen(false);
+    setHandOff(true);
+  }
 
   return (
     <Sheet
@@ -108,6 +153,13 @@ function ListSheet({
           event.preventDefault();
           (event.currentTarget as HTMLElement | null)?.focus();
         }}
+        onCloseAutoFocus={(event) => {
+          if (!handingOff.current) return;
+          event.preventDefault();
+          handingOff.current = false;
+          setHandOff(false);
+          requestNoticeFocus(queryClient);
+        }}
       >
         <SheetHeader>
           <SheetTitle>{isOwner ? t.title : texts.members.title}</SheetTitle>
@@ -122,15 +174,16 @@ function ListSheet({
           </SheetDescription>
         </SheetHeader>
         <SheetBody className="pb-safe pb-6">
-          {!user ? (
-            <p className="text-ink-2 text-pretty">
+          {!user || !current ? (
+            <p role="status" className="text-ink-2 text-pretty">
               {status === "offline" ? t.offline : t.loading}
             </p>
           ) : !isOwner ? (
             <MembersSection
+              key={current.id}
               userId={user.id}
-              list={list}
-              onLeave={() => setOpen(false)}
+              list={current}
+              onLeave={leave}
             />
           ) : user.is_anonymous ? (
             <GuestShare
@@ -150,9 +203,10 @@ function ListSheet({
               {shared ? (
                 <Enter>
                   <MembersSection
+                    key={current.id}
                     userId={user.id}
-                    list={list}
-                    onLeave={() => setOpen(false)}
+                    list={current}
+                    onLeave={leave}
                   />
                 </Enter>
               ) : null}
@@ -162,7 +216,12 @@ function ListSheet({
                 {shared ? (
                   <h2 className="text-heading pt-2">{t.inviteHeading}</h2>
                 ) : null}
-                <InviteStep list={list} userId={user.id} />
+                {/* One invitation per list and person. */}
+                <InviteStep
+                  key={`${user.id}:${current.id}`}
+                  list={current}
+                  userId={user.id}
+                />
               </div>
             </>
           )}
@@ -254,7 +313,7 @@ function InviteStep({ list, userId }: { list: List; userId: string }) {
   function anotherLink() {
     setCopied(false);
     setCopyFailed(false);
-    mutate();
+    mutate({ fresh: true });
   }
 
   async function copy(link: string) {
