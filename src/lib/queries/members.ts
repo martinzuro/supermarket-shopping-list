@@ -221,13 +221,14 @@ export function useLeaveList(userId: string, listId: string) {
  * own that others use is refused here and by the database (list_shared),
  * which also catches someone joining after the lists were read.
  */
-export function useDiscardList(userId: string, list: List) {
+export function useDiscardList(userId: string, list: List | null) {
   const queryClient = useQueryClient();
-  const listId = list.id;
+  const listId = list?.id ?? "";
   return useMutation({
     mutationKey: membershipMutationKeys.discard(userId, listId),
     scope: listScope(listId),
     mutationFn: async () => {
+      if (!list) return;
       if (list.role === "member") return leave(listId, userId);
       if (list.member_count > 1) {
         throw new RequestError({ message: "list_shared", code: "P0001" }, 400);

@@ -123,26 +123,36 @@ export async function openAndCreateList(page: Page): Promise<CreatedList> {
  * lands between a change and its event would show the change with no pulse
  * (refetches never pulse), so a step must not start while it is in flight.
  */
+/** Topic, event and payload of a Realtime frame, or null if it is not one. */
+function parseFrame(
+  payload: string | Buffer,
+): { topic: string; event: string; body: unknown } | null {
+  let message: unknown;
+  try {
+    message = JSON.parse(payload.toString());
+  } catch {
+    return null;
+  }
+  // Protocol 1: an object; protocol 2: [join_ref, ref, topic, event, payload].
+  const [topic, event, body] = Array.isArray(message)
+    ? [message[2], message[3], message[4]]
+    : [
+        (message as { topic?: string }).topic,
+        (message as { event?: string }).event,
+        (message as { payload?: unknown }).payload,
+      ];
+  return { topic: String(topic), event: String(event), body };
+}
+
 export function channelJoined(page: Page): Promise<string> {
   let joined: string | undefined;
   return new Promise((resolve) => {
     page.on("websocket", (socket) => {
       if (!socket.url().includes("/realtime/")) return;
       socket.on("framereceived", ({ payload }) => {
-        let message: unknown;
-        try {
-          message = JSON.parse(payload.toString());
-        } catch {
-          return;
-        }
-        // Protocol 1: an object; protocol 2: [join_ref, ref, topic, event, payload].
-        const [topic, event, body] = Array.isArray(message)
-          ? [message[2], message[3], message[4]]
-          : [
-              (message as { topic?: string }).topic,
-              (message as { event?: string }).event,
-              (message as { payload?: unknown }).payload,
-            ];
+        const frame = parseFrame(payload);
+        if (!frame) return;
+        const { topic, event, body } = frame;
         const reply = body as {
           status?: string;
           response?: { postgres_changes?: { table?: string }[] };
@@ -177,6 +187,49 @@ export function channelJoined(page: Page): Promise<string> {
       resolve(listId);
     });
   });
+}
+
+export type RealtimeFrame = {
+  /** Sent by the page (true) or received from the server. */
+  sent: boolean;
+  topic: string;
+  event: string;
+  t: number;
+};
+
+/**
+ * Every Realtime frame the page sends or receives, with its topic and event,
+ * as it happens. Like channelJoined, only sockets opened after the call are
+ * heard: call it before the page navigates.
+ */
+export function recordRealtime(page: Page): RealtimeFrame[] {
+  const frames: RealtimeFrame[] = [];
+  page.on("websocket", (socket) => {
+    if (!socket.url().includes("/realtime/")) return;
+    const record =
+      (sent: boolean) =>
+      ({ payload }: { payload: string | Buffer }) => {
+        const frame = parseFrame(payload);
+        if (frame) {
+          frames.push({
+            sent,
+            topic: frame.topic,
+            event: frame.event,
+            t: Date.now(),
+          });
+        }
+      };
+    socket.on("framesent", record(true));
+    socket.on("framereceived", record(false));
+  });
+  return frames;
+}
+
+/** Frames of the app's channel for a list (any of its openings). */
+export function framesOfList(frames: RealtimeFrame[], listId: string) {
+  return frames.filter((frame) =>
+    frame.topic.startsWith(`realtime:list:${listId}:`),
+  );
 }
 
 export async function reloadJoined(page: Page): Promise<string> {

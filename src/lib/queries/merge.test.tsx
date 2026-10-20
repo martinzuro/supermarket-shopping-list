@@ -91,6 +91,8 @@ function row(
 }
 
 const NOTE_KEY = "lista:carry-over";
+const EMAIL = "cuenta@example.com";
+const ACCOUNT = { id: USER, is_anonymous: false, email: EMAIL };
 
 beforeEach(() => {
   writeInvites.mockReset();
@@ -210,6 +212,7 @@ describe("the carry-over note", () => {
     token: TOKEN,
     listId: OWN,
     fromUserId: ANONYMOUS,
+    forEmail: EMAIL,
     count: 2,
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
   };
@@ -222,7 +225,13 @@ describe("the carry-over note", () => {
       },
       error: null,
     }));
-    const saved = await prepareCarryOver(ANONYMOUS, device, 2);
+    // As typed: the note keeps it trimmed and in lowercase.
+    const saved = await prepareCarryOver(
+      ANONYMOUS,
+      device,
+      2,
+      " Cuenta@Example.com",
+    );
     const inserted = tables.list_invites.insert.mock.calls[0][0] as {
       list_id: string;
       purpose: string;
@@ -236,6 +245,7 @@ describe("the carry-over note", () => {
       token: TOKEN,
       listId: OWN,
       fromUserId: ANONYMOUS,
+      forEmail: EMAIL,
       count: 2,
       expiresAt: inserted.expires_at,
     });
@@ -253,7 +263,7 @@ describe("the carry-over note", () => {
     ["a list others use", list({ id: OWN, member_count: 2 }), 3],
   ])("leaves nothing for %s", async (_label, from, count) => {
     window.localStorage.setItem(NOTE_KEY, JSON.stringify(note));
-    expect(await prepareCarryOver(ANONYMOUS, from, count)).toBeNull();
+    expect(await prepareCarryOver(ANONYMOUS, from, count, EMAIL)).toBeNull();
     expect(tables.list_invites.insert).not.toHaveBeenCalled();
     expect(window.localStorage.getItem(NOTE_KEY)).toBeNull();
   });
@@ -264,7 +274,9 @@ describe("the carry-over note", () => {
       error: { message: "TypeError: Failed to fetch" },
       status: 0,
     });
-    await expect(prepareCarryOver(ANONYMOUS, device, 2)).resolves.toBeNull();
+    await expect(
+      prepareCarryOver(ANONYMOUS, device, 2, EMAIL),
+    ).resolves.toBeNull();
     expect(readCarryOver()).toBeNull();
   });
 
@@ -283,30 +295,34 @@ describe("the carry-over note", () => {
     expect(readCarryOver()).toBeNull();
   });
 
-  it("is for an account other than the anonymous user who left it", () => {
-    expect(carryOverFor(note, { id: USER, is_anonymous: false })).toBe(note);
+  it("is for the account it was left for, never its anonymous author", () => {
+    expect(carryOverFor(note, ACCOUNT)).toBe(note);
+    expect(
+      carryOverFor(note, { ...ACCOUNT, email: "CUENTA@example.com" }),
+    ).toBe(note);
     expect(
       carryOverFor(note, { id: ANONYMOUS, is_anonymous: true }),
     ).toBeNull();
     // Signed out meanwhile: a new anonymous user is not the account.
-    expect(carryOverFor(note, { id: USER, is_anonymous: true })).toBeNull();
+    expect(carryOverFor(note, { ...ACCOUNT, is_anonymous: true })).toBeNull();
+    expect(carryOverFor(note, { ...ACCOUNT, id: ANONYMOUS })).toBeNull();
+    // Someone else signing in on a shared device meanwhile.
     expect(
-      carryOverFor(note, { id: ANONYMOUS, is_anonymous: false }),
+      carryOverFor(note, { ...ACCOUNT, email: "otra@example.com" }),
     ).toBeNull();
-    expect(carryOverFor(null, { id: USER })).toBeNull();
+    expect(carryOverFor(note, { id: USER, is_anonymous: false })).toBeNull();
+    expect(carryOverFor(null, ACCOUNT)).toBeNull();
     expect(carryOverFor(note, null)).toBeNull();
   });
 
   it("follows the note as it is left and cleared", async () => {
-    const { result } = renderHook(() =>
-      useCarryOver({ id: USER, is_anonymous: false }),
-    );
+    const { result } = renderHook(() => useCarryOver(ACCOUNT));
     expect(result.current).toBeNull();
     writeInvites.mockResolvedValue({
       data: { token: TOKEN, expires_at: note.expiresAt },
       error: null,
     });
-    await act(() => prepareCarryOver(ANONYMOUS, device, 2));
+    await act(() => prepareCarryOver(ANONYMOUS, device, 2, EMAIL));
     expect(result.current).toMatchObject({ token: TOKEN, count: 2 });
     act(() => clearCarryOver());
     expect(result.current).toBeNull();
@@ -318,6 +334,7 @@ describe("useClaimCarryOver", () => {
     token: TOKEN,
     listId: OWN,
     fromUserId: ANONYMOUS,
+    forEmail: EMAIL,
     count: 1,
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
   };

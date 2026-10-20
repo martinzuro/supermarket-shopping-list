@@ -103,6 +103,9 @@ export const texts = {
     title: "Compartir lista",
     description:
       "Mandá un enlace y la otra persona ve la misma lista que vos, con los cambios al instante.",
+    descriptionShared:
+      "Quiénes ven esta lista, y un enlace para sumar a alguien más.",
+    inviteHeading: "Sumar a alguien más",
     loading: "Cargando tu lista…",
     offline:
       "Sin conexión. Cuando vuelva la red vas a poder armar el enlace para compartir.",
@@ -138,6 +141,105 @@ export const texts = {
         "Se perdió tu sesión. Recargá la página y probá de nuevo.",
       unknown: "Algo salió mal al armar el enlace. Probá de nuevo en un rato.",
       retry: "Reintentar",
+    },
+  },
+  /**
+   * Quiénes comparten la lista (hoja de la cabecera, para todos los
+   * miembros): el dueño saca a alguien, cada miembro puede salir. No hay
+   * perfiles: a cada persona se la reconoce por su correo.
+   */
+  members: {
+    /** Acción de la cabecera para quien no es el dueño (no puede invitar). */
+    open: "Ver quién comparte la lista",
+    title: "Lista compartida",
+    description: "Las personas que ven esta lista y la cambian con vos.",
+    heading: "Quiénes comparten",
+    loading: "Cargando…",
+    you: "Vos",
+    owner: "Dueño",
+    noAccount: "Sin cuenta",
+    /** Nombre de una persona sin cuenta, para el lector de pantalla. */
+    noAccountSpoken: "una persona sin cuenta",
+    remove: {
+      action: "Sacar",
+      confirm: "Tocá otra vez",
+      label: (name: string) => `Sacar a ${name}`,
+      confirmLabel: (name: string) => `Tocá otra vez para sacar a ${name}`,
+      consequence: "Va a dejar de ver la lista.",
+    },
+    leave: {
+      hint: "Si salís, dejás de ver esta lista. Para volver necesitás una invitación nueva.",
+      action: "Salir de la lista",
+      confirm: "Tocá otra vez para salir",
+    },
+    errors: {
+      load: "No pudimos cargar quiénes comparten la lista.",
+      remove:
+        "No pudimos sacar a esa persona. Sigue en la lista: probá de nuevo.",
+      retry: "Reintentar",
+    },
+  },
+  /**
+   * Avisos de la pantalla de la lista cuando la lista que se veía se fue:
+   * saliste, ya no estás (te sacaron, saliste desde otro dispositivo o la
+   * lista ya no existe: por eso es neutro) o salir falló.
+   */
+  membershipNotice: {
+    left: {
+      title: "Saliste de la lista",
+      body: "Ya no la ves. Para volver necesitás una invitación nueva.",
+    },
+    removed: {
+      title: "Ya no estás en esa lista",
+      body: "Acá está tu lista.",
+    },
+    leaveFailed: {
+      title: "No pudimos sacarte de la lista",
+      body: "Seguís en ella. Probá de nuevo.",
+    },
+    dismiss: "Cerrar aviso",
+  },
+  /**
+   * Traer lo de otra lista a la actual: lo que quedó atrás al unirte a una
+   * lista compartida, o lo que anotaste sin cuenta en este dispositivo antes
+   * de entrar a tu cuenta.
+   */
+  bringOver: {
+    count: (count: number) => (count === 1 ? "1 cosa" : `${count} cosas`),
+    leftover: {
+      title: (text: string) => `${text} en tu lista anterior`,
+      body: "Las anotaste antes de unirte a esta lista. ¿Las traés acá o las descartás?",
+      bring: "Traerlas acá",
+      bringing: "Trayendo…",
+      drop: "Descartarlas",
+      dropping: "Descartando…",
+      empty: {
+        title: "Seguís en otra lista",
+        body: "No la ves ahora y no tiene nada anotado. ¿Salís de ella?",
+      },
+      shared: {
+        title: (text: string) => `${text} en otra lista que compartís`,
+        body: "Es una lista de otra persona. Podés copiar lo que tiene a esta, o salir de ella.",
+        bring: "Copiarlas acá",
+        drop: "Salir de esa lista",
+        dropping: "Saliendo…",
+      },
+    },
+    carryOver: {
+      title: (text: string) =>
+        `${text} que anotaste en este dispositivo sin cuenta`,
+      body: "Las anotaste antes de entrar a tu cuenta. ¿Las traés a esta lista?",
+      bring: "Traerlas",
+      bringing: "Trayendo…",
+      leave: "Dejarlas afuera",
+      hint: "Si las dejás afuera, no van a aparecer en tu cuenta.",
+    },
+    errors: {
+      network: "No pudimos conectarnos. Revisá tu conexión y probá de nuevo.",
+      list_shared:
+        "Alguien se unió a esa lista mientras tanto, así que no se puede descartar. Quedó donde estaba.",
+      gone: "Eso ya no está disponible. No hay nada más para traer.",
+      unknown: "Algo salió mal. Probá de nuevo en un rato.",
     },
   },
   /** Pantalla de la invitación (/invite/<enlace>): el momento editorial de quien recibe. */
@@ -271,7 +373,7 @@ export const texts = {
       instructions:
         "Tocá el enlace del correo o ingresá acá el código de 6 dígitos. Si no te llega en un par de minutos, revisá la carpeta de spam.",
       existingAccount:
-        "Ese correo ya tiene una cuenta: al entrar vas a ver sus listas. Lo que agregaste sin cuenta en este dispositivo queda afuera.",
+        "Ese correo ya tiene una cuenta: al entrar vas a ver sus listas. Lo que agregaste sin cuenta en este dispositivo no se pierde: cuando entres te preguntamos si querés traerlo a tu lista.",
       label: "Código de 6 dígitos",
       submit: "Confirmar",
       submitting: "Confirmando…",
@@ -574,6 +676,12 @@ export const texts = {
           title: "No se guardó el cambio",
           body: "Revisá tu conexión y probá de nuevo.",
           action: "Reintentar",
+        },
+        footer: {
+          title: "3 cosas en tu lista anterior",
+          body: "Las anotaste antes de unirte a esta lista. ¿Las traés acá o las descartás?",
+          primary: "Traerlas acá",
+          secondary: "Descartarlas",
         },
       },
     },

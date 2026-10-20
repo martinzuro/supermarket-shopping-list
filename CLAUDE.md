@@ -8,8 +8,9 @@ Desarrollar una web app para gestionar listas de compras de supermercado.
 
 ## Estado actual
 
-Fase 1 (fundaciones) casi completa; Fase 2a (la lista con ítems reales) y
-2b (tiempo real) entregadas el 2026-10-19, ver el estado fechado en
+Fase 1 (fundaciones) casi completa; la Fase 2 (lista funcional y
+compartida) está completa: 2a (la lista con ítems reales), 2b (tiempo real)
+y 2c (compartir), entregadas el 2026-10-19, ver el estado fechado en
 `docs/plan.md`. En `main`: tooling
 (Prettier, Vitest, Playwright, CI), PWA, esquema de Supabase con RLS y
 triggers en `supabase/migrations/`, tipos generados en
@@ -19,7 +20,11 @@ y canal Realtime por lista, y el sistema de diseño Fresh Editorial
 construido y aplicado a las pantallas (`docs/DESIGN_SYSTEM.md`, página
 interna `/design`). La lista guarda ítems (añadir, marcar, editar, borrar,
 agrupar por categoría, vaciar el carro), todo optimista, y refleja los
-cambios de otros miembros. Lo siguiente es la 2c (compartir).
+cambios de otros miembros. Se comparte por enlace de invitación, se ve quién
+comparte, el dueño saca a un miembro y un miembro sale, y lo que quedó en
+otra lista (al unirse a una compartida, o al entrar a una cuenta en otro
+dispositivo) se trae o se descarta. Lo siguiente es la Fase 3
+(diferencial).
 
 ## Decisiones tomadas
 
