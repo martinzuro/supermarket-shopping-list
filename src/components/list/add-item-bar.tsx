@@ -648,6 +648,8 @@ export function AddItemBar() {
             setActiveKey(null);
             // Escape cerró la lista para ese texto; cualquier cambio la abre.
             setClosedFor(null);
+            // Escribir entre dos toques es otro pedido, no un doble toque.
+            lastTap.current = null;
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => setAway(false)}

@@ -366,6 +366,32 @@ describe("the add field as a combobox", () => {
     expect(leche()).not.toBeNull();
   });
 
+  it("takes a tap at the same spot as a new one when something was typed in between", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar();
+    const at = { clientX: 120, clientY: 640 };
+    type(field, "tom");
+    fireEvent.click(screen.getByRole("option", { name: /^Tomates/ }), {
+      detail: 1,
+      ...at,
+    });
+    await waitFor(() => expect(field.value).toBe(""));
+    type(field, "lec");
+    fireEvent.click(screen.getByRole("option", { name: /^Leche/ }), {
+      detail: 1,
+      ...at,
+    });
+    await waitFor(() =>
+      expect(items.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Tomates" }),
+      ),
+    );
+    // The second add is pending at once (its insert waits in the queue).
+    await waitFor(() => expect(field.value).toBe(""));
+    type(field, "lec");
+    expect(screen.queryByRole("option", { name: /^Leche/ })).toBeNull();
+  });
+
   it("adds both when two taps land on two different products, however quick", async () => {
     write.mockReturnValue(new Promise(() => {}));
     await renderBar();

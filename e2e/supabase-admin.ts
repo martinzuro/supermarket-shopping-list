@@ -103,12 +103,22 @@ export async function categoryIds(
   return new Map(rows.map((row) => [row.name, row.id]));
 }
 
-/** Puts an item in a category (the catalog follows through its trigger). */
+/**
+ * Puts an item in a category (the catalog follows through its trigger). The
+ * item may have been added through the app a moment ago: its row is on
+ * screen before its insert reaches the server, so this waits for the row
+ * to exist instead of updating nothing.
+ */
 export async function setCategory(itemId: string, categoryId: string) {
-  await admin(`/items?id=eq.${itemId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ category_id: categoryId }),
-  });
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const rows = await admin<unknown[]>(`/items?id=eq.${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ category_id: categoryId }),
+    });
+    if (rows.length === 1) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`no item ${itemId} to put in a category`);
 }
 
 export type CatalogSeed = {
