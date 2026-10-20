@@ -203,8 +203,12 @@ for (const scheme of SCHEMES) {
       await expect(options(page).nth(1)).toContainText("Leche");
       await expect(options(page).nth(1)).toContainText(MONEY(45));
       // Each option is a thumb target, and the list sits on top of the field.
+      // Rounded: measured while the list still enters, its transform can
+      // leave sub-pixel noise (43.99994) on a row whose min-height is 44.
       for (const option of await options(page).all()) {
-        expect((await box(option)).height).toBeGreaterThanOrEqual(44);
+        expect(Math.round((await box(option)).height)).toBeGreaterThanOrEqual(
+          44,
+        );
       }
       const listBox = await box(listbox(page));
       const fieldBox = await box(input);
