@@ -75,6 +75,13 @@ function usualsButton(page: Page, count: number) {
   });
 }
 
+/** The button of the review sheet that adds what is ticked (A-3). */
+function usualsAdd(page: Page, count: number) {
+  return page
+    .getByRole("dialog", { name: t.addItem.usuals.title })
+    .getByRole("button", { name: t.addItem.usuals.add(count), exact: true });
+}
+
 function undoButton(page: Page) {
   return bar(page).getByRole("button", {
     name: t.addItem.usuals.undo,
@@ -477,7 +484,7 @@ for (const scheme of SCHEMES) {
     );
     test.use({ colorScheme: scheme, viewport: { width: 375, height: 812 } });
 
-    test("one tap adds the usual products in one request and Deshacer takes them back in one", async ({
+    test("the review adds the usual products in one request and Deshacer takes them back in one", async ({
       page,
     }, testInfo) => {
       test.setTimeout(120_000);
@@ -489,15 +496,19 @@ for (const scheme of SCHEMES) {
       await expect(usualsButton(page, 3)).toContainText("3");
 
       const writes = recordItemWrites(page);
-      const started = Date.now();
+      // The review first (A-3): everything ticked, nothing written yet.
       await usualsButton(page, 3).tap();
+      await expect(usualsAdd(page, 3)).toBeVisible();
+      expect(writes).toHaveLength(0);
+      const started = Date.now();
+      await usualsAdd(page, 3).tap();
       for (const name of ["Arroz", "Leche", "Tomates"]) {
         await expect(row(pending(page), name)).toBeVisible();
       }
       const elapsed = Date.now() - started;
       testInfo.annotations.push({
         type: "timing",
-        description: `tap on Lo de siempre -> 3 rows on screen: ${elapsed} ms`,
+        description: `tap on Agregar -> 3 rows on screen: ${elapsed} ms`,
       });
       await expect(addedNotice(page)).toContainText(t.addItem.usuals.added(3));
       await expect(undoButton(page)).toBeVisible();
@@ -506,7 +517,8 @@ for (const scheme of SCHEMES) {
       await expect(field(page)).toBeFocused();
       await captureViewport(page, testInfo, `usuals-notice-${scheme}`);
 
-      // One POST with the three products, their categories and last prices.
+      // One POST with the three products in route order, their categories
+      // and last prices.
       expect(writes).toHaveLength(1);
       expect(writes[0].method).toBe("POST");
       const body = writes[0].body as {
@@ -516,16 +528,16 @@ for (const scheme of SCHEMES) {
         estimated_price: number | null;
       }[];
       expect(body.map((one) => one.name)).toEqual([
-        "Arroz",
-        "Leche",
         "Tomates",
+        "Leche",
+        "Arroz",
       ]);
       expect(body.map((one) => one.category_id)).toEqual([
-        ids.get("Almacén"),
-        ids.get("Fiambres y lácteos"),
         ids.get("Frutas y verduras"),
+        ids.get("Fiambres y lácteos"),
+        ids.get("Almacén"),
       ]);
-      expect(body.map((one) => one.estimated_price)).toEqual([62, 45, 90]);
+      expect(body.map((one) => one.estimated_price)).toEqual([90, 45, 62]);
       await expect(
         group(page, "Almacén").getByRole("checkbox", { name: "Arroz" }),
       ).toBeVisible();
@@ -567,7 +579,9 @@ for (const scheme of SCHEMES) {
       await openWithHistory(page);
       await page.route(/\/rest\/v1\/items(\?|$)/, async (route) => {
         if (route.request().method() !== "POST") return route.continue();
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Long enough to see the optimistic rows once the review sheet has
+        // closed (while it closes, Radix hides the page from the a11y tree).
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         await route.fulfill({
           status: 403,
           contentType: "application/json",
@@ -579,6 +593,7 @@ for (const scheme of SCHEMES) {
       });
 
       await usualsButton(page, 4).tap();
+      await usualsAdd(page, 4).tap();
       // Optimistic first...
       await expect(row(pending(page), "Leche")).toBeVisible();
       // ...then the rejection: the rows go and the alert replaces the notice.
@@ -625,6 +640,7 @@ for (const scheme of SCHEMES) {
         // The notice of Lo de siempre adds a line on top of it all.
         // (Four rows come in with it: the person scrolls to see the new end.)
         await usualsButton(page, 4).tap();
+        await usualsAdd(page, 4).tap();
         await expect(addedNotice(page)).toBeVisible();
         await expectEndAboveBar(page, `notice, ${height}px`, { scroll: true });
         await undoButton(page).tap();

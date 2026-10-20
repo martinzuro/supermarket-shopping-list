@@ -273,7 +273,7 @@ async function fetchCatalog(listId: string): Promise<CatalogEntry[]> {
     await createClient()
       .from("catalog")
       .select(
-        "name_normalized, display_name, last_category_id, last_unit, last_price, last_currency, times_added, last_added_at",
+        "name_normalized, display_name, last_category_id, last_unit, last_price, last_currency, last_quantity, last_quantity_unit, times_added, last_added_at",
       )
       .eq("list_id", listId),
   );
@@ -282,7 +282,8 @@ async function fetchCatalog(listId: string): Promise<CatalogEntry[]> {
 /**
  * What the list remembers of every product ever added (written by the items
  * triggers): a new item takes its usual category and its last price and
- * currency from here at once.
+ * currency from here at once, and the frequents and "Lo de siempre" its last
+ * quantity.
  */
 export function useCatalog(userId: string | null, listId: string | null) {
   return useQuery({

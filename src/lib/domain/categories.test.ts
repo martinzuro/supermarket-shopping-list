@@ -6,6 +6,7 @@ import {
   compareRouteOrder,
   fallbackCategory,
   groupByCategory,
+  inRouteOrder,
   moveCategory,
   suggestCategory,
 } from "./categories";
@@ -293,5 +294,63 @@ describe("moveCategory", () => {
     ]);
     expect(moveCategory(withGone, "c-gone", "up", "c-veg")).toBeNull();
     expect(moveCategory(withGone, "c-veg", "down", "c-gone")).toBeNull();
+  });
+});
+
+describe("inRouteOrder", () => {
+  const route = [
+    category("c-veg", "Frutas y verduras", 0),
+    category("c-otros", "Otros", 2),
+    category("c-almacen", "Almacén", 1),
+    category("c-gone", "Bebidas", 3, { deleted_at: NOW }),
+  ];
+  const entry = (name: string, last_category_id: string | null) => ({
+    name,
+    last_category_id,
+  });
+  const names = (entries: { name: string }[]) => entries.map((e) => e.name);
+
+  it("follows the route, keeping the given order within a category", () => {
+    expect(
+      names(
+        inRouteOrder(
+          [
+            entry("Yerba", "c-almacen"),
+            entry("Tomates", "c-veg"),
+            entry("Arroz", "c-almacen"),
+            entry("Bananas", "c-veg"),
+          ],
+          route,
+        ),
+      ),
+    ).toEqual(["Tomates", "Bananas", "Yerba", "Arroz"]);
+  });
+
+  it("puts what has no category, or a gone one, where Otros is", () => {
+    expect(
+      names(
+        inRouteOrder(
+          [
+            entry("Pilas", null),
+            entry("Coca", "c-gone"),
+            entry("Yerba", "c-almacen"),
+            entry("Tomates", "c-veg"),
+          ],
+          route,
+        ),
+      ),
+    ).toEqual(["Tomates", "Yerba", "Pilas", "Coca"]);
+  });
+
+  it("puts them last when the list has no Otros", () => {
+    const withoutOtros = route.filter((c) => c.id !== "c-otros");
+    expect(
+      names(
+        inRouteOrder(
+          [entry("Pilas", null), entry("Yerba", "c-almacen")],
+          withoutOtros,
+        ),
+      ),
+    ).toEqual(["Yerba", "Pilas"]);
   });
 });

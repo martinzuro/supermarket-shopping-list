@@ -19,8 +19,9 @@ const keepFocus = (event: { preventDefault: () => void }) =>
 
 /**
  * Productos de un toque sobre el campo vacío: primero "Lo de siempre" con su
- * cuenta, después los más frecuentes, en una fila que se desplaza de costado
- * (sin barra). Las píldoras miden 36px y su área táctil llega a 44px.
+ * cuenta (abre el repaso), después los más frecuentes, en una fila que se
+ * desplaza de costado (sin barra). Las píldoras miden 36px y su área táctil
+ * llega a 44px.
  */
 export function FrequentsRow({
   usualsCount,
@@ -47,6 +48,8 @@ export function FrequentsRow({
           size="sm"
           data-slot="usuals"
           aria-label={texts.addItem.usuals.aria(usualsCount)}
+          // Abre el repaso (A-3), no agrega todavía.
+          aria-haspopup="dialog"
           className={hit}
           onPointerDown={keepFocus}
           onMouseDown={keepFocus}

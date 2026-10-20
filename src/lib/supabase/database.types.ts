@@ -7,14 +7,14 @@ export type Database = {
           Tables: {
             "catalog": {
                   Row: {
-                    "display_name": string,"last_added_at": string,"last_category_id": string | null,"last_currency": string | null,"last_price": number | null,"last_unit": string | null,"list_id": string,"name_normalized": string,"times_added": number
+                    "display_name": string,"last_added_at": string,"last_category_id": string | null,"last_currency": string | null,"last_price": number | null,"last_quantity": number | null,"last_quantity_unit": string | null,"last_unit": string | null,"list_id": string,"name_normalized": string,"times_added": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "display_name": string,"last_added_at"?: string,"last_category_id"?: string | null,"last_currency"?: string | null,"last_price"?: number | null,"last_unit"?: string | null,"list_id": string,"name_normalized": string,"times_added"?: number
+                    "display_name": string,"last_added_at"?: string,"last_category_id"?: string | null,"last_currency"?: string | null,"last_price"?: number | null,"last_quantity"?: number | null,"last_quantity_unit"?: string | null,"last_unit"?: string | null,"list_id": string,"name_normalized": string,"times_added"?: number
                   }
                   Update: {
-                    "display_name"?: string,"last_added_at"?: string,"last_category_id"?: string | null,"last_currency"?: string | null,"last_price"?: number | null,"last_unit"?: string | null,"list_id"?: string,"name_normalized"?: string,"times_added"?: number
+                    "display_name"?: string,"last_added_at"?: string,"last_category_id"?: string | null,"last_currency"?: string | null,"last_price"?: number | null,"last_quantity"?: number | null,"last_quantity_unit"?: string | null,"last_unit"?: string | null,"list_id"?: string,"name_normalized"?: string,"times_added"?: number
                   }
                   Relationships: [
                     {

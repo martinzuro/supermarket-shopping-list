@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   frequentsOf,
+  rememberedAmount,
   suggestionsFor,
   usualsOf,
   USUAL_WINDOW_DAYS,
@@ -115,5 +116,22 @@ describe("usualsOf", () => {
       "Leche descremada",
       "Dulce de leche",
     ]);
+  });
+});
+
+describe("rememberedAmount", () => {
+  it("brings the last quantity with its unit", () => {
+    expect(
+      rememberedAmount({ last_quantity: 2, last_quantity_unit: "kg" }),
+    ).toEqual({ quantity: 2, unit: "kg" });
+    expect(
+      rememberedAmount({ last_quantity: 3, last_quantity_unit: null }),
+    ).toEqual({ quantity: 3, unit: null });
+  });
+
+  it("brings nothing without a quantity, not even a stray unit", () => {
+    expect(
+      rememberedAmount({ last_quantity: null, last_quantity_unit: "kg" }),
+    ).toEqual({ quantity: null, unit: null });
   });
 });

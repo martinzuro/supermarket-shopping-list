@@ -34,6 +34,7 @@ export {
   compareRouteOrder,
   fallbackCategory,
   groupByCategory,
+  inRouteOrder,
   moveCategory,
   suggestCategory,
 } from "./categories";
@@ -43,6 +44,7 @@ export {
   SUGGESTION_LIMIT,
   USUAL_LIMIT,
   frequentsOf,
+  rememberedAmount,
   suggestionsFor,
   usualsOf,
 } from "./catalog";

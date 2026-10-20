@@ -128,6 +128,11 @@ export type CatalogSeed = {
   /** A default category by name, for the one the catalog remembers. */
   category?: string;
   price?: number;
+  /** The unit of the price (per kilo with "kg"); per unit by default. */
+  priceUnit?: string;
+  /** The quantity it was last on the list with, and its unit (A-3). */
+  quantity?: number;
+  quantityUnit?: string;
   /** The last add, this many days ago (0 by default). */
   daysAgo?: number;
 };
@@ -151,6 +156,10 @@ export async function seedCatalog(listId: string, rows: CatalogSeed[]) {
           : null,
         last_price: row.price ?? null,
         last_currency: row.price === undefined ? null : "UYU",
+        last_unit: row.priceUnit ?? null,
+        last_quantity: row.quantity ?? null,
+        last_quantity_unit:
+          row.quantity === undefined ? null : (row.quantityUnit ?? null),
         times_added: row.times,
         last_added_at: new Date(
           Date.now() - (row.daysAgo ?? 0) * 86_400_000,

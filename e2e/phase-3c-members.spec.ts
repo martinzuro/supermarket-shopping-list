@@ -85,11 +85,15 @@ for (const colorScheme of ["light", "dark"] as const) {
         const step = stepper(steps);
         const added = ["Tomates", "Leche", "Pan", "Arroz"];
 
-        // 1. A taps "Lo de siempre": the four arrive on B in one burst.
-        const tap = usualsButton(a, 4);
+        // 1. A adds "Lo de siempre" from its review (A-3): the four arrive on
+        // B in one burst.
+        await usualsButton(a, 4).tap();
+        const tap = a
+          .getByRole("dialog", { name: t.addItem.usuals.title })
+          .getByRole("button", { name: t.addItem.usuals.add(4), exact: true });
         await tap.hover();
         await step(
-          "1 A taps Lo de siempre",
+          "1 A adds Lo de siempre",
           a,
           b,
           USUALS,
