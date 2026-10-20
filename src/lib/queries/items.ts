@@ -7,6 +7,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import {
+  DEFAULT_CURRENCY,
   compareServerOrder,
   compareTimestamps,
   newId,
@@ -63,6 +64,9 @@ export type NewItem = {
   unit: string | null;
   /** Chosen by the caller from the catalog (see suggestCategory). */
   category_id: string | null;
+  /** The last price the catalog remembers, if any (see rememberedPrice). */
+  estimated_price: number | null;
+  currency: string;
 };
 
 export function newItem(
@@ -71,6 +75,7 @@ export function newItem(
     quantity?: number | null;
     unit?: string | null;
     categoryId?: string | null;
+    price?: { price: number; currency: string } | null;
   } = {},
 ): NewItem {
   return {
@@ -79,6 +84,8 @@ export function newItem(
     quantity: details.quantity ?? null,
     unit: details.unit ?? null,
     category_id: details.categoryId ?? null,
+    estimated_price: details.price?.price ?? null,
+    currency: details.price?.currency ?? DEFAULT_CURRENCY,
   };
 }
 
@@ -98,8 +105,8 @@ function optimisticItem(
     unit: input.unit,
     note: null,
     category_id: input.category_id,
-    estimated_price: null,
-    currency: "UYU",
+    estimated_price: input.estimated_price,
+    currency: input.currency,
     checked: false,
     checked_at: null,
     position,
@@ -137,6 +144,8 @@ async function insertItem(
           quantity: input.quantity,
           unit: input.unit,
           category_id: input.category_id,
+          estimated_price: input.estimated_price,
+          currency: input.currency,
           position,
         })
         .select()
@@ -161,6 +170,8 @@ type ItemChanges = Partial<
     | "unit"
     | "note"
     | "category_id"
+    | "estimated_price"
+    | "currency"
     | "checked"
     | "checked_at"
     | "deleted_at"
@@ -409,7 +420,13 @@ export function useToggleItem(userId: string, listId: string) {
 
 export type EditableFields = Pick<
   Item,
-  "name" | "quantity" | "unit" | "note" | "category_id"
+  | "name"
+  | "quantity"
+  | "unit"
+  | "note"
+  | "category_id"
+  | "estimated_price"
+  | "currency"
 >;
 
 export type EditItem = {
@@ -439,7 +456,8 @@ function stillShows(item: Item, changes: Partial<EditableFields>) {
 }
 
 /**
- * Edits name, quantity, unit, note and category. Same pattern as
+ * Edits name, quantity, unit, note, category, price and currency. Same
+ * pattern as
  * useToggleItem: only the changed fields are sent, and a rejected edit
  * restores them unless a later edit already replaced them.
  */
@@ -704,6 +722,8 @@ const VISIBLE_FIELDS = [
   "note",
   "checked",
   "category_id",
+  "estimated_price",
+  "currency",
 ] as const satisfies readonly (keyof Item)[];
 
 /**

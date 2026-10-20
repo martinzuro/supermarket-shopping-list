@@ -19,10 +19,7 @@ import { queryKeys } from "./keys";
 import { isOwnVersion, readAgain, rememberOwn } from "./reconcile";
 
 export type Category = Tables<"categories">;
-export type CatalogEntry = Pick<
-  Tables<"catalog">,
-  "name_normalized" | "last_category_id"
->;
+export type CatalogEntry = Omit<Tables<"catalog">, "list_id">;
 
 async function fetchCategories(listId: string): Promise<Category[]> {
   return unwrap(
@@ -275,14 +272,17 @@ async function fetchCatalog(listId: string): Promise<CatalogEntry[]> {
   return unwrap(
     await createClient()
       .from("catalog")
-      .select("name_normalized, last_category_id")
+      .select(
+        "name_normalized, display_name, last_category_id, last_unit, last_price, last_currency, times_added, last_added_at",
+      )
       .eq("list_id", listId),
   );
 }
 
 /**
  * What the list remembers of every product ever added (written by the items
- * triggers). Read here only to put a new item in its usual category at once.
+ * triggers): a new item takes its usual category and its last price and
+ * currency from here at once.
  */
 export function useCatalog(userId: string | null, listId: string | null) {
   return useQuery({

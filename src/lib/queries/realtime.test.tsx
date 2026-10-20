@@ -573,10 +573,22 @@ describe("changes from other members", () => {
       timeout: 1_500,
     });
 
-    const priced = { ...checked, estimated_price: 120, updated_at: at(3) };
+    // The check time is not on screen.
+    const later = { ...checked, checked_at: at(3), updated_at: at(3) };
+    channel.emit("items", updated(later));
+    expect(cached(queryClient)).toEqual([later]);
+    expect(result.current.remote.size).toBe(0);
+
+    // The price is (Phase 3): another member's price change pulses.
+    const priced = {
+      ...later,
+      estimated_price: 120,
+      currency: "USD",
+      updated_at: at(4),
+    };
     channel.emit("items", updated(priced));
     expect(cached(queryClient)).toEqual([priced]);
-    expect(result.current.remote.size).toBe(0);
+    expect(result.current.remote.has("milk")).toBe(true);
   });
 
   it("pulses a row another member added when a read showed it before its event", async () => {

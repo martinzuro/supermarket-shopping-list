@@ -1,7 +1,12 @@
 import type { Tables } from "@/lib/supabase/database.types";
+import { normalizeName } from "./normalize-name";
 import { canonicalUnit } from "./parse-item-input";
 
 type Item = Tables<"items">;
+type CatalogEntry = Pick<
+  Tables<"catalog">,
+  "name_normalized" | "last_price" | "last_currency"
+>;
 
 /**
  * What an item's estimated price is a price of (Phase 3 decision, plan 3.2):
@@ -94,4 +99,20 @@ export function parsePriceField(text: string): number | null | "invalid" {
  */
 export function formatPriceField(price: number | null): string {
   return price === null ? "" : String(price).replace(".", ",");
+}
+
+/**
+ * The price a new item starts with: the last price and currency the catalog
+ * remembers for that product (ADR 0006: "los propone al volver a añadirlo"),
+ * or null. The catalog trigger keeps the two as a pair; a price without its
+ * currency is not trusted.
+ */
+export function rememberedPrice(
+  name: string,
+  catalog: readonly CatalogEntry[],
+): { price: number; currency: string } | null {
+  const key = normalizeName(name);
+  const entry = catalog.find((one) => one.name_normalized === key);
+  if (entry?.last_price == null || !entry.last_currency) return null;
+  return { price: entry.last_price, currency: entry.last_currency };
 }

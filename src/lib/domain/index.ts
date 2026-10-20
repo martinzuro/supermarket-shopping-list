@@ -16,6 +16,7 @@ export {
   parsePriceField,
   priceBasis,
   priceFactor,
+  rememberedPrice,
 } from "./price";
 export type { PriceBasis } from "./price";
 export { formatQuantity } from "./format-quantity";

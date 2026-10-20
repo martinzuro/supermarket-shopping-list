@@ -5,6 +5,7 @@ import {
   parsePriceField,
   priceBasis,
   priceFactor,
+  rememberedPrice,
 } from "./price";
 
 describe("priceBasis", () => {
@@ -113,5 +114,37 @@ describe("formatPriceField", () => {
   ] as const)("writes %j as %j, which reads back the same", (price, text) => {
     expect(formatPriceField(price)).toBe(text);
     expect(parsePriceField(text)).toBe(price);
+  });
+});
+
+describe("rememberedPrice", () => {
+  const catalog = [
+    { name_normalized: "leche", last_price: 45, last_currency: "UYU" },
+    {
+      name_normalized: "aceite de oliva",
+      last_price: 12.5,
+      last_currency: "USD",
+    },
+    { name_normalized: "pan", last_price: null, last_currency: null },
+    { name_normalized: "yerba", last_price: 210, last_currency: null },
+  ];
+
+  it("is the catalog's last price and currency, by normalized name", () => {
+    expect(rememberedPrice("  LECHE ", catalog)).toEqual({
+      price: 45,
+      currency: "UYU",
+    });
+    expect(rememberedPrice("Aceite de Oliva", catalog)).toEqual({
+      price: 12.5,
+      currency: "USD",
+    });
+  });
+
+  it.each([
+    ["a product the catalog does not know", "Arroz"],
+    ["an entry without price", "Pan"],
+    ["a price without its currency", "Yerba"],
+  ])("is null for %s", (_label, name) => {
+    expect(rememberedPrice(name, catalog)).toBeNull();
   });
 });

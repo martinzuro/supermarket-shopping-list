@@ -123,6 +123,8 @@ describe("useAddItem (optimistic mutation pattern)", () => {
       quantity: null,
       unit: null,
       category_id: null,
+      estimated_price: null,
+      currency: "UYU",
       position: 0,
     });
 
@@ -132,6 +134,25 @@ describe("useAddItem (optimistic mutation pattern)", () => {
     await act(async () => pending.resolve({ data: created, error: null }));
     await waitFor(() => expect(result.current.add.isSuccess).toBe(true));
     expect(cached(queryClient)).toEqual([created]);
+  });
+
+  it("sends and shows the price the catalog remembers, with its currency", async () => {
+    const { result } = await renderItems([]);
+    write.mockReturnValue(new Promise(() => {}));
+
+    const input = newItem("Aceite", {
+      price: { price: 12.5, currency: "USD" },
+    });
+    act(() => result.current.add.mutate(input));
+    await waitFor(() =>
+      expect(result.current.list.data?.[0]).toMatchObject({
+        estimated_price: 12.5,
+        currency: "USD",
+      }),
+    );
+    expect(items.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ estimated_price: 12.5, currency: "USD" }),
+    );
   });
 
   it("sends and shows quantity and unit", async () => {
@@ -511,6 +532,30 @@ describe("useEditItem", () => {
     await act(async () => first.resolve(rejection));
     await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
     expect(cached(queryClient)[0].note).toBe("Descremada");
+  });
+});
+
+describe("useEditItem, the price", () => {
+  it("shows the price and currency at once, sends only them, and puts them back if rejected", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    update.mockResolvedValue(rejection);
+
+    act(() =>
+      result.current.edit.mutate({
+        id: "milk",
+        name: "Leche",
+        changes: { estimated_price: 3.99, currency: "USD" },
+      }),
+    );
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith(
+        { estimated_price: 3.99, currency: "USD" },
+        [["id", "milk"]],
+      ),
+    );
+    await waitFor(() => expect(result.current.edit.isError).toBe(true));
+    expect(cached(queryClient)).toEqual([milk]);
   });
 });
 
