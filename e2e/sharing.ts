@@ -67,6 +67,13 @@ export function membershipNotice(page: Page) {
   return page.getByTestId("membership-notice");
 }
 
+/** The close button of the membership notice, where the focus lands. */
+export function noticeDismiss(page: Page) {
+  return membershipNotice(page).getByRole("button", {
+    name: texts.membershipNotice.dismiss,
+  });
+}
+
 /** A screenshot at 375px, on disk (test-results/) and attached to the report. */
 export async function capture(
   page: Page,

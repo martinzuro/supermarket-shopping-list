@@ -246,6 +246,13 @@ for (const scheme of SCHEMES) {
         await a.keyboard.press("Escape");
         await expect(sheetA).toBeHidden();
 
+        // Opening the sheet again before anyone used the link shows the
+        // same one: it is the link already sent that must keep working.
+        await shareButton(a).click();
+        await expect(inviteLink(a)).toHaveText(link);
+        await a.keyboard.press("Escape");
+        await expect(sheetA).toBeHidden();
+
         // B opens the link, signed in as nobody yet: the invitation shows,
         // with A's email, and the target sizes and surface are the system's.
         const joinedB = channelJoined(b);
@@ -397,8 +404,9 @@ for (const scheme of SCHEMES) {
 
         // A asks for another link (a new invite), opens it themself ("this
         // link is yours"), and then it ages past its seven days for C.
-        // Opening the sheet again makes a fresh invite (the first is spent),
-        // and "another link" makes one more.
+        // Opening the sheet again makes a fresh invite (the first is spent,
+        // and only an unused one is shown again), and "another link" makes
+        // one more.
         await shareButton(a).click();
         await expect(inviteLink(a)).toHaveText(/\/invite\/\S+$/);
         const reopened = await readLink(a);

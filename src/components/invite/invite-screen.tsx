@@ -3,7 +3,7 @@
 import { CircleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { InvitationIllustration } from "@/components/illustrations";
 import { Enter, Stagger, StaggerItem } from "@/components/motion";
 import { retrySession, useSession } from "@/components/session-provider";
@@ -11,9 +11,13 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { markWelcomeSeen } from "@/components/welcome/welcome-flag";
 import {
+  currentListOf,
+  isSharedOwnList,
   sharingErrorOf,
   useAcceptInvite,
   useInvitePreview,
+  useLists,
+  type List,
   type SharingError,
 } from "@/lib/queries";
 import { texts } from "@/lib/texts";
@@ -112,6 +116,7 @@ export function InviteScreen({ token }: { token: string }) {
   const userId = user?.id ?? null;
   const preview = useInvitePreview(userId, token);
   const accept = useAcceptInvite(userId ?? "");
+  const lists = useLists(userId);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   const inviterEmail = preview.data?.inviterEmail ?? null;
@@ -119,13 +124,24 @@ export function InviteScreen({ token }: { token: string }) {
   // on the joining step until it moves on to the list.
   const joining = accept.isPending || accept.isSuccess;
 
+  // Joining leaves behind the user's own list when others are in it (v1
+  // shows one list): said before, not after. Fixed when the user taps, since
+  // the lists change the moment they are in.
+  const ownList = currentListOf(lists.data);
+  const [leavesBehind, setLeavesBehind] = useState<List | null>(null);
+  const sharedOwn = isSharedOwnList(ownList) ? ownList : null;
+  const guarded = joining ? leavesBehind : sharedOwn;
+
   let view: View;
   if (joining) view = "valid";
   else if (status === "offline" && !preview.data) view = "offline";
   else if (preview.isError && !preview.data) view = "error";
   else if (!user || !preview.data) view = "loading";
-  else if (preview.data.status === "valid") view = "valid";
-  else if (preview.data.status === "member") {
+  // The lists decide what a valid invite says: not shown before they are in
+  // (a read that failed leaves the plain invitation).
+  else if (preview.data.status === "valid") {
+    view = lists.isPending ? "loading" : "valid";
+  } else if (preview.data.status === "member") {
     view = sameEmail(user.email, inviterEmail) ? "own" : "member";
   } else if (preview.data.status === "invite_already_used") view = "used";
   else if (preview.data.status === "invite_expired") view = "expired";
@@ -138,6 +154,7 @@ export function InviteScreen({ token }: { token: string }) {
   }, [view]);
 
   function join() {
+    setLeavesBehind(sharedOwn);
     accept.mutate(token, {
       onSuccess: () => {
         markWelcomeSeen();
@@ -155,6 +172,7 @@ export function InviteScreen({ token }: { token: string }) {
     <main
       data-testid="invite-screen"
       data-state={view}
+      data-guard={view === "valid" && guarded ? "true" : undefined}
       className="surface-inverse px-safe pt-safe pb-safe flex flex-1 flex-col"
     >
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col md:max-w-6xl">
@@ -217,6 +235,22 @@ export function InviteScreen({ token }: { token: string }) {
               {copy.body}
             </StaggerItem>
 
+            {view === "valid" && guarded ? (
+              <StaggerItem
+                as="div"
+                data-testid="invite-guard"
+                className="border-lime mt-6 max-w-prose border-l-2 pl-4"
+              >
+                <p className="eyebrow text-inverse-fg-2">{t.guard.eyebrow}</p>
+                <p className="text-heading mt-1 text-balance">
+                  {t.guard.title(guarded.member_count - 1)}
+                </p>
+                <p className="text-inverse-fg-2 mt-1 text-pretty">
+                  {t.guard.body(guarded.member_count - 1)}
+                </p>
+              </StaggerItem>
+            ) : null}
+
             {acceptError ? (
               <StaggerItem as="div" className="mt-6 max-w-prose">
                 <Banner
@@ -234,6 +268,7 @@ export function InviteScreen({ token }: { token: string }) {
               <Actions
                 view={view}
                 joining={joining}
+                guarded={guarded !== null}
                 failed={acceptError !== null}
                 canJoinAgain={canJoinAgain}
                 onJoin={join}
@@ -258,6 +293,7 @@ export function InviteScreen({ token }: { token: string }) {
 function Actions({
   view,
   joining,
+  guarded,
   failed,
   canJoinAgain,
   onJoin,
@@ -265,6 +301,8 @@ function Actions({
 }: {
   view: View;
   joining: boolean;
+  /** Joining leaves the user's own shared list behind: their list comes first. */
+  guarded: boolean;
   /** The last try to join failed in a way that may pass (not the link's fault). */
   failed: boolean;
   canJoinAgain: boolean;
@@ -298,6 +336,39 @@ function Actions({
         </Button>
       );
     case "valid":
+      if (guarded && canJoinAgain) {
+        // Their own list first; joining is still theirs to choose.
+        return (
+          <>
+            <Button
+              asChild
+              size="touch-lg"
+              className={cn(
+                primaryOnInk,
+                joining && "pointer-events-none opacity-60",
+              )}
+            >
+              <Link href="/" aria-disabled={joining || undefined}>
+                {t.actions.goToMyList}
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className={quietOnInk}
+              disabled={joining}
+              aria-busy={joining}
+              onClick={onJoin}
+            >
+              {joining
+                ? t.actions.joining
+                : failed
+                  ? t.actions.retryJoin
+                  : t.actions.joinAnyway}
+            </Button>
+          </>
+        );
+      }
       return (
         <>
           {canJoinAgain ? (

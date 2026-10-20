@@ -312,10 +312,26 @@ export const texts = {
       join: "Unirme a la lista",
       joining: "Uniéndote…",
       later: "Ahora no",
+      joinAnyway: "Unirme igual",
       goToList: "Ir a la lista",
       goToMyList: "Ir a mi lista",
       retry: "Reintentar",
       retryJoin: "Probar de nuevo",
+    },
+    /**
+     * Quien invita ya tiene una lista propia que otras personas usan: unirse
+     * a otra la deja atrás, sin verla (la v1 muestra una sola lista).
+     */
+    guard: {
+      eyebrow: "Antes de unirte",
+      title: (others: number) =>
+        others === 1
+          ? "Hay 1 persona más en tu lista."
+          : `Hay ${others} personas más en tu lista.`,
+      body: (others: number) =>
+        others === 1
+          ? "Si te unís a esta, esa persona sigue con tu lista y vos dejás de verla. Además, nadie más va a poder sumarse a esa lista."
+          : "Si te unís a esta, esas personas siguen con tu lista y vos dejás de verla. Además, nadie más va a poder sumarse a esa lista.",
     },
     joining: "Uniéndote a la lista…",
     errors: {

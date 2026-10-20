@@ -106,6 +106,16 @@ export function leftoversOf(
   );
 }
 
+/**
+ * A list of the user's own that other people are in: joining another list
+ * would leave it behind, unseen and out of reach of any new invitation (v1
+ * shows one list), so the invite screen warns first. Not a leftover: it
+ * cannot be merged or discarded without taking the others out of it.
+ */
+export function isSharedOwnList(list: List | null): list is List {
+  return list !== null && list.role === "owner" && list.member_count > 1;
+}
+
 function optimisticList(id: string, userId: string): List {
   const now = new Date().toISOString();
   return {
@@ -310,8 +320,13 @@ export type MembershipNotice = {
 type NoticeStore = {
   current: MembershipNotice | null;
   seq: number;
+  /** When the focus was asked to go to the notice (see requestNoticeFocus). */
+  focusAt: number | null;
   listeners: Set<() => void>;
 };
+
+/** A focus request that waits longer than this for its notice is stale. */
+const NOTICE_FOCUS_MS = 15_000;
 
 // Per query client, so every test and every server render starts clean.
 const noticeStores = new WeakMap<QueryClient, NoticeStore>();
@@ -319,7 +334,7 @@ const noticeStores = new WeakMap<QueryClient, NoticeStore>();
 function noticeStoreOf(queryClient: QueryClient) {
   let store = noticeStores.get(queryClient);
   if (!store) {
-    store = { current: null, seq: 0, listeners: new Set() };
+    store = { current: null, seq: 0, focusAt: null, listeners: new Set() };
     noticeStores.set(queryClient, store);
   }
   return store;
@@ -332,6 +347,28 @@ export function setMembershipNotice(
   const store = noticeStoreOf(queryClient);
   store.current = notice ? { ...notice, seq: ++store.seq } : null;
   store.listeners.forEach((listener) => listener());
+}
+
+/**
+ * Asks for the focus to go to the notice, as soon as there is one: the
+ * place the user was in (the sheet they left the list from) is gone, and
+ * the notice is what changed. A request that finds no notice within
+ * NOTICE_FOCUS_MS lapses, so a later notice never takes the focus from
+ * where the user went meanwhile.
+ */
+export function requestNoticeFocus(queryClient: QueryClient) {
+  const store = noticeStoreOf(queryClient);
+  store.focusAt = Date.now();
+  store.listeners.forEach((listener) => listener());
+}
+
+function takeNoticeFocus(queryClient: QueryClient) {
+  const store = noticeStoreOf(queryClient);
+  const at = store.focusAt;
+  if (at === null) return false;
+  store.focusAt = null;
+  store.listeners.forEach((listener) => listener());
+  return Date.now() - at < NOTICE_FOCUS_MS;
 }
 
 /** The membership notice to show, if any, and how to dismiss it. */
@@ -352,11 +389,22 @@ export function useMembershipNotice() {
     () => store.current,
     () => null,
   );
+  const focusRequested =
+    useSyncExternalStore(
+      subscribe,
+      () => store.focusAt,
+      () => null,
+    ) !== null;
   const dismiss = useCallback(
     () => setMembershipNotice(queryClient, null),
     [queryClient],
   );
-  return { notice, dismiss };
+  /** True once, if the focus was asked for and the request is not stale. */
+  const takeFocusRequest = useCallback(
+    () => takeNoticeFocus(queryClient),
+    [queryClient],
+  );
+  return { notice, dismiss, focusRequested, takeFocusRequest };
 }
 
 /**

@@ -6,6 +6,8 @@ export {
   useCurrentList,
   currentListOf,
   leftoversOf,
+  isSharedOwnList,
+  requestNoticeFocus,
   useMembershipNotice,
   type List,
   type MembershipNotice,

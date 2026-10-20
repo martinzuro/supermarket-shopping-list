@@ -561,7 +561,17 @@ Limitaciones conocidas de la 2c:
   dispositivo entra otra cuenta, no se le ofrece.
 - El dueño de una lista que otros usan, si se une a otra, deja la suya atrás
   y sin verla (la v1 muestra una sola lista): no se le ofrece fusionarla ni
-  descartarla, porque descartarla sacaría a los demás.
+  descartarla, porque descartarla sacaría a los demás. Desde el cierre de la
+  2c la pantalla de invitación lo avisa antes (los demás siguen con la lista,
+  él deja de verla y nadie más puede sumarse), con "Ir a mi lista" como
+  acción principal y "Unirme igual" como secundaria; unirse sigue permitido.
+  Solo se avisa por la lista actual: otras listas propias compartidas que ya
+  estaban atrás siguen sin verse.
+- Abrir la hoja de compartir otra vez reutiliza el enlace más nuevo que nadie
+  usó y que dure más de un día (`useCreateInvite`); "Armar otro enlace" crea
+  uno nuevo. Dos dispositivos del dueño pueden ver el mismo enlace, y quien
+  abre la hoja para invitar a una segunda persona sin tocar "Armar otro
+  enlace" le mandaría el mismo: la segunda lo encuentra usado.
 - Un aceptar concurrente puede colarse entre el chequeo `list_shared` y el
   descarte de una lista propia.
 - Quien no es miembro pero conoce el id de una lista puede oír los ids de

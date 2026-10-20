@@ -22,11 +22,12 @@ const TOKEN = "a".repeat(48);
 type Result = { data: unknown; error: unknown; status?: number };
 
 const writeInvites = vi.fn<(row: unknown) => Promise<Result>>();
+const readInvites = vi.fn<(filters: [string, unknown][]) => Promise<Result>>();
 const readMemberships = vi.fn<() => Promise<Result>>();
 const callRpc = vi.fn<(name: string, args: unknown) => Promise<Result>>();
 const never = () => new Promise<Result>(() => {});
 const tables = {
-  list_invites: makeTable({ read: never, write: writeInvites }),
+  list_invites: makeTable({ read: readInvites, write: writeInvites }),
   list_members: makeTable({ read: readMemberships, write: never }),
 };
 
@@ -39,6 +40,9 @@ vi.mock("@/lib/supabase/client", () => ({
 
 beforeEach(() => {
   writeInvites.mockReset();
+  readInvites.mockReset();
+  // No unused invite unless a test says so.
+  readInvites.mockResolvedValue({ data: [], error: null });
   readMemberships.mockReset();
   callRpc.mockReset();
   tables.list_invites.insert.mockClear();
@@ -63,6 +67,55 @@ describe("useCreateInvite", () => {
       url: `${window.location.origin}/invite/${TOKEN}`,
       expiresAt: "2026-10-26T00:00:00.000Z",
     });
+  });
+
+  it("shows again the newest link nobody used, if it lasts a day more", async () => {
+    readInvites.mockResolvedValue({
+      data: [{ token: "b".repeat(48), expires_at: "2026-10-25T00:00:00.000Z" }],
+      error: null,
+    });
+    const { result } = renderHook(() => useCreateInvite(USER, LIST), {
+      wrapper: makeWrapper(makeTestQueryClient()),
+    });
+    let invite: unknown;
+    await act(async () => {
+      invite = await result.current.mutateAsync({});
+    });
+    expect(invite).toMatchObject({ token: "b".repeat(48) });
+    expect(tables.list_invites.insert).not.toHaveBeenCalled();
+    const filters = readInvites.mock.calls[0][0];
+    expect(filters).toEqual(
+      expect.arrayContaining([
+        ["list_id", LIST],
+        ["purpose", "share"],
+        ["used_at", null],
+      ]),
+    );
+    const [, after] = filters.find(([column]) => column === "expires_at")!;
+    expect(Date.parse(after as string) - Date.now()).toBeGreaterThan(
+      23 * 60 * 60 * 1000,
+    );
+  });
+
+  it("makes a new link for the next person when asked, unused ones or not", async () => {
+    readInvites.mockResolvedValue({
+      data: [{ token: "b".repeat(48), expires_at: "2026-10-25T00:00:00.000Z" }],
+      error: null,
+    });
+    writeInvites.mockResolvedValue({
+      data: { token: TOKEN, expires_at: "2026-10-26T00:00:00.000Z" },
+      error: null,
+    });
+    const { result } = renderHook(() => useCreateInvite(USER, LIST), {
+      wrapper: makeWrapper(makeTestQueryClient()),
+    });
+    let invite: unknown;
+    await act(async () => {
+      invite = await result.current.mutateAsync({ fresh: true });
+    });
+    expect(invite).toMatchObject({ token: TOKEN });
+    expect(readInvites).not.toHaveBeenCalled();
+    expect(tables.list_invites.insert).toHaveBeenCalledTimes(1);
   });
 
   it("builds links on the given origin", () => {

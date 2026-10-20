@@ -6,11 +6,16 @@ import {
   bringOver,
   capture,
   collectPageErrors,
+  becomeAccountAndGetLink,
   convertFromMenu,
+  giveEmailAndCode,
+  inviteLink,
+  inviteScreen,
   memberRows,
   membersButton,
   membersSheet,
   membershipNotice,
+  noticeDismiss,
   openSharedList,
   shareButton,
   shareSheet,
@@ -20,14 +25,20 @@ import {
 } from "./sharing";
 import {
   CHANGE_MS,
+  PULSE_END_MS,
   clearLogs,
   framesOfList,
   newPlayer,
   openAndCreateList,
   pending,
+  pulsedNames,
   recordRealtime,
   reloadJoined,
   row,
+  rowEventsOf,
+  saidOf,
+  waitForPulse,
+  waitForSaid,
   type RealtimeFrame,
   type Step,
 } from "./two-members";
@@ -168,6 +179,15 @@ async function expectLostList(
   await expect(pending(page).getByText(t.list.pending.empty)).toBeVisible();
   await expect(shareButton(page)).toBeVisible();
   await capture(page, testInfo, `notice-${kind}`, scheme);
+}
+
+/**
+ * The sheet the person acted from is gone with the list: the focus is on the
+ * notice (its close button), not on <body>, and not left on the sheet's
+ * trigger either.
+ */
+async function expectNoticeFocused(page: Page) {
+  await expect(noticeDismiss(page)).toBeFocused();
 }
 
 async function dismissNotice(page: Page) {
@@ -344,6 +364,7 @@ for (const scheme of SCHEMES) {
         await expect(membersSheet(b)).toBeHidden();
         await expectChannelLeft(realtime, list.id, leftAt);
         await expectLostList(b, "left", testInfo, scheme);
+        await expectNoticeFocused(b);
         await dismissNotice(b);
 
         await a.keyboard.press("Escape");
@@ -362,6 +383,302 @@ for (const scheme of SCHEMES) {
         report(steps, testInfo);
         await alice.context.close();
         await bob.context.close();
+      }
+    });
+
+    test("a member removed while their sheet is open: the sheet closes and the focus goes to the notice", async ({
+      browser,
+    }, testInfo) => {
+      test.setTimeout(150_000);
+      const alice = await newPlayer(browser, testInfo, scheme);
+      const bob = await newPlayer(browser, testInfo, scheme);
+      const [a, b] = [alice.page, bob.page];
+      const errors = [a, b].map(collectPageErrors);
+
+      try {
+        await openSharedList(a, b, testInfo, scheme);
+        await expect(memberRows(a)).toHaveCount(2);
+
+        await membersButton(b).click();
+        await expect(membersSheet(b)).toBeVisible();
+        await expect(memberRows(b)).toHaveCount(2);
+
+        const remove = removeButton(a, 1);
+        await ask(remove);
+        await remove.click();
+
+        // B's sheet was on screen the whole time: it does not vanish from
+        // under them (no loading flash of a list that is gone), it closes
+        // once B has a list of their own, and the focus follows the change.
+        await expect(membershipNotice(b)).toHaveAttribute(
+          "data-kind",
+          "removed",
+          { timeout: CHANGE_MS },
+        );
+        await expect(membersSheet(b)).toBeHidden();
+        await expectNoticeFocused(b);
+        await expect(pending(b).getByText(t.list.pending.empty)).toBeVisible();
+        // The trigger is B's own now: an owner alone, who can invite.
+        await expect(shareButton(b)).toBeVisible();
+        await capture(b, testInfo, "removed-with-sheet-open", scheme);
+
+        for (const found of errors) expect(found).toEqual([]);
+      } finally {
+        await alice.context.close();
+        await bob.context.close();
+      }
+    });
+
+    test("leaving that the server refuses: the list comes back, with a notice, and the focus is on it", async ({
+      browser,
+    }, testInfo) => {
+      test.setTimeout(150_000);
+      const alice = await newPlayer(browser, testInfo, scheme);
+      const bob = await newPlayer(browser, testInfo, scheme);
+      const [a, b] = [alice.page, bob.page];
+      const errors = [a, b].map(collectPageErrors);
+
+      try {
+        await openSharedList(a, b, testInfo, scheme);
+        await expect(memberRows(a)).toHaveCount(2);
+
+        // The delete of the membership is refused, as RLS would; reads of
+        // the lists and members go through.
+        let refused = 0;
+        await b.route("**/rest/v1/list_members*", (route) => {
+          if (route.request().method() !== "DELETE") return route.fallback();
+          refused += 1;
+          return route.fulfill({
+            status: 403,
+            contentType: "application/json",
+            body: JSON.stringify({
+              code: "42501",
+              message: "new row violates row-level security policy",
+            }),
+          });
+        });
+
+        await membersButton(b).click();
+        await expect(membersSheet(b)).toBeVisible();
+        const leave = leaveButton(b);
+        await ask(leave);
+        await leave.click();
+
+        // It said it was refused: error tone, an alert, and still in the list.
+        const notice = membershipNotice(b);
+        await expect(notice).toHaveAttribute("data-kind", "leave_failed");
+        await expect(notice).toContainText(
+          t.membershipNotice.leaveFailed.title,
+        );
+        await expect(notice).toContainText(t.membershipNotice.leaveFailed.body);
+        await expect(notice).toHaveAttribute("role", "alert");
+        expect(refused).toBe(1);
+
+        // The list is back on screen as it was, with its people, and the
+        // sheet that closed did not leave the focus on <body>.
+        await expect(row(pending(b), "Leche")).toBeVisible();
+        await expect(membersSheet(b)).toBeHidden();
+        await expect(membersButton(b)).toBeVisible();
+        await expectNoticeFocused(b);
+        await capture(b, testInfo, "notice-leave_failed", scheme);
+
+        // Nothing of the server changed: A still has both in the list, and
+        // B can look at them again.
+        await expect(memberRows(a)).toHaveCount(2);
+        await dismissNotice(b);
+        await membersButton(b).click();
+        await expect(memberRows(b)).toHaveCount(2);
+
+        for (const found of errors) expect(found).toEqual([]);
+      } finally {
+        await alice.context.close();
+        await bob.context.close();
+      }
+    });
+
+    test("signing in from inside the share sheet keeps the sheet, with a calm loading state, and the feedback", async ({
+      browser,
+    }, testInfo) => {
+      test.setTimeout(150_000);
+      const device1 = await newPlayer(browser, testInfo, scheme);
+      const device2 = await newPlayer(browser, testInfo, scheme);
+      const [d1, d2] = [device1.page, device2.page];
+      const errors = [d1, d2].map(collectPageErrors);
+
+      try {
+        // Device 1: an account with two things.
+        await openAndCreateList(d1);
+        await addItems(d1, ["Leche", "Pan"]);
+        const email = await convertFromMenu(d1);
+
+        // Device 2: no account, opens the share sheet and signs in to that
+        // email from it. The new user's lists are held back, to see the
+        // sheet while they load.
+        await openAndCreateList(d2);
+        await addItems(d2, ["Yerba"]);
+        let hold = false;
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => (release = resolve));
+        await d2.route(
+          /\/rest\/v1\/list_members\?select=role/,
+          async (route) => {
+            if (hold) await gate;
+            await route.fallback();
+          },
+        );
+
+        await shareButton(d2).click();
+        const sheet = shareSheet(d2);
+        await expect(sheet.getByTestId("share-guest")).toBeVisible();
+        // Mark the very element: a sheet that unmounts and mounts again is
+        // another node, and the mark is gone.
+        const mark = "data-e2e-same-sheet";
+        await sheet.evaluate(
+          (node, name) => node.setAttribute(name, "1"),
+          mark,
+        );
+        await giveEmailAndCode(sheet, email, async () => {
+          hold = true;
+        });
+
+        // The user changed and their lists are loading: the sheet is still
+        // there, same node, saying so, with the focus inside it.
+        await expect(sheet.getByText(t.share.loading)).toBeVisible();
+        await expect(sheet).toHaveAttribute(mark, "1");
+        await expect(sheet.getByTestId("share-guest")).toHaveCount(0);
+        // (Its trigger is behind the sheet, hidden from the accessibility
+        // tree while the sheet is open: found by its label.)
+        await expect(
+          d2.locator(`button[aria-label="${t.share.open}"]`),
+        ).toHaveCount(1);
+        expect(
+          await sheet.evaluate((node) => node.contains(document.activeElement)),
+        ).toBe(true);
+        await capture(d2, testInfo, "share-loading", scheme);
+
+        // The account's list shows: the feedback is still there, with the
+        // invitation of that list, in the same sheet.
+        release();
+        await expect(sheet.getByText(t.share.converted)).toBeVisible();
+        await expect(inviteLink(d2)).toHaveText(/\/invite\/\S+$/);
+        await expect(sheet).toHaveAttribute(mark, "1");
+        await expect(sheet.getByText(t.share.loading)).toHaveCount(0);
+        // The account's list is the one behind the sheet (by text: the rows
+        // are hidden from the accessibility tree while the sheet is open).
+        await expect(pending(d2).getByText("Leche")).toBeVisible();
+        await expect(pending(d2).getByText("Yerba")).toHaveCount(0);
+        await capture(d2, testInfo, "share-signed-in", scheme);
+
+        // Closing it returns the focus to its trigger, as for any sheet.
+        await d2.keyboard.press("Escape");
+        await expect(sheet).toBeHidden();
+        await expect(shareButton(d2)).toBeFocused();
+
+        for (const found of errors) expect(found).toEqual([]);
+      } finally {
+        await device1.context.close();
+        await device2.context.close();
+      }
+    });
+  });
+
+  test.describe(`phase 2c, invite when the user has a shared list (${scheme})`, () => {
+    test.skip(
+      process.env.E2E_SUPABASE !== "1",
+      "Needs `npm run db:start`. Run with E2E_SUPABASE=1.",
+    );
+
+    test("warns that their own list stays behind, offers it first, and still lets them join", async ({
+      browser,
+    }, testInfo) => {
+      test.setTimeout(180_000);
+      const alice = await newPlayer(browser, testInfo, scheme);
+      const bob = await newPlayer(browser, testInfo, scheme);
+      const carol = await newPlayer(browser, testInfo, scheme);
+      const [a, b, c] = [alice.page, bob.page, carol.page];
+      const errors = [a, b, c].map(collectPageErrors);
+
+      try {
+        // A owns a list B is in. C owns another one and makes a link.
+        await openSharedList(a, b, testInfo, scheme);
+        await a.keyboard.press("Escape");
+        await expect(shareSheet(a)).toBeHidden();
+        await openAndCreateList(c);
+        await addItems(c, ["Yerba"]);
+        const { link } = await becomeAccountAndGetLink(c, testInfo, scheme);
+
+        // A opens it: the invitation, with what joining means for the list
+        // they have, and their list as the main action.
+        await a.goto(link);
+        const screen = inviteScreen(a);
+        await expect(screen).toHaveAttribute("data-state", "valid");
+        await expect(screen).toHaveAttribute("data-guard", "true");
+        const guard = a.getByTestId("invite-guard");
+        await expect(guard).toContainText(t.invite.guard.title(1));
+        await expect(guard).toContainText(t.invite.guard.body(1));
+        const mine = a.getByRole("link", { name: t.invite.actions.goToMyList });
+        const anyway = a.getByRole("button", {
+          name: t.invite.actions.joinAnyway,
+        });
+        await expect(mine).toBeVisible();
+        await expect(anyway).toBeVisible();
+        await expect(
+          a.getByRole("button", { name: t.invite.actions.join, exact: true }),
+        ).toHaveCount(0);
+        // The main action comes first and is the lime one; joining is quiet.
+        const [mineBox, anywayBox] = await Promise.all([
+          mine.boundingBox(),
+          anyway.boundingBox(),
+        ]);
+        expect(mineBox!.y).toBeLessThan(anywayBox!.y);
+        expect(
+          await mine.evaluate((node) => getComputedStyle(node).backgroundColor),
+        ).not.toBe(
+          await anyway.evaluate(
+            (node) => getComputedStyle(node).backgroundColor,
+          ),
+        );
+        for (const box of [mineBox!, anywayBox!]) {
+          expect(box.height).toBeGreaterThanOrEqual(44);
+        }
+        expect(
+          await a.evaluate(
+            () =>
+              document.documentElement.scrollWidth -
+              document.documentElement.clientWidth,
+          ),
+        ).toBeLessThanOrEqual(0);
+        await capture(a, testInfo, "invite-guard", scheme);
+
+        // Their list first: it is where it was, with B in it.
+        await mine.click();
+        await expect(a).toHaveURL("/");
+        await expect(row(pending(a), "Leche")).toBeVisible();
+        await expect(membersButton(a).or(shareButton(a))).toBeVisible();
+        await shareButton(a).click();
+        await expect(memberRows(a)).toHaveCount(2);
+        await a.keyboard.press("Escape");
+
+        // Joining is still theirs to choose.
+        await a.goto(link);
+        await expect(inviteScreen(a)).toHaveAttribute("data-guard", "true");
+        await a
+          .getByRole("button", { name: t.invite.actions.joinAnyway })
+          .click();
+        await expect(a).toHaveURL("/");
+        await expect(row(pending(a), "Yerba")).toBeVisible();
+        await expect(pending(a).getByText("Leche")).toHaveCount(0);
+        // The list they left behind is still B's, as it was.
+        await a.waitForTimeout(1500);
+        await expect(row(pending(b), "Leche")).toBeVisible();
+        await membersButton(b).click();
+        await expect(memberRows(b)).toHaveCount(2);
+
+        for (const found of errors) expect(found).toEqual([]);
+      } finally {
+        await alice.context.close();
+        await bob.context.close();
+        await carol.context.close();
       }
     });
   });
@@ -398,6 +715,12 @@ for (const scheme of SCHEMES) {
         await expect(pending(b).getByText("Arroz")).toHaveCount(0);
         await capture(b, testInfo, "bring-over-leftover", scheme);
 
+        // The same contract as any change between members (phase-2b): the
+        // two things that come over pulse and are told on A's screen, one
+        // sentence for the burst; B's own copies never pulse, are not told,
+        // and mount once, with nothing else happening to their rows. The
+        // two arrive in one statement, so their order is not asserted.
+        await Promise.all([clearLogs(a), clearLogs(b)]);
         await prompt
           .getByRole("button", { name: t.bringOver.leftover.bring })
           .click();
@@ -409,6 +732,29 @@ for (const scheme of SCHEMES) {
         await expect(row(pending(a), "Arroz")).toBeVisible({ timeout: 5000 });
         await expect(row(pending(a), "Fideos")).toBeVisible({ timeout: 5000 });
         await expect(row(pending(a), "Leche")).toBeVisible();
+        await waitForPulse(a, "Arroz");
+        await waitForPulse(a, "Fideos");
+        await a.waitForTimeout(PULSE_END_MS);
+        await waitForSaid(a, "bring over");
+
+        expect((await pulsedNames(a)).sort(), "A: pulsed").toEqual([
+          "Arroz",
+          "Fideos",
+        ]);
+        expect(await saidOf(a), "A: heard").toEqual([
+          t.remoteChanges.many.added(2),
+        ]);
+        expect((await rowEventsOf(a)).sort(), "A: rows").toEqual([
+          "mount Arroz pending",
+          "mount Fideos pending",
+        ]);
+
+        expect(await pulsedNames(b), "B: pulsed").toEqual([]);
+        expect(await saidOf(b), "B: heard").toEqual([]);
+        expect((await rowEventsOf(b)).sort(), "B: rows").toEqual([
+          "mount Arroz pending",
+          "mount Fideos pending",
+        ]);
 
         // Answered: it does not come back.
         await reloadJoined(b);

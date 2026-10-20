@@ -284,7 +284,10 @@ reducido de `visual.spec.ts` lo desactivan.
   enlace se crea al abrir la hoja y aparece en `InvitationCard`, con
   "Compartir enlace" (Web Share, si el navegador la tiene), "Copiar enlace"
   (con confirmación en una región `role="status"`; si el portapapeles falla,
-  el enlace queda seleccionado) y "Armar otro enlace".
+  el enlace queda seleccionado) y "Armar otro enlace". Abrir la hoja otra vez
+  muestra el mismo enlace mientras nadie lo use y le quede más de un día de
+  vida (el que ya mandaste sigue siendo el que vale); "Armar otro enlace" es
+  la forma de crear uno nuevo para la persona siguiente.
 - **Pantalla de invitación** (`/invite/[token]`, `InviteScreen`): superficie
   tinta en los dos modos, titular `text-display` con `<em>`, ilustración y
   entrada escalonada (`Stagger`), con el texto abajo a 375px y como pliego
@@ -293,6 +296,17 @@ reducido de `visual.spec.ts` lo desactivan.
   los errores de aceptar salen en un `Banner` sin perder la pantalla. El
   foco va al `h1` cuando aparece un estado. Al unirse marca la bienvenida
   como vista (`markWelcomeSeen`): la invitación ya fue su primer uso.
+- **Guarda de la invitación** (`data-guard="true"` en la pantalla): si la
+  lista actual de quien abre un enlace válido es suya y hay más gente en
+  ella (`isSharedOwnList`), unirse a otra la dejaría atrás sin verla y sin
+  que nadie más pueda sumarse (la v1 muestra una sola lista). La pantalla
+  avisa y deja decidir: bajo el cuerpo, un bloque con hilo lima a la
+  izquierda ("Antes de unirte", "Hay N personas más en tu lista.", qué pasa),
+  "Ir a mi lista" como acción principal (lima) y "Unirme igual" como acción
+  secundaria, en texto sobre la tinta. La pantalla espera a que las listas
+  estén leídas antes de mostrarse válida, para no cambiar de acciones después;
+  si la lectura falla, queda la invitación sin aviso. Al tocar "Unirme igual"
+  el aviso queda fijo hasta que termina, aunque las listas cambien.
 
 ### Miembros, avisos y "traer lo de otra lista"
 
@@ -300,7 +314,14 @@ reducido de `visual.spec.ts` lo desactivan.
   está solo y `Users` si la lista es compartida o el usuario no es el dueño
   (nombre accesible "Compartir lista" para el dueño, "Ver quién comparte la
   lista" para un miembro). Es la misma hoja (`ShareSheet`, que vuelve a
-  empezar, cerrada, cuando cambia la lista de la pantalla). Un miembro ve
+  empezar, cerrada, cuando cambia la lista de la pantalla para la misma
+  persona). La hoja y su acción **siguen montadas mientras las listas cargan
+  o se reemplazan**: dentro dice "Cargando tu lista…" (`role="status"`, sin
+  más). Pasa con la hoja abierta al entrar a una cuenta que ya existe desde
+  ella (cambia el usuario y sus listas aún no están leídas): la hoja es el
+  mismo nodo y, cuando aparece la lista de la cuenta, sigue el aviso
+  "Listo, tu lista quedó guardada" con su invitación. Al salir de la lista,
+  la hoja conserva lo que mostraba mientras se desvanece. Un miembro ve
   solo `MembersSection`; el dueño ve, si hay alguien más, primero los
   miembros y debajo "Sumar a alguien más" con la invitación (el paso de
   invitar queda en un lugar fijo: que alguien se una no lo rehace).
@@ -321,6 +342,14 @@ reducido de `visual.spec.ts` lo desactivan.
   gestos son optimistas: la persona sale de la lista al instante y, si el
   servidor rechaza, vuelve con un `Banner` de error. El dueño no tiene
   "Salir".
+- **Foco al perder la lista.** La hoja desde la que se salió (o que estaba
+  abierta cuando sacaron a la persona) se cierra sin devolver el foco a su
+  botón: `ShareSheet` lo retiene (`onCloseAutoFocus`) y pide
+  `requestNoticeFocus`; `MembershipNotices` lleva el foco al botón "Cerrar
+  aviso" apenas hay aviso (también si salir falló). Es el mismo patrón del
+  momento de carro vaciado: la región `role="status"` dice qué pasó y el
+  nombre del botón solo no lo diría. La petición caduca a los 15 s, para que
+  un aviso tardío nunca le robe el foco a quien ya fue a otro lado.
 - **Avisos de lista perdida** (`MembershipNotices`, arriba de la lista,
   encima de "Pendientes"): `Banner` con botón de cerrar, sin cierre
   automático porque es la única explicación de por qué cambió la lista. Tres
@@ -419,6 +448,13 @@ reducido de `visual.spec.ts` lo desactivan.
   formulario de código ante una cuenta existente. Los helpers de compartir
   (hojas, capturas, código de Mailpit, dos personas en una lista por la
   invitación real) están en `e2e/sharing.ts`.
+  Esa suite también cubre: el pulso y el anuncio de "traer lo de otra lista"
+  (en la pantalla del dueño las filas que llegan pulsan y se leen en una
+  frase; las copias de quien las trae no pulsan ni parpadean), salir con la
+  respuesta del servidor rechazada (`DELETE` de `list_members` con 403: avisa
+  y la lista vuelve, con el foco en el aviso), a quien sacan con su hoja
+  abierta, entrar a una cuenta existente desde la hoja de compartir (mismo
+  nodo, estado de carga, aviso conservado) y la guarda de la invitación.
   `e2e/supabase-admin.ts` usa la clave secreta del stack local solo del
   lado de Node (nunca desde la página) para dejar ítems en otras
   categorías, ya que el selector manual llega en la Fase 3.
