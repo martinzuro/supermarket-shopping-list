@@ -2,7 +2,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "./keys";
 import {
+  addItems,
   useAddItem,
+  useAddItems,
+  useUndoAdd,
   useEditItem,
   useEmptyCart,
   useItems,
@@ -78,6 +81,8 @@ async function renderItems(
       edit: useEditItem(USER, LIST),
       remove: useRemoveItem(USER, LIST),
       emptyCart: useEmptyCart(USER, LIST),
+      addMany: useAddItems(USER, LIST),
+      undoAdd: useUndoAdd(USER, LIST),
     }),
     { wrapper: makeWrapper(queryClient) },
   );
@@ -862,5 +867,166 @@ describe("useEmptyCart", () => {
         ["checked", true],
       ]),
     );
+  });
+});
+
+const ids = (queryClient: ReturnType<typeof makeTestQueryClient>) =>
+  cached(queryClient)
+    .filter((item) => item.deleted_at === null)
+    .map((item) => item.id);
+
+/** Answers like the network: on a timer, slower than waitFor polls. */
+function later(result: Result, ms = 150) {
+  return new Promise<Result>((resolve) =>
+    setTimeout(() => resolve(result), ms),
+  );
+}
+
+describe("useAddItems (lo de siempre)", () => {
+  it("adds them all at once after the list, in one request", async () => {
+    const bread = serverRow({ id: "bread", name: "Pan", position: 4 });
+    const { result, queryClient } = await renderItems([bread]);
+    const inputs = [
+      newItem("Leche"),
+      newItem("Yerba", { categoryId: "pantry" }),
+    ];
+    const saved = inputs.map((input, n) =>
+      serverRow({ id: input.id, name: input.name, position: 5 + n }),
+    );
+    write.mockImplementation(() => later({ data: saved, error: null }));
+    read.mockImplementation(() =>
+      later({ data: [bread, ...saved], error: null }),
+    );
+
+    act(() => result.current.addMany.mutate(addItems(inputs)));
+    await waitFor(() =>
+      expect(ids(queryClient)).toEqual(["bread", inputs[0].id, inputs[1].id]),
+    );
+    expect(cached(queryClient).map((item) => item.position)).toEqual([4, 5, 6]);
+    expect(items.insert).toHaveBeenCalledTimes(1);
+    expect(items.insert.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ id: inputs[0].id, name: "Leche", position: 5 }),
+      expect.objectContaining({
+        id: inputs[1].id,
+        name: "Yerba",
+        category_id: "pantry",
+        position: 6,
+      }),
+    ]);
+    await waitFor(() => expect(result.current.addMany.isSuccess).toBe(true));
+    expect(cached(queryClient)).toEqual([bread, ...saved]);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops them all, and only them, when the server rejects", async () => {
+    const bread = serverRow({ id: "bread", name: "Pan" });
+    const { result, queryClient } = await renderItems([bread]);
+    write.mockImplementation(() => later(rejection));
+    read.mockReturnValue(new Promise(() => {}));
+    const inputs = [newItem("Leche"), newItem("Yerba")];
+
+    act(() => result.current.addMany.mutate(addItems(inputs)));
+    await waitFor(() => expect(ids(queryClient)).toHaveLength(3));
+    // The read of settle never answers: what shows is the rollback.
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    expect(ids(queryClient)).toEqual(["bread"]);
+  });
+
+  it("keeps them when a retry finds the first attempt already saved", async () => {
+    const { result, queryClient } = await renderItems([]);
+    const inputs = [newItem("Leche"), newItem("Yerba")];
+    const saved = inputs.map((input, n) =>
+      serverRow({ id: input.id, name: input.name, position: n }),
+    );
+    write.mockImplementation(() =>
+      later({ data: null, error: { message: "duplicate", code: "23505" } }),
+    );
+    read.mockImplementation(() => later({ data: saved, error: null }));
+
+    act(() => result.current.addMany.mutate(addItems(inputs)));
+    await waitFor(() => expect(result.current.addMany.isSuccess).toBe(true));
+    expect(result.current.addMany.data).toEqual(saved);
+    expect(ids(queryClient)).toEqual(inputs.map((input) => input.id));
+  });
+});
+
+describe("useUndoAdd", () => {
+  it("archives what the add put on the list and is still pending, in one request", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", position: 1 });
+    const yerba = serverRow({ id: "yerba", name: "Yerba", position: 2 });
+    const rice = serverRow({
+      id: "rice",
+      name: "Arroz",
+      position: 3,
+      checked: true,
+    });
+    const { result, queryClient } = await renderItems([milk, yerba, rice]);
+    const deletedAt = "2026-10-20T10:00:00.000Z";
+    update.mockImplementation(() =>
+      later({
+        data: [
+          { ...milk, deleted_at: deletedAt },
+          { ...yerba, deleted_at: deletedAt },
+        ],
+        error: null,
+      }),
+    );
+    // The read of settle never answers: what shows is this write's.
+    read.mockReturnValue(new Promise(() => {}));
+
+    act(() =>
+      result.current.undoAdd.mutate({
+        ids: ["milk", "yerba", "rice"],
+        deletedAt,
+      }),
+    );
+    // At once: the pending ones leave; the one already in the cart stays.
+    await waitFor(() => expect(ids(queryClient)).not.toContain("milk"));
+    expect(ids(queryClient)).toEqual(["rice"]);
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    expect(ids(queryClient)).toEqual(["rice"]);
+    expect(items.update).toHaveBeenCalledTimes(1);
+    expect(items.update).toHaveBeenCalledWith({ deleted_at: deletedAt }, [
+      ["id", ["milk", "yerba"]],
+      ["deleted_at", null],
+      ["checked", false],
+    ]);
+  });
+
+  it("brings them back when the server rejects", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche" });
+    const { result, queryClient } = await renderItems([milk]);
+    update.mockImplementation(() => later(rejection));
+    read.mockReturnValue(new Promise(() => {}));
+
+    act(() =>
+      result.current.undoAdd.mutate({
+        ids: ["milk"],
+        deletedAt: "2026-10-20T10:00:00.000Z",
+      }),
+    );
+    await waitFor(() => expect(ids(queryClient)).toEqual([]));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    expect(ids(queryClient)).toEqual(["milk"]);
+  });
+
+  it("runs after the add it undoes, and finds nothing to take back if the add was rejected", async () => {
+    const { result, queryClient } = await renderItems([]);
+    write.mockImplementation(() => later(rejection));
+    read.mockImplementation(() => later({ data: [], error: null }));
+    const inputs = [newItem("Leche")];
+
+    act(() => result.current.addMany.mutate(addItems(inputs)));
+    await waitFor(() => expect(ids(queryClient)).toHaveLength(1));
+    act(() =>
+      result.current.undoAdd.mutate({
+        ids: [inputs[0].id],
+        deletedAt: "2026-10-20T10:00:00.000Z",
+      }),
+    );
+    await waitFor(() => expect(result.current.undoAdd.isSuccess).toBe(true));
+    expect(result.current.addMany.isError).toBe(true);
+    expect(items.update).not.toHaveBeenCalled();
+    expect(ids(queryClient)).toEqual([]);
   });
 });

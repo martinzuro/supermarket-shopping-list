@@ -46,6 +46,9 @@ export {
 export {
   useItems,
   useAddItem,
+  useAddItems,
+  useUndoAdd,
+  addItems,
   useToggleItem,
   useEditItem,
   useRemoveItem,
@@ -54,6 +57,8 @@ export {
   itemMutationKeys,
   type Item,
   type NewItem,
+  type AddItems,
+  type UndoAdd,
   type ToggleItem,
   type EditItem,
   type EditableFields,

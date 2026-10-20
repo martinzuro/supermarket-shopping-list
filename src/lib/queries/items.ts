@@ -128,6 +128,21 @@ async function fetchItem(id: string): Promise<Item> {
   );
 }
 
+/** The columns an insert sends: what the user chose, at its position. */
+function rowOf(input: NewItem, listId: string, position: number) {
+  return {
+    id: input.id,
+    list_id: listId,
+    name: input.name,
+    quantity: input.quantity,
+    unit: input.unit,
+    category_id: input.category_id,
+    estimated_price: input.estimated_price,
+    currency: input.currency,
+    position,
+  };
+}
+
 async function insertItem(
   input: NewItem,
   listId: string,
@@ -137,17 +152,7 @@ async function insertItem(
     return unwrap(
       await createClient()
         .from("items")
-        .insert({
-          id: input.id,
-          list_id: listId,
-          name: input.name,
-          quantity: input.quantity,
-          unit: input.unit,
-          category_id: input.category_id,
-          estimated_price: input.estimated_price,
-          currency: input.currency,
-          position,
-        })
+        .insert(rowOf(input, listId, position))
         .select()
         .abortSignal(writeSignal())
         .single(),
@@ -157,6 +162,38 @@ async function insertItem(
     // generated on the client, so a duplicate id can only be this same item.
     if (error instanceof RequestError && error.code === DUPLICATE_KEY) {
       return fetchItem(input.id);
+    }
+    throw error;
+  }
+}
+
+async function insertItems(
+  inputs: readonly NewItem[],
+  listId: string,
+  positions: readonly number[],
+): Promise<Item[]> {
+  try {
+    return unwrap(
+      await createClient()
+        .from("items")
+        .insert(inputs.map((input, n) => rowOf(input, listId, positions[n])))
+        .select()
+        .abortSignal(writeSignal()),
+    );
+  } catch (error) {
+    // One request is one transaction: a duplicate id on a retry means the
+    // first attempt saved them all.
+    if (error instanceof RequestError && error.code === DUPLICATE_KEY) {
+      return unwrap(
+        await createClient()
+          .from("items")
+          .select("*")
+          .in(
+            "id",
+            inputs.map((input) => input.id),
+          )
+          .abortSignal(writeSignal()),
+      );
     }
     throw error;
   }
@@ -289,6 +326,12 @@ export const itemMutationKeys = {
     [...queryKeys.items(userId, listId), "merge"] as const,
   carryOver: (userId: string, listId: string) =>
     [...queryKeys.items(userId, listId), "carry-over"] as const,
+  /** Several items at once ("lo de siempre"). */
+  addMany: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "add-many"] as const,
+  /** Taking back the items of an add of several. */
+  undoAdd: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "undo-add"] as const,
 };
 
 /**
@@ -344,6 +387,132 @@ export function useAddItem(userId: string, listId: string) {
       rememberOwn(queryClient, listId, [created]);
       if (!isLastWriteTo(queryClient, listId, created.id)) return;
       patchItem(queryClient, key, created.id, () => created);
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+export type AddItems = {
+  /** The new items' ids, in order: the writes queued after this one find it by them. */
+  ids: readonly string[];
+  items: readonly NewItem[];
+};
+
+/** The variables of useAddItems for these new items. */
+export function addItems(items: readonly NewItem[]): AddItems {
+  return { ids: items.map((item) => item.id), items };
+}
+
+/**
+ * Adds several items in one write ("lo de siempre"): one request, so the
+ * server saves them all or none, and the same pattern as useAddItem. They
+ * go after the list's items, in the given order. A rejection drops them all;
+ * the caller shows the notice.
+ */
+export function useAddItems(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId, listId);
+
+  return useMutation({
+    mutationKey: itemMutationKeys.addMany(userId, listId),
+    scope: listScope(listId),
+    mutationFn: ({ items: inputs }: AddItems) => {
+      const items = queryClient.getQueryData<Item[]>(key) ?? [];
+      const next = nextPosition(items);
+      return insertItems(
+        inputs,
+        listId,
+        inputs.map(
+          (input, n) =>
+            items.find((item) => item.id === input.id)?.position ?? next + n,
+        ),
+      );
+    },
+    onMutate: async ({ items: inputs }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      setItems(queryClient, key, (items) => {
+        const next = nextPosition(items);
+        return [
+          ...items,
+          ...inputs.map((input, n) =>
+            optimisticItem(input, listId, userId, next + n),
+          ),
+        ];
+      });
+    },
+    onError: (_error, { ids }) => {
+      setItems(queryClient, key, (items) =>
+        items.filter((item) => !ids.includes(item.id)),
+      );
+    },
+    onSuccess: (created) => {
+      rememberOwn(queryClient, listId, created);
+      for (const row of created) {
+        if (isLastWriteTo(queryClient, listId, row.id)) {
+          patchItem(queryClient, key, row.id, () => row);
+        }
+      }
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+export type UndoAdd = {
+  /** The items an add of several put on the list. */
+  ids: readonly string[];
+  /** One archive time for the whole undo, kept across retries. */
+  deletedAt: string;
+};
+
+/**
+ * Takes back what an add of several put on the list: the ones still
+ * pending are archived (deleted_at, plan 3.2), with one timestamp and one
+ * request, as useEmptyCart does with the cart. One already checked stays:
+ * it is in the cart. It runs after the add in the list's queue; if the add
+ * was rejected there is nothing left to take back.
+ */
+export function useUndoAdd(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId, listId);
+
+  return useMutation({
+    mutationKey: itemMutationKeys.undoAdd(userId, listId),
+    scope: listScope(listId),
+    mutationFn: async ({ ids, deletedAt }: UndoAdd) => {
+      const items = queryClient.getQueryData<Item[]>(key) ?? [];
+      const ours = items
+        .filter((item) => ids.includes(item.id))
+        .filter((item) => item.deleted_at === deletedAt && !item.checked)
+        .map((item) => item.id);
+      if (ours.length === 0) return [];
+      return archiveItems(ours, deletedAt, false);
+    },
+    onMutate: async ({ ids, deletedAt }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      setItems(queryClient, key, (items) =>
+        items.map((item) =>
+          ids.includes(item.id) && item.deleted_at === null && !item.checked
+            ? { ...item, deleted_at: deletedAt }
+            : item,
+        ),
+      );
+    },
+    onError: (_error, { ids, deletedAt }) => {
+      setItems(queryClient, key, (items) =>
+        items.map((item) =>
+          ids.includes(item.id) && item.deleted_at === deletedAt
+            ? { ...item, deleted_at: null }
+            : item,
+        ),
+      );
+    },
+    onSuccess: (archived) => {
+      rememberOwn(queryClient, listId, archived);
+      for (const row of archived) {
+        if (isLastWriteTo(queryClient, listId, row.id)) {
+          patchItem(queryClient, key, row.id, () => row);
+        }
+      }
     },
     onSettled: () => settle(queryClient, key),
   });
@@ -561,9 +730,16 @@ export type EmptyCart = {
   deletedAt: string;
 };
 
+/**
+ * Archives the rows that are, on the server, still live and in the cart
+ * (`checked` true: emptying the cart) or still pending (false: undoing an
+ * add). A row whose check was rejected meanwhile, or that someone checked or
+ * unchecked, stays on the list.
+ */
 async function archiveItems(
   ids: readonly string[],
   deletedAt: string,
+  checked: boolean,
 ): Promise<Item[]> {
   return unwrap(
     await createClient()
@@ -571,9 +747,7 @@ async function archiveItems(
       .update({ deleted_at: deletedAt })
       .in("id", [...ids])
       .is("deleted_at", null)
-      // Only what is in the cart on the server: a row whose check was
-      // rejected meanwhile, or that someone unchecked, stays on the list.
-      .eq("checked", true)
+      .eq("checked", checked)
       .select()
       .abortSignal(writeSignal()),
   );
@@ -604,7 +778,7 @@ export function useEmptyCart(userId: string, listId: string) {
         .filter((item) => item.deleted_at === deletedAt && item.checked)
         .map((item) => item.id);
       if (ours.length === 0) return [];
-      return archiveItems(ours, deletedAt);
+      return archiveItems(ours, deletedAt, true);
     },
     onMutate: async ({ ids, deletedAt }) => {
       await queryClient.cancelQueries({ queryKey: key });
