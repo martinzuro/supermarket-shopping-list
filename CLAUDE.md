@@ -19,10 +19,10 @@ y triggers en `supabase/migrations/`, tipos generados en
 auth anónima con conversión por código, capa de queries con TanStack Query y
 canal Realtime por lista, y el sistema de diseño Fresh Editorial
 (`docs/DESIGN_SYSTEM.md`, página interna `/design`). La lista guarda ítems
-optimistas, se comparte por enlace de invitación y refleja en vivo los
-cambios de otros miembros; tiene categorías con recorrido ordenable, precio
-estimado con totales por moneda, sugerencias, frecuentes y "Lo de siempre".
-Lo siguiente es la Fase 4 (preparación para producción).
+con escrituras optimistas, se comparte por enlace de invitación y refleja en
+vivo los cambios de otros miembros; tiene categorías con recorrido ordenable,
+precio estimado con totales por moneda, sugerencias, frecuentes y "Lo de
+siempre". Lo siguiente es la Fase 4 (preparación para producción).
 
 ## Decisiones tomadas
 
