@@ -1,8 +1,8 @@
 "use client";
 
-import { useMutationState } from "@tanstack/react-query";
+import { useMutationState, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, XIcon } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import { Collapse, Enter, transitions } from "@/components/motion";
 import { Banner } from "@/components/ui/banner";
@@ -74,8 +74,18 @@ export function RouteSheet({
   );
 }
 
-/** What the user last pressed, and the route as it was then. */
-type Moved = { id: string; direction: Direction; name: string; before: string };
+/**
+ * What the user last pressed, the route as it was then, and what was said
+ * about it: null until the route shows the move, then the sentence, said
+ * once and kept (or "" when a rejection took the category back).
+ */
+type Moved = {
+  id: string;
+  direction: Direction;
+  name: string;
+  before: string;
+  said: string | null;
+};
 
 function RouteBody({
   userId,
@@ -90,8 +100,27 @@ function RouteBody({
   const signature = route.map((category) => category.id).join();
 
   // Only the moves rejected since this opening, and not yet dismissed.
+  const queryClient = useQueryClient();
   const [openedAt] = useState(() => Date.now());
   const [dismissedAt, setDismissedAt] = useState(0);
+  // What this sheet showed is not shown again by the add bar: the rejected
+  // moves since it opened leave the cache when the notice is dismissed and
+  // when the sheet closes. A rejection that arrives with the sheet closed is
+  // the add bar's.
+  const forgetFailures = () => {
+    const cache = queryClient.getMutationCache();
+    for (const mutation of cache.findAll({
+      mutationKey: categoryMutationKeys.all(userId, listId),
+      status: "error",
+    })) {
+      if (mutation.state.submittedAt >= openedAt) cache.remove(mutation);
+    }
+  };
+  const forget = useRef(forgetFailures);
+  useEffect(() => {
+    forget.current = forgetFailures;
+  });
+  useEffect(() => () => forget.current(), []);
   const failures = useMutationState({
     filters: {
       mutationKey: categoryMutationKeys.all(userId, listId),
@@ -115,12 +144,16 @@ function RouteBody({
 
   const [moved, setMoved] = useState<Moved | null>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
+  // The arrow the user last had the focus on (or tapped: some browsers do
+  // not focus a button on tap), as `<category id>:<direction>`.
+  const lastArrow = useRef<string | null>(null);
 
   // The order changed under the user's finger. React may have moved the node
   // that had the focus, which drops it to <body> (or, as Radix's focus trap
-  // catches that, to the sheet itself): it goes back to the same button on
-  // the same category, now in its new place. Never stolen from somewhere
-  // else the focus has moved to.
+  // catches that, to the sheet itself): it goes back to the arrow the user
+  // was on, on the same category, now in its new place (the one last
+  // pressed may no longer be it: the user may have tabbed on). Never stolen
+  // from somewhere else the focus has moved to.
   const previous = useRef(signature);
   useLayoutEffect(() => {
     if (signature === previous.current) return;
@@ -130,32 +163,47 @@ function RouteBody({
     const lost =
       !active || active === document.body || active.matches('[role="dialog"]');
     if (!lost) return;
-    buttons.current.get(`${moved.id}:${moved.direction}`)?.focus({
-      preventScroll: true,
-    });
+    const arrow = lastArrow.current;
+    if (arrow) buttons.current.get(arrow)?.focus({ preventScroll: true });
   });
 
   function handlePress(category: Category, direction: Direction) {
     const step = categoryStep(route, category, direction);
     // At that end of the route there is nowhere to go.
     if (!step) return;
+    lastArrow.current = `${category.id}:${direction}`;
     setMoved({
       id: category.id,
       direction,
       name: category.name,
       before: signature,
+      said: null,
     });
     move.mutate(step);
   }
 
-  // Where the category landed, said once the route shows it. Empty while the
-  // route is as it was at the tap (the optimistic update lands a moment
-  // after it), and when a rejected move brought it back: the alert says that.
-  const place = moved ? route.findIndex((c) => c.id === moved.id) : -1;
-  const said =
-    moved && place !== -1 && signature !== moved.before
-      ? texts.route.position(moved.name, place + 1, route.length)
-      : "";
+  // Where the category landed, said once, when the user's own move first
+  // shows in the route (the optimistic update lands a moment after the tap).
+  // It is not recomputed afterwards: another member shifting the category
+  // later is not something the user did. A rejection that puts the route
+  // back as it was clears it (the alert says that). Adjusted during render,
+  // so the region changes in the same pass as the rows.
+  if (moved) {
+    const place = route.findIndex((c) => c.id === moved.id);
+    if (moved.said === null && signature !== moved.before && place !== -1) {
+      setMoved({
+        ...moved,
+        said: texts.route.position(moved.name, place + 1, route.length),
+      });
+    } else if (
+      moved.said !== null &&
+      moved.said !== "" &&
+      signature === moved.before
+    ) {
+      setMoved({ ...moved, said: "" });
+    }
+  }
+  const said = moved?.said ?? "";
 
   return (
     <div className="pb-safe flex flex-col">
@@ -180,7 +228,10 @@ function RouteBody({
                 variant="ghost"
                 size="icon-touch"
                 aria-label={texts.itemErrors.dismiss}
-                onClick={() => setDismissedAt(notice.at)}
+                onClick={() => {
+                  setDismissedAt(notice.at);
+                  forgetFailures();
+                }}
               >
                 <XIcon aria-hidden strokeWidth={1.5} />
               </Button>
@@ -256,6 +307,9 @@ function RouteBody({
                         end &&
                           "text-ink-3 cursor-default hover:bg-transparent active:scale-100",
                       )}
+                      onFocus={() => {
+                        lastArrow.current = `${category.id}:${direction}`;
+                      }}
                       onClick={() => handlePress(category, direction)}
                     >
                       <Arrow aria-hidden strokeWidth={1.5} />

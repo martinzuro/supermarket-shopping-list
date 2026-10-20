@@ -31,6 +31,16 @@ function routeButton(page: Page) {
   return pending(page).getByRole("button", { name: t.route.open, exact: true });
 }
 
+/**
+ * Every alert of the page that says a move was rejected (not Next's own
+ * empty route announcer, which is a role="alert" too).
+ */
+function notices(page: Page) {
+  return page
+    .getByRole("alert")
+    .filter({ hasText: t.route.error.title("Frutas y verduras") });
+}
+
 function routeSheet(page: Page) {
   return page.getByRole("dialog", { name: t.route.title });
 }
@@ -463,9 +473,25 @@ for (const scheme of SCHEMES) {
       await expect(arrow(page, "down", "Frutas y verduras")).toBeFocused();
       await captureViewport(page, testInfo, `route-sheet-rejected-${scheme}`);
 
-      // The notice goes with its button.
+      // The notice goes with its button, and closing the sheet does not
+      // bring it back in the add bar.
       await alert.getByRole("button", { name: t.itemErrors.dismiss }).click();
       await expect(alert).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(routeSheet(page)).toBeHidden();
+      await page.waitForTimeout(500);
+      await expect(notices(page)).toHaveCount(0);
+
+      // Closed without dismissing: still the sheet's notice, not the add
+      // bar's.
+      await routeButton(page).click();
+      await arrow(page, "down", "Frutas y verduras").click();
+      await expect(routeSheet(page).getByRole("alert")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(routeSheet(page)).toBeHidden();
+      await page.waitForTimeout(500);
+      await expect(notices(page)).toHaveCount(0);
+      expect(calls).toBe(2);
     });
   });
 }

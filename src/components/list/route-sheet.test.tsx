@@ -1,5 +1,6 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -290,5 +291,81 @@ describe("RouteSheet", () => {
     view.rerender(<Harness />);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("goes back to the arrow the user is on, not to the one last pressed", async () => {
+    const { queryClient } = renderRoute();
+    const down = button(t.down("Frutas y verduras"));
+    down.focus();
+    fireEvent.click(down);
+    await waitFor(() => expect(names()[1]).toBe("Frutas y verduras"));
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+
+    // The user tabs on to another arrow; then another member moves that
+    // category, the focus drops to <body> with the node that had it.
+    button(t.up("Otros")).focus();
+    const current = queryClient.getQueryData<Category[]>(key)!;
+    act(() => {
+      (document.activeElement as HTMLElement).blur();
+      queryClient.setQueryData(
+        key,
+        moveCategory(current, "others", "up", "drinks"),
+      );
+    });
+    await waitFor(() => expect(names()[2]).toBe("Otros"));
+    expect(button(t.up("Otros"))).toHaveFocus();
+  });
+
+  it("says the position once, and not again when another member shifts the category", async () => {
+    const { queryClient } = renderRoute();
+    fireEvent.click(button(t.up("Bebidas")));
+    await waitFor(() =>
+      expect(announcement()).toHaveTextContent(t.position("Bebidas", 2, 4)),
+    );
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+
+    // Another member moves Frutas y verduras past Bebidas: Bebidas is now
+    // first, which is not something the user did.
+    const current = queryClient.getQueryData<Category[]>(key)!;
+    act(() => {
+      queryClient.setQueryData(
+        key,
+        moveCategory(current, "veg", "down", "drinks"),
+      );
+    });
+    await waitFor(() => expect(names()[0]).toBe("Bebidas"));
+    expect(announcement()).toHaveTextContent(t.position("Bebidas", 2, 4));
+
+    // The next move of the user is said again.
+    fireEvent.click(button(t.up("Otros")));
+    await waitFor(() =>
+      expect(announcement()).toHaveTextContent(t.position("Otros", 3, 4)),
+    );
+  });
+
+  it("forgets the rejections it showed, when they are dismissed and when it closes", async () => {
+    callRpc.mockImplementation(() =>
+      later({ data: null, error: { message: "nope", code: "P0001" } }, 5),
+    );
+    const queryClient = makeTestQueryClient();
+    queryClient.setQueryData(key, ROUTE);
+    const view = render(<Harness />, { wrapper: makeWrapper(queryClient) });
+    const failed = () =>
+      queryClient.getMutationCache().findAll({ status: "error" }).length;
+
+    fireEvent.click(button(t.up("Bebidas")));
+    const alert = await screen.findByRole("alert");
+    expect(failed()).toBe(1);
+    fireEvent.click(
+      within(alert).getByRole("button", { name: texts.itemErrors.dismiss }),
+    );
+    await waitFor(() => expect(failed()).toBe(0));
+
+    // Not dismissed, closed: it is the sheet's notice, not the add bar's.
+    fireEvent.click(button(t.up("Bebidas")));
+    await waitFor(() => expect(failed()).toBe(1));
+    view.rerender(<Harness open={false} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(failed()).toBe(0);
   });
 });

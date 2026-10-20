@@ -310,12 +310,16 @@ export async function recordPulses(context: BrowserContext) {
       childList: true,
       characterData: true,
     });
-    const lit = (node: Node) => {
+    // `skip`: rows that were only moved in the DOM (see below): a lit row
+    // inside a group that React moves is the same pulse, not a second one.
+    const lit = (node: Node, skip?: ReadonlySet<Element>) => {
       if (!(node instanceof Element)) return;
       const rows = node.matches("[data-highlighted]")
         ? [node]
         : Array.from(node.querySelectorAll("[data-highlighted]"));
       for (const element of rows) {
+        const item = element.closest("[data-item-id]");
+        if (item && skip?.has(item)) continue;
         const name = element
           .closest("[data-item-id]")
           ?.querySelector('[role="checkbox"]')
@@ -381,7 +385,7 @@ export async function recordPulses(context: BrowserContext) {
             }
           }
         } else if (mutation.type === "childList") {
-          mutation.addedNodes.forEach(lit);
+          mutation.addedNodes.forEach((node) => lit(node, moved));
           for (const node of mutation.addedNodes) {
             for (const row of rowsIn(node)) {
               if (moved.has(row)) continue;

@@ -51,7 +51,6 @@ export const texts = {
       quantity: "Usá un número mayor que 0, como 2, 1,5 o 500.",
     },
   },
-  /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
   /**
    * El recorrido: el orden de las categorías, que es el orden de los grupos
    * de Pendientes. Se edita en una hoja que abre la cabecera de Pendientes.
@@ -77,6 +76,7 @@ export const texts = {
       body: "Volvió a donde estaba. Probá de nuevo.",
     },
   },
+  /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
   itemErrors: {
     add: (name: string) => `No se guardó “${name}”`,
     addRestored: "Lo escrito volvió al campo para que pruebes de nuevo.",

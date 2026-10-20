@@ -353,12 +353,12 @@ for (const colorScheme of ["light", "dark"] as const) {
         );
         steps.push(
           {
-            label: "4 both move, A's screen",
+            label: "4 own gesture → both moves, A",
             ms: endA - start,
             fromGesture: endA - gestureA,
           },
           {
-            label: "4 both move, B's screen",
+            label: "4 own gesture → both moves, B",
             ms: endB - start,
             fromGesture: endB - gestureB,
           },
