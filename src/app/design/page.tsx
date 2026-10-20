@@ -34,6 +34,7 @@ import {
   type Mode,
   type PaletteToken,
 } from "@/lib/design/tokens";
+import { formatMoney } from "@/lib/domain";
 import { texts } from "@/lib/texts";
 import { MotionDemo } from "./motion-demo";
 import { ChipPickerDemo, RowsDemo, SheetDemo } from "./states-demo";
@@ -529,6 +530,21 @@ export default function DesignPage() {
           <Field label={t.states.field.label} help={t.states.field.help}>
             <Input type="text" placeholder={t.states.field.placeholder} />
           </Field>
+          {/* La ayuda también puede ser un nodo: el total de la línea, con el
+              monto en mono, bajo el precio de la hoja de edición. */}
+          <Field
+            label={texts.editItem.price.kg}
+            help={
+              <>
+                {texts.editItem.lineTotal}{" "}
+                <span data-numeric className="font-mono">
+                  {formatMoney(179, "UYU")}
+                </span>
+              </>
+            }
+          >
+            <Input type="text" inputMode="decimal" defaultValue="89,50" />
+          </Field>
           <Field
             label={t.states.field.invalidLabel}
             error={t.states.field.invalidHelp}
@@ -599,6 +615,7 @@ export default function DesignPage() {
                   key={item.name}
                   name={item.name}
                   quantity={item.quantity || undefined}
+                  total={item.total || undefined}
                   checked={item.checked}
                 />
               ))}

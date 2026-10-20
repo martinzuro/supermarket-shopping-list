@@ -2,8 +2,23 @@ export { newId } from "./ids";
 export { normalizeName } from "./normalize-name";
 export { compareServerOrder, splitByChecked } from "./order";
 export { compareTimestamps } from "./timestamps";
-export { DEFAULT_CURRENCY, formatMoney, totalsByCurrency } from "./totals";
-export type { CurrencyTotal } from "./totals";
+export {
+  DEFAULT_CURRENCY,
+  estimateOf,
+  formatMoney,
+  totalsByCurrency,
+} from "./totals";
+export type { CurrencyTotal, Estimate } from "./totals";
+export {
+  MAX_PRICE,
+  formatPriceField,
+  lineTotal,
+  parsePriceField,
+  priceBasis,
+  priceFactor,
+  rememberedPrice,
+} from "./price";
+export type { PriceBasis } from "./price";
 export { formatQuantity } from "./format-quantity";
 export { canonicalUnit, parseItemInput } from "./parse-item-input";
 export type { ParsedItemInput } from "./parse-item-input";

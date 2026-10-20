@@ -1,12 +1,13 @@
 "use client";
 
+import { RadioGroup } from "radix-ui";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   ADD_ITEM_INPUT_ID,
   MAX_NAME_LENGTH,
 } from "@/components/list/add-item-bar";
 import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { CategoryChip } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -19,12 +20,18 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  DEFAULT_CURRENCY,
   canonicalUnit,
   categoryKind,
   compareRouteOrder,
   fallbackCategory,
+  formatMoney,
+  formatPriceField,
   formatQuantityField,
+  lineTotal,
+  parsePriceField,
   parseQuantityField,
+  priceBasis,
 } from "@/lib/domain";
 import type { Category, EditableFields, Item } from "@/lib/queries";
 import { texts } from "@/lib/texts";
@@ -47,6 +54,11 @@ const CONFIRM_MS = 4000;
 const ARM_MS = 350;
 
 const NO_CATEGORIES: readonly Category[] = [];
+
+const CURRENCIES = [
+  { code: "UYU", ...texts.editItem.currency.uyu },
+  { code: "USD", ...texts.editItem.currency.usd },
+];
 
 type EditItemSheetProps = {
   /**
@@ -124,6 +136,8 @@ export function EditItemSheet({
     >
       <SheetContent
         side="bottom"
+        // A field that takes the focus scrolls clear of the sticky footer.
+        className="scroll-pb-44"
         aria-describedby={undefined}
         data-keyboard-open={keyboardInset > 0}
         // En iOS el teclado no achica el viewport: la hoja sube con él y su
@@ -170,7 +184,7 @@ function effectiveCategoryId(item: Item, live: readonly Category[]) {
   return own?.id ?? fallbackCategory(live)?.id ?? null;
 }
 
-type Errors = { name: boolean; quantity: boolean };
+type Errors = { name: boolean; quantity: boolean; price: boolean };
 
 function EditForm({
   item,
@@ -191,11 +205,15 @@ function EditForm({
     name: item.name,
     quantity: formatQuantityField(item.quantity),
     unit: item.unit ?? "",
+    price: formatPriceField(item.estimated_price),
+    currency: item.currency || DEFAULT_CURRENCY,
     note: item.note ?? "",
   }));
   const [name, setName] = useState(initial.name);
   const [quantity, setQuantity] = useState(initial.quantity);
   const [unit, setUnit] = useState(initial.unit);
+  const [price, setPrice] = useState(initial.price);
+  const [currency, setCurrency] = useState(initial.currency);
   const [note, setNote] = useState(initial.note);
   // The category the user picked; undefined while untouched, so the one shown
   // follows the list (a category that loads late, one another member changes).
@@ -205,14 +223,30 @@ function EditForm({
     .sort(compareRouteOrder);
   const effective = effectiveCategoryId(item, route);
   const categoryLabelId = useId();
+  const currencyLabelId = useId();
   const [errors, setErrors] = useState<Errors>({
     name: false,
     quantity: false,
+    price: false,
   });
   const [confirming, setConfirming] = useState(false);
   const [armed, setArmed] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
+
+  // What the line costs with what is typed now, to say it under the price
+  // when it is not the price itself (2 kg at $ 90 the kilo).
+  const typedPrice = parsePriceField(price);
+  const typedQuantity = parseQuantityField(quantity);
+  const total =
+    typeof typedPrice === "number" && typedQuantity !== "invalid"
+      ? lineTotal({
+          estimated_price: typedPrice,
+          quantity: typedQuantity,
+          unit: canonicalUnit(unit),
+        })
+      : null;
 
   useEffect(() => {
     if (!confirming) return;
@@ -235,13 +269,22 @@ function EditForm({
       ? parseQuantityField(quantity)
       : null;
 
+    const priceTouched = price !== initial.price;
+    const parsedPrice = priceTouched ? parsePriceField(price) : null;
+
     const next: Errors = {
       name: trimmedName === "",
       quantity: parsedQuantity === "invalid",
+      price: parsedPrice === "invalid",
     };
-    if (next.name || next.quantity) {
+    if (next.name || next.quantity || next.price) {
       setErrors(next);
-      (next.name ? nameRef : quantityRef).current?.focus();
+      (next.name
+        ? nameRef
+        : next.quantity
+          ? quantityRef
+          : priceRef
+      ).current?.focus();
       return;
     }
 
@@ -256,9 +299,31 @@ function EditForm({
     ) {
       changes.quantity = parsedQuantity;
     }
+    const currentCurrency = item.currency || DEFAULT_CURRENCY;
     const nextUnit = canonicalUnit(unit);
     if (unit !== initial.unit && nextUnit !== item.unit) {
       changes.unit = nextUnit;
+    }
+    if (
+      priceTouched &&
+      parsedPrice !== "invalid" &&
+      parsedPrice !== item.estimated_price
+    ) {
+      changes.estimated_price = parsedPrice;
+    }
+    // The currency only means something with a price. Sent alone for an
+    // item without one, the catalog trigger would take it as a change of the
+    // (price, currency) pair and forget the product's last price.
+    const savedPrice =
+      changes.estimated_price !== undefined
+        ? changes.estimated_price
+        : item.estimated_price;
+    if (
+      currency !== initial.currency &&
+      currency !== currentCurrency &&
+      savedPrice !== null
+    ) {
+      changes.currency = currency;
     }
     if (note !== initial.note && (note.trim() || null) !== item.note) {
       changes.note = note.trim() || null;
@@ -337,6 +402,64 @@ function EditForm({
             />
           </Field>
         </div>
+        <div className="grid grid-cols-2 items-start gap-4">
+          <Field
+            label={texts.editItem.price[priceBasis(unit)]}
+            error={errors.price ? texts.editItem.errors.price : undefined}
+            help={
+              total !== null && total !== typedPrice ? (
+                <>
+                  {texts.editItem.lineTotal}{" "}
+                  <span data-numeric className="text-ink font-mono">
+                    {formatMoney(total, currency)}
+                  </span>
+                </>
+              ) : undefined
+            }
+          >
+            <Input
+              ref={priceRef}
+              name="price"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              enterKeyHint="done"
+              placeholder={texts.editItem.pricePlaceholder}
+              value={price}
+              onChange={(event) => {
+                setPrice(event.target.value);
+                setErrors((current) => ({ ...current, price: false }));
+              }}
+            />
+          </Field>
+          <div className="grid gap-2">
+            <span id={currencyLabelId} className="text-label text-ink">
+              {texts.editItem.currency.label}
+            </span>
+            <RadioGroup.Root
+              aria-labelledby={currencyLabelId}
+              data-slot="currency-picker"
+              value={currency}
+              onValueChange={setCurrency}
+              className="grid grid-cols-2 gap-2"
+            >
+              {CURRENCIES.map(({ code, symbol, name }) => (
+                <RadioGroup.Item
+                  key={code}
+                  value={code}
+                  aria-label={`${symbol}, ${name}`}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "px-0 font-mono",
+                    "data-[state=checked]:border-ink data-[state=checked]:bg-ink data-[state=checked]:text-paper data-[state=checked]:hover:bg-ink",
+                  )}
+                >
+                  {symbol}
+                </RadioGroup.Item>
+              ))}
+            </RadioGroup.Root>
+          </div>
+        </div>
         <Field label={texts.editItem.note} help={texts.editItem.noteHelp}>
           <Input
             name="note"
@@ -378,7 +501,10 @@ function EditForm({
           </div>
         ) : null}
       </SheetBody>
-      <SheetFooter className="in-data-[keyboard-open=true]:pb-4">
+      {/* Sticks to the bottom of the sheet while the body scrolls: Guardar and
+          Borrar stay reachable however many rows the form has, and with the
+          keyboard open the sheet itself sits above it. */}
+      <SheetFooter className="border-rule bg-paper sticky bottom-0 mt-4 border-t pt-4 in-data-[keyboard-open=true]:pb-4">
         <Button type="submit" size="touch-lg" className="w-full">
           {texts.editItem.save}
         </Button>

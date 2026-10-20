@@ -23,6 +23,15 @@ export const texts = {
       empty: "Lo que marques como comprado baja acá.",
       emptyAction: "Vaciar el carro",
     },
+    /**
+     * Lo que se estima gastar en una sección: el total por moneda y, si a
+     * algún producto le falta el precio, a cuántos cubre.
+     */
+    estimate: {
+      label: "Estimado",
+      covered: (priced: number, count: number) =>
+        `${priced} de ${count} con precio`,
+    },
     loadError: {
       title: "No pudimos cargar tu lista",
       body: "Revisá tu conexión y probá de nuevo.",
@@ -43,12 +52,28 @@ export const texts = {
     note: "Nota",
     noteHelp: "Marca, tamaño o lo que quieras recordar.",
     category: "Categoría",
+    /** La etiqueta sigue a la unidad escrita: el precio es el de góndola. */
+    price: {
+      kg: "Precio por kg",
+      L: "Precio por litro",
+      unit: "Precio por unidad",
+    },
+    pricePlaceholder: "Sin precio",
+    /** El monto va aparte, en mono: "Total: $ 135". */
+    lineTotal: "Total:",
+    currency: {
+      label: "Moneda",
+      /** Lo que se ve es el símbolo; el nombre es el de lector de pantalla. */
+      uyu: { symbol: "$", name: "pesos uruguayos" },
+      usd: { symbol: "US$", name: "dólares" },
+    },
     save: "Guardar",
     remove: "Borrar",
     confirmRemove: "Tocá otra vez para borrar",
     errors: {
       name: "Escribí el nombre del producto.",
       quantity: "Usá un número mayor que 0, como 2, 1,5 o 500.",
+      price: "Escribí un precio como 120, 49,90 o 1.200.",
     },
   },
   /**
@@ -672,14 +697,27 @@ export const texts = {
       empty: "Estados vacíos",
       rows: "Filas de la lista",
       rowItems: [
-        { name: "Tomates perita", quantity: "1 kg", note: "", checked: false },
+        {
+          name: "Tomates perita",
+          quantity: "1,5 kg",
+          total: "$ 135",
+          note: "",
+          checked: false,
+        },
         {
           name: "Yogur natural",
           quantity: "2",
+          total: "US$ 4",
           note: "El de vidrio, no el de plástico",
           checked: false,
         },
-        { name: "Pan de campo", quantity: "", note: "", checked: true },
+        {
+          name: "Pan de campo",
+          quantity: "",
+          total: "",
+          note: "",
+          checked: true,
+        },
       ],
       rowHighlight: "Simular cambio de otro miembro",
       sections: "Sección",

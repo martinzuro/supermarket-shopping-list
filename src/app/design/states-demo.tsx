@@ -2,6 +2,7 @@
 
 import { Link2 } from "lucide-react";
 import { useState } from "react";
+import { EstimateLine } from "@/components/list/estimate-line";
 import { Button } from "@/components/ui/button";
 import { CategoryChip } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
@@ -63,6 +64,7 @@ export function RowsDemo() {
             key={item.name}
             name={item.name}
             quantity={item.quantity || undefined}
+            total={item.total || undefined}
             note={item.note || undefined}
             checked={checked[index]}
             onCheckedChange={(next) =>
@@ -72,6 +74,16 @@ export function RowsDemo() {
           />
         ))}
       </ul>
+      <EstimateLine
+        estimate={{
+          totals: [
+            { currency: "UYU", total: 135 },
+            { currency: "USD", total: 4 },
+          ],
+          priced: 2,
+          count: 3,
+        }}
+      />
       <Button
         type="button"
         variant="link"

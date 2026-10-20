@@ -20,8 +20,8 @@ type FieldProps = {
   /** Id del control; si falta se genera uno. */
   id?: string;
   label: string;
-  /** Ayuda breve debajo del control. */
-  help?: string;
+  /** Ayuda breve debajo del control (puede llevar un monto en mono). */
+  help?: React.ReactNode;
   /** Error: reemplaza la ayuda y marca el control como inválido. */
   error?: string;
   className?: string;
@@ -44,12 +44,15 @@ export function Field({
   const fieldId = id ?? generatedId;
   const helpId = `${fieldId}-help`;
   const message = error ?? help;
+  const hasMessage =
+    Boolean(error) ||
+    (help !== undefined && help !== null && help !== false && help !== "");
 
   return (
     <FieldContext.Provider
       value={{
         id: fieldId,
-        describedBy: message ? helpId : undefined,
+        describedBy: hasMessage ? helpId : undefined,
         invalid: Boolean(error),
       }}
     >
@@ -58,7 +61,7 @@ export function Field({
           {label}
         </label>
         {children}
-        {message ? (
+        {hasMessage ? (
           <p
             id={helpId}
             role={error ? "alert" : undefined}

@@ -9,7 +9,7 @@ import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseItemInput, suggestCategory } from "@/lib/domain";
+import { parseItemInput, rememberedPrice, suggestCategory } from "@/lib/domain";
 import {
   categoryMutationKeys,
   itemMutationKeys,
@@ -203,6 +203,7 @@ export function AddItemBar() {
         catalog.data ?? [],
         categories.data ?? [],
       ),
+      price: rememberedPrice(parsed.name, catalog.data ?? []),
     });
     const at = Date.now();
     add.mutateAsync(item).catch(() => {
