@@ -161,7 +161,7 @@ test.describe("the catalog's remembered price and its unit", () => {
     expect((await remembered(ana.listId, "harina")).last_unit).toBe("paquete");
   });
 
-  test("a currency change on a priced item moves the pair, and keeps its unit", async () => {
+  test("a currency change alone on a priced row brings that row's unit with it", async () => {
     const ana = await person();
     const oil = await add(ana, {
       name: "Aceite",
@@ -169,10 +169,18 @@ test.describe("the catalog's remembered price and its unit", () => {
       estimated_price: 12,
       currency: "USD",
     });
-    await edit(ana, oil.id, { currency: "UYU", estimated_price: 480 });
+    // A later line without unit, priced per unit, takes the catalog over.
+    await add(ana, { name: "aceite", estimated_price: 480, currency: "UYU" });
+    expect(await remembered(ana.listId, "aceite")).toMatchObject({
+      last_unit: null,
+      last_price: 480,
+    });
+    // The first row changes only its currency: its price is per litre, and
+    // the catalog takes it with its litre (12 per unit would be wrong).
+    await edit(ana, oil.id, { currency: "UYU" });
     expect(await remembered(ana.listId, "aceite")).toMatchObject({
       last_unit: "L",
-      last_price: 480,
+      last_price: 12,
       last_currency: "UYU",
     });
   });

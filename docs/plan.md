@@ -643,7 +643,10 @@ cierre, con los arreglos de la revisión cruzada final en `5446615`).
   `20261020154617_catalog_price_unit_pair.sql` hace que precio, moneda y unidad
   salgan siempre de la misma fila (una línea sin precio no mueve la unidad de un
   precio recordado), probado en `e2e/catalog-db.spec.ts`. Las sugerencias
-  muestran el precio solo si el alta lo traería. Totales por moneda al
+  muestran el precio solo si el alta lo traería. Los pares que el trigger
+  anterior dejó desparejos (no hay datos de usuarios todavía) se corrigen solos
+  con la próxima alta o edición con precio de ese producto, y una fusión los
+  copia tal como están. Totales por moneda al
   pie de Pendientes y del carro, con "N de M con precio" cuando falta alguno.
 - **3c, sugerencias, frecuentes y "Lo de siempre" (PR 41).** Campo de añadir
   como combobox con hasta 5 sugerencias del catálogo, fila de frecuentes
