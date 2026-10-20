@@ -220,11 +220,11 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | Componente | Para qué | Notas |
 | ---------- | -------- | ----- |
 | `Button` | Toda acción | Píldora. Variantes `default` (lima sobre tinta), `secondary` (pistacho), `outline`, `ghost`, `danger`, `link`. Tamaños `sm`, `touch` (por defecto), `touch-lg`, `icon-touch`, `icon-touch-lg`. `asChild` para enlaces |
-| `Input` + `Field` | Campos de texto | `Field` pone etiqueta visible, ayuda o error (con `role="alert"`) y le pasa a `Input` id, `aria-describedby` y `aria-invalid` por contexto |
+| `Input` + `Field` | Campos de texto | `Field` pone etiqueta visible, ayuda (texto o un nodo, como el "Total: $ 135" con el monto en mono) o error (con `role="alert"`) y le pasa a `Input` id, `aria-describedby` y `aria-invalid` por contexto |
 | `Eyebrow` | Metadatos en mayúsculas | `tone="ink"` cuando es título; `as` para la etiqueta |
 | `Chip` / `CategoryChip` | Etiquetas cortas / categoría con tinte e icono | `CategoryChip interactive` es un botón con `aria-pressed` y un área táctil de 44px alrededor de sus 28px visibles; `hideIcon` quita el icono |
 | `CheckCircle` | Marca visual de "hecho" | Disco con el par de acción: tinta con check lima en claro, lima con check tinta en oscuro. Solo presentación; el control accesible lo pone `ListRow` |
-| `ListRow` | Fila de la lista | 56px, tachado animado, `note`, `quantity` en mono, `highlighted` para el pulso remoto. El checkbox mide 44px y su etiqueta accesible es solo el nombre del ítem (el rol y `aria-checked` dicen el resto). Con `onPress` el nombre es un botón de 44px con `aria-haspopup="dialog"` (abre la hoja de edición); sin él es texto. `as` elige la raíz: `li` por defecto, `div` cuando el `li` lo pone un envoltorio de motion |
+| `ListRow` | Fila de la lista | 56px, tachado animado, `note`, `quantity` en mono, `total` (lo que cuesta la línea, en mono, tinta 2, bajo la cantidad y alineado a la derecha como una columna de ticket; el nombre sigue recortándose y nada empuja el check de 44px), `highlighted` para el pulso remoto. El checkbox mide 44px y su etiqueta accesible es solo el nombre del ítem (el rol y `aria-checked` dicen el resto). Con `onPress` el nombre es un botón de 44px con `aria-haspopup="dialog"` (abre la hoja de edición); sin él es texto. `as` elige la raíz: `li` por defecto, `div` cuando el `li` lo pone un envoltorio de motion |
 | `Section` + `SectionEmpty` | Agrupación | `thread` pone el hilo de categoría, `icon` el icono junto al título, `count` en mono. `level` 2 (por defecto, `h2` en `text-heading`) o 3 (`h3` en `text-row font-medium`): el nivel 3 es el grupo de categoría dentro de Pendientes y no lleva nombre accesible, para que diez grupos no llenen la lista de landmarks (el `h3` sigue en la navegación por encabezados) |
 | `EmptyState` | Estado vacío de una sección | Ilustración en tinta 2 a la izquierda, texto a la derecha. Es una invitación a actuar |
 | `Banner` | Aviso persistente | Tonos `info`, `attention`, `error`. El texto siempre en tinta; el color en icono e hilo izquierdo. Esquinas izquierdas rectas. `action` va al costado (un botón); `footer` en una línea propia debajo del texto, alineada con él, para dos botones o una pregunta (muestra en `/design`) |
@@ -307,6 +307,25 @@ reducido de `visual.spec.ts` lo desactivan.
   estén leídas antes de mostrarse válida, para no cambiar de acciones después;
   si la lectura falla, queda la invitación sin aviso. Al tocar "Unirme igual"
   el aviso queda fijo hasta que termina, aunque las listas cambien.
+
+### Precio y totales
+
+- **Hoja de edición.** Bajo cantidad y unidad: el campo de precio (mono,
+  `inputMode="decimal"`, coma decimal) y la moneda. La etiqueta del campo
+  sigue a la unidad escrita en la hoja ("Precio por kg", "por litro", "por
+  unidad"); debajo, si la línea difiere del precio, "Total: $ 135" con el
+  monto en mono. La moneda es un `RadioGroup` de Radix con dos opciones, "$"
+  y "US$", estilizado con `buttonVariants` outline (la elegida pasa al par de
+  acción, tinta en claro y lima en oscuro); el nombre accesible es "$, pesos
+  uruguayos" / "US$, dólares". Guardar manda `estimated_price` y `currency`
+  solo si cambiaron.
+- **Fila.** `ListRow total`: el total de la línea bajo la cantidad.
+- **Totales** (`EstimateLine`, `src/components/list/estimate-line.tsx`, con
+  muestra en `/design`): al pie de Pendientes y dentro del pistacho del carro,
+  "Estimado" como eyebrow y un monto por moneda en mono (`$ 1.234 · US$ 12`);
+  si a algún producto le falta el precio, debajo "2 de 3 con precio". Sin
+  ningún precio no hay línea. Se calcula sobre lo que cada sección muestra, así
+  que el monto viaja con la fila al marcar.
 
 ### Miembros, avisos y "traer lo de otra lista"
 

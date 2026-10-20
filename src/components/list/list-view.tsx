@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
 import { BringOver } from "@/components/list/bring-over";
 import { EditItemSheet } from "@/components/list/edit-item-sheet";
+import { EstimateLine } from "@/components/list/estimate-line";
 import { MembershipNotices } from "@/components/list/membership-notice";
 import { ListSection } from "@/components/list/list-section";
 import { RouteSheet } from "@/components/list/route-sheet";
@@ -21,8 +22,12 @@ import { Moment } from "@/components/ui/moment";
 import { Section } from "@/components/ui/section";
 import { motionTokens } from "@/lib/design/motion";
 import {
+  DEFAULT_CURRENCY,
   categoryKind,
+  estimateOf,
+  formatMoney,
   formatQuantity,
+  lineTotal,
   groupByCategory,
   splitByChecked,
   type ItemGroup,
@@ -299,6 +304,7 @@ export function ListView() {
   }
 
   function renderRow(item: Item, groupEnters: boolean) {
+    const line = lineTotal(item);
     return (
       <Enter
         key={item.id}
@@ -321,6 +327,11 @@ export function ListView() {
           as="div"
           name={item.name}
           quantity={formatQuantity(item.quantity, item.unit)}
+          total={
+            line === null
+              ? undefined
+              : formatMoney(line, item.currency || DEFAULT_CURRENCY)
+          }
           note={item.note ?? undefined}
           checked={item.checked}
           highlighted={remote.has(item.id)}
@@ -426,6 +437,7 @@ export function ListView() {
         count={ready ? pending.length : 0}
         loading={groupsLoading}
         grouped
+        footer={<EstimateLine estimate={estimateOf(pending)} />}
         action={
           // The order of the groups is edited here: Pendientes hides the
           // empty categories, so the route sheet lists them all.
@@ -483,6 +495,7 @@ export function ListView() {
           count={ready ? cart.length : 0}
           loading={loading}
           surface="cart"
+          footer={<EstimateLine estimate={estimateOf(cart)} />}
           action={
             ready && !loading && cart.length > 0 ? (
               // Outline: el carro es pistacho y "secondary" se perdería.

@@ -27,6 +27,8 @@ type ListSectionProps = {
    * con su propia lista, en lugar de las filas directamente.
    */
   grouped?: boolean;
+  /** Pie de la sección, bajo las filas y solo si las hay (los totales). */
+  footer?: ReactNode;
   className?: string;
   /**
    * Las filas (`ListRow`), cada una dentro de su propio `li`; con `grouped`,
@@ -44,6 +46,7 @@ export function ListSection({
   surface = "paper",
   action,
   grouped = false,
+  footer,
   className,
   children,
 }: ListSectionProps) {
@@ -63,11 +66,14 @@ export function ListSection({
         action={action}
       >
         {loading ? null : hasItems ? (
-          grouped ? (
-            <div>{children}</div>
-          ) : (
-            <ul className="border-rule border-t">{children}</ul>
-          )
+          <>
+            {grouped ? (
+              <div>{children}</div>
+            ) : (
+              <ul className="border-rule border-t">{children}</ul>
+            )}
+            {footer}
+          </>
         ) : (
           <EmptyState
             illustration={

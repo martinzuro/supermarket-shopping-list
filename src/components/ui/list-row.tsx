@@ -8,6 +8,12 @@ type ListRowProps = {
   name: string;
   /** Cantidad y unidad ya formateadas, por ejemplo "1 kg". */
   quantity?: string;
+  /**
+   * Lo que cuesta la línea, ya formateado ("$ 178"): precio por cantidad.
+   * Va en mono bajo la cantidad, alineado a la derecha, como una columna de
+   * ticket.
+   */
+  total?: string;
   /** Nota corta: marca, tamaño, preferencia. */
   note?: string;
   checked: boolean;
@@ -33,6 +39,7 @@ type ListRowProps = {
 export function ListRow({
   name,
   quantity,
+  total,
   note,
   checked,
   onCheckedChange,
@@ -103,12 +110,17 @@ export function ListRow({
         {note ? <span className="eyebrow truncate">{note}</span> : null}
       </NameTag>
 
-      {quantity ? (
+      {quantity || total ? (
         <span
-          data-numeric
-          className={cn("text-label shrink-0 pl-3 font-mono", "text-ink-2")}
+          data-slot="list-row-figures"
+          className="text-label text-ink-2 flex shrink-0 flex-col items-end pl-3 font-mono"
         >
-          {quantity}
+          {quantity ? <span data-numeric>{quantity}</span> : null}
+          {total ? (
+            <span data-numeric data-slot="list-row-total">
+              {total}
+            </span>
+          ) : null}
         </span>
       ) : null}
       {trailing}

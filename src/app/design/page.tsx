@@ -599,6 +599,7 @@ export default function DesignPage() {
                   key={item.name}
                   name={item.name}
                   quantity={item.quantity || undefined}
+                  total={item.total || undefined}
                   checked={item.checked}
                 />
               ))}
