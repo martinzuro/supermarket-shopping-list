@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Item } from "@/lib/queries";
+import type { Category, Item } from "@/lib/queries";
 import { texts } from "@/lib/texts";
 import { EditItemSheet } from "./edit-item-sheet";
 
@@ -29,10 +29,50 @@ function makeItem(partial: Partial<Item> = {}): Item {
   };
 }
 
+function makeCategory(
+  id: string,
+  name: string,
+  position: number,
+  partial: Partial<Category> = {},
+): Category {
+  return {
+    id,
+    list_id: "list",
+    name,
+    position,
+    is_default: true,
+    created_at: "2026-10-18T00:00:00.000Z",
+    updated_at: "2026-10-18T00:00:00.000Z",
+    deleted_at: null,
+    ...partial,
+  };
+}
+
+// In an order that is not the array's: the picker follows `position`.
+const CATEGORIES = [
+  makeCategory("others", "Otros", 3),
+  makeCategory("dairy", "Fiambres y lácteos", 1),
+  makeCategory("veg", "Frutas y verduras", 0),
+  makeCategory("grocery", "Almacén", 2),
+  makeCategory("gone", "Panadería", 4, {
+    deleted_at: "2026-10-19T00:00:00.000Z",
+  }),
+];
+
 function renderSheet(item: Item | undefined = makeItem()) {
   const props = { onSave: vi.fn(), onRemove: vi.fn(), onClose: vi.fn() };
-  const view = render(<EditItemSheet item={item} {...props} />);
+  const view = render(
+    <EditItemSheet item={item} categories={CATEGORIES} {...props} />,
+  );
   return { ...props, ...view };
+}
+
+function picker() {
+  return screen.getByRole("group", { name: t.category });
+}
+
+function chip(name: string) {
+  return screen.getByRole("button", { name });
 }
 
 function input(label: string) {
@@ -164,5 +204,106 @@ describe("EditItemSheet", () => {
       />,
     );
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  describe("category picker", () => {
+    it("lists the live categories in route order as a labelled group", () => {
+      renderSheet();
+      const names = Array.from(picker().querySelectorAll("button")).map(
+        (button) => button.textContent,
+      );
+      expect(names).toEqual([
+        "Frutas y verduras",
+        "Fiambres y lácteos",
+        "Almacén",
+        "Otros",
+      ]);
+    });
+
+    it("presses the item's own category", () => {
+      renderSheet(makeItem({ category_id: "grocery" }));
+      expect(chip("Almacén")).toHaveAttribute("aria-pressed", "true");
+      expect(chip("Otros")).toHaveAttribute("aria-pressed", "false");
+      expect(chip("Frutas y verduras")).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it.each([
+      ["has none", null],
+      ["is in a deleted one", "gone"],
+    ])("presses Otros for an item that %s", (_, category_id) => {
+      renderSheet(makeItem({ category_id }));
+      expect(chip("Otros")).toHaveAttribute("aria-pressed", "true");
+      expect(picker().querySelectorAll('[aria-pressed="true"]')).toHaveLength(
+        1,
+      );
+    });
+
+    it("moves the selection on tap and sends only category_id", () => {
+      const { onSave, onClose } = renderSheet(
+        makeItem({ category_id: "grocery" }),
+      );
+      fireEvent.click(chip("Fiambres y lácteos"));
+      expect(chip("Fiambres y lácteos")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(chip("Almacén")).toHaveAttribute("aria-pressed", "false");
+      save();
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "milk" }),
+        { category_id: "dairy" },
+      );
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("sends the Otros id for an item that is in another category", () => {
+      const { onSave } = renderSheet(makeItem({ category_id: "grocery" }));
+      fireEvent.click(chip("Otros"));
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.anything(), {
+        category_id: "others",
+      });
+    });
+
+    it("sends nothing for Otros on an item without category", () => {
+      const { onSave } = renderSheet(makeItem({ category_id: null }));
+      fireEvent.click(chip("Otros"));
+      save();
+      expect(onSave).not.toHaveBeenCalled();
+    });
+
+    it("sends nothing after going back to where it started", () => {
+      const { onSave } = renderSheet(makeItem({ category_id: "grocery" }));
+      fireEvent.click(chip("Otros"));
+      fireEvent.click(chip("Almacén"));
+      save();
+      expect(onSave).not.toHaveBeenCalled();
+    });
+
+    it("sends the category together with the other changes", () => {
+      const { onSave } = renderSheet(makeItem({ category_id: null }));
+      change(t.note, "La de cartón");
+      fireEvent.click(chip("Frutas y verduras"));
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.anything(), {
+        note: "La de cartón",
+        category_id: "veg",
+      });
+    });
+
+    it("is not shown while the categories are not known", () => {
+      render(
+        <EditItemSheet
+          item={makeItem()}
+          onSave={vi.fn()}
+          onRemove={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(screen.queryByRole("group", { name: t.category })).toBeNull();
+    });
   });
 });

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   ADD_ITEM_INPUT_ID,
   MAX_NAME_LENGTH,
 } from "@/components/list/add-item-bar";
 import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
 import { Button } from "@/components/ui/button";
+import { CategoryChip } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,10 +20,13 @@ import {
 } from "@/components/ui/sheet";
 import {
   canonicalUnit,
+  categoryKind,
+  compareRouteOrder,
+  fallbackCategory,
   formatQuantityField,
   parseQuantityField,
 } from "@/lib/domain";
-import type { EditableFields, Item } from "@/lib/queries";
+import type { Category, EditableFields, Item } from "@/lib/queries";
 import { texts } from "@/lib/texts";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +46,8 @@ const CONFIRM_MS = 4000;
  */
 const ARM_MS = 350;
 
+const NO_CATEGORIES: readonly Category[] = [];
+
 type EditItemSheetProps = {
   /**
    * El ítem que se edita, tal como está ahora en la lista, o `undefined` con
@@ -49,6 +55,11 @@ type EditItemSheetProps = {
    * borró otro), la hoja se cierra sola.
    */
   item: Item | undefined;
+  /**
+   * Las categorías de la lista, para elegir la del ítem. Sin ellas (todavía
+   * se leen, o la lectura falló) la hoja no muestra el campo.
+   */
+  categories?: readonly Category[];
   /** Solo los campos que cambiaron. No se llama si no cambió nada. */
   onSave: (item: Item, changes: Partial<EditableFields>) => void;
   onRemove: (item: Item) => void;
@@ -57,13 +68,14 @@ type EditItemSheetProps = {
 };
 
 /**
- * Hoja de edición de un ítem (nombre, cantidad, unidad, nota) con el borrado
+ * Hoja de edición de un ítem (nombre, cantidad, unidad, nota, categoría) con el borrado
  * en dos toques. Los cambios son optimistas: la hoja se cierra al instante y
  * no espera al servidor. Mientras anima la salida sigue mostrando el último
  * ítem, y cada vez que se abre se arma un formulario nuevo.
  */
 export function EditItemSheet({
   item,
+  categories = NO_CATEGORIES,
   onSave,
   onRemove,
   onClose,
@@ -137,6 +149,7 @@ export function EditItemSheet({
           <EditForm
             key={shown.session}
             item={shown.item}
+            categories={categories}
             onSave={onSave}
             onRemove={onRemove}
             onClose={onClose}
@@ -147,15 +160,27 @@ export function EditItemSheet({
   );
 }
 
+/**
+ * The category the list shows the item in: its own if it is a live one,
+ * otherwise "Otros" (which is where the list puts it), or none if the list
+ * has no "Otros".
+ */
+function effectiveCategoryId(item: Item, live: readonly Category[]) {
+  const own = live.find((category) => category.id === item.category_id);
+  return own?.id ?? fallbackCategory(live)?.id ?? null;
+}
+
 type Errors = { name: boolean; quantity: boolean };
 
 function EditForm({
   item,
+  categories,
   onSave,
   onRemove,
   onClose,
 }: {
   item: Item;
+  categories: readonly Category[];
   onSave: EditItemSheetProps["onSave"];
   onRemove: EditItemSheetProps["onRemove"];
   onClose: () => void;
@@ -172,6 +197,14 @@ function EditForm({
   const [quantity, setQuantity] = useState(initial.quantity);
   const [unit, setUnit] = useState(initial.unit);
   const [note, setNote] = useState(initial.note);
+  // The category the user picked; undefined while untouched, so the one shown
+  // follows the list (a category that loads late, one another member changes).
+  const [picked, setPicked] = useState<string | null | undefined>(undefined);
+  const route = categories
+    .filter((category) => category.deleted_at == null)
+    .sort(compareRouteOrder);
+  const effective = effectiveCategoryId(item, route);
+  const categoryLabelId = useId();
   const [errors, setErrors] = useState<Errors>({
     name: false,
     quantity: false,
@@ -229,6 +262,10 @@ function EditForm({
     }
     if (note !== initial.note && (note.trim() || null) !== item.note) {
       changes.note = note.trim() || null;
+    }
+
+    if (picked !== undefined && picked !== effective) {
+      changes.category_id = picked;
     }
 
     if (Object.keys(changes).length > 0) onSave(item, changes);
@@ -312,6 +349,34 @@ function EditForm({
             onChange={(event) => setNote(event.target.value)}
           />
         </Field>
+        {route.length > 0 ? (
+          <div
+            role="group"
+            aria-labelledby={categoryLabelId}
+            data-slot="category-picker"
+            className="grid gap-2"
+          >
+            <span id={categoryLabelId} className="text-label text-ink">
+              {texts.editItem.category}
+            </span>
+            {/* 16px between chips, in both directions: each chip has an 8px
+                invisible touch extension on every side, and these never
+                overlap, so a tap always lands on the chip it is nearest to. */}
+            <div className="flex flex-wrap gap-4">
+              {route.map((category) => (
+                <CategoryChip
+                  key={category.id}
+                  interactive
+                  category={categoryKind(category)}
+                  selected={category.id === (picked ?? effective)}
+                  onClick={() => setPicked(category.id)}
+                >
+                  {category.name}
+                </CategoryChip>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </SheetBody>
       <SheetFooter className="in-data-[keyboard-open=true]:pb-4">
         <Button type="submit" size="touch-lg" className="w-full">

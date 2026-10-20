@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseItemInput, suggestCategory } from "@/lib/domain";
 import {
+  categoryMutationKeys,
   itemMutationKeys,
   newItem,
   queryKeys,
@@ -21,6 +22,7 @@ import {
   currentListOf,
   useLists,
   type EditItem,
+  type MoveCategory,
   type RemoveItem,
   type ToggleItem,
 } from "@/lib/queries";
@@ -93,6 +95,29 @@ function useWriteFailures(userId: string, listId: string): Notice[] {
 }
 
 /**
+ * Movimientos del recorrido que el servidor rechazó. Con la hoja del
+ * recorrido abierta el aviso sale ahí; esto cubre cuando ya se cerró (el
+ * rechazo llega tarde, o se cerró antes de verlo).
+ */
+function useRouteFailures(userId: string, listId: string): Notice[] {
+  return useMutationState({
+    filters: {
+      mutationKey: categoryMutationKeys.all(userId, listId),
+      status: "error",
+    },
+    select: (mutation): Notice => {
+      const { name } = mutation.state.variables as MoveCategory;
+      return {
+        key: `move:${mutation.mutationId}`,
+        at: mutation.state.submittedAt,
+        title: texts.route.error.title(name),
+        body: texts.route.error.body,
+      };
+    },
+  });
+}
+
+/**
  * El aviso más reciente, si es posterior al último cerrado. Cerrar uno cierra
  * también los anteriores que tapaba: las escrituras de la lista van en cola,
  * así que un fallo nunca llega antes que otro enviado después.
@@ -141,8 +166,12 @@ export function AddItemBar() {
 
   const [addFailure, setAddFailure] = useState<Notice | null>(null);
   const writeFailures = useWriteFailures(userId ?? "", listId ?? "");
+  const routeFailures = useRouteFailures(userId ?? "", listId ?? "");
   const [dismissedAt, setDismissedAt] = useState(0);
-  const notice = latestNotice([addFailure, ...writeFailures], dismissedAt);
+  const notice = latestNotice(
+    [addFailure, ...writeFailures, ...routeFailures],
+    dismissedAt,
+  );
 
   function dismiss(at: number) {
     setDismissedAt((current) => Math.max(current, at));

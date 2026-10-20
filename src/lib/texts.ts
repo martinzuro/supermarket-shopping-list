@@ -42,6 +42,7 @@ export const texts = {
     unitPlaceholder: "kg, L, paquete",
     note: "Nota",
     noteHelp: "Marca, tamaño o lo que quieras recordar.",
+    category: "Categoría",
     save: "Guardar",
     remove: "Borrar",
     confirmRemove: "Tocá otra vez para borrar",
@@ -51,6 +52,30 @@ export const texts = {
     },
   },
   /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
+  /**
+   * El recorrido: el orden de las categorías, que es el orden de los grupos
+   * de Pendientes. Se edita en una hoja que abre la cabecera de Pendientes.
+   */
+  route: {
+    /** Nombre accesible del botón de la cabecera de Pendientes. */
+    open: "Ordenar el recorrido",
+    title: "Recorrido",
+    description: "Pendientes sigue este orden, el de tu pasada por el súper.",
+    listLabel: "Categorías, en el orden del recorrido",
+    up: (name: string) => `Subir “${name}”`,
+    down: (name: string) => `Bajar “${name}”`,
+    /** Lo que lee la región cortés tras mover una categoría. */
+    position: (name: string, place: number, total: number) =>
+      `“${name}”, ${place} de ${total}`,
+    /** Solo para lectores de pantalla: el número de la fila va visible. */
+    pendingCount: (count: number) =>
+      count === 1 ? "1 pendiente" : `${count} pendientes`,
+    /** El servidor rechazó el movimiento y la categoría volvió a su lugar. */
+    error: {
+      title: (name: string) => `No se movió “${name}”`,
+      body: "Volvió a donde estaba. Probá de nuevo.",
+    },
+  },
   itemErrors: {
     add: (name: string) => `No se guardó “${name}”`,
     addRestored: "Lo escrito volvió al campo para que pruebes de nuevo.",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useIsMutating } from "@tanstack/react-query";
-import { CircleAlert } from "lucide-react";
+import { ArrowUpDown, CircleAlert } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
@@ -9,6 +9,7 @@ import { BringOver } from "@/components/list/bring-over";
 import { EditItemSheet } from "@/components/list/edit-item-sheet";
 import { MembershipNotices } from "@/components/list/membership-notice";
 import { ListSection } from "@/components/list/list-section";
+import { RouteSheet } from "@/components/list/route-sheet";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import { FullBagIllustration } from "@/components/illustrations";
 import { Enter, transitions } from "@/components/motion";
@@ -155,6 +156,8 @@ export function ListView() {
   const edit = useEditItem(userId ?? "", listId ?? "");
   const remove = useRemoveItem(userId ?? "", listId ?? "");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [routeOpen, setRouteOpen] = useState(false);
+  const routeButton = useRef<HTMLButtonElement>(null);
   const categories = useCategories(userId, listId);
   const emptyCart = useEmptyCart(userId ?? "", listId ?? "");
   // The archive time of the emptying whose moment is on screen. Plain state
@@ -423,6 +426,23 @@ export function ListView() {
         count={ready ? pending.length : 0}
         loading={groupsLoading}
         grouped
+        action={
+          // The order of the groups is edited here: Pendientes hides the
+          // empty categories, so the route sheet lists them all.
+          ready && !groupsLoading && categories.data ? (
+            <Button
+              ref={routeButton}
+              type="button"
+              variant="ghost"
+              size="icon-touch"
+              aria-label={texts.route.open}
+              aria-haspopup="dialog"
+              onClick={() => setRouteOpen(true)}
+            >
+              <ArrowUpDown aria-hidden strokeWidth={1.5} />
+            </Button>
+          ) : undefined
+        }
       >
         {ready ? groups.map(renderGroup) : null}
       </ListSection>
@@ -481,8 +501,31 @@ export function ListView() {
           {ready ? cart.map((item) => renderRow(item, false)) : null}
         </ListSection>
       )}
+      {ready && categories.data ? (
+        <RouteSheet
+          open={routeOpen}
+          onOpenChange={setRouteOpen}
+          userId={userId}
+          listId={listId}
+          categories={categories.data}
+          counts={
+            new Map(
+              groups.flatMap((group) =>
+                group.category ? [[group.category.id, group.items.length]] : [],
+              ),
+            )
+          }
+          onCloseAutoFocus={(event) => {
+            // No trigger for Radix to give the focus back to: it goes to the
+            // button of the header that opened the sheet.
+            event.preventDefault();
+            routeButton.current?.focus({ preventScroll: true });
+          }}
+        />
+      ) : null}
       <EditItemSheet
         item={editing}
+        categories={categories.data}
         onSave={(item, changes) =>
           edit.mutate({ id: item.id, name: item.name, changes })
         }
