@@ -147,9 +147,14 @@ function settleCategories(queryClient: QueryClient, key: readonly unknown[]) {
  *
  * - A rejection undoes only this move, and only while the route still shows
  *   it (the category right next to the one it moved past, on that side): a
- *   later move or another member's change is never undone.
+ *   later move or another member's change is never undone. It goes back
+ *   right after the category that was before it (or first, if it was).
  * - The answer is the whole route: it replaces the cache unless a later move
- *   is pending, whose optimistic route is the newer one.
+ *   is pending, whose optimistic route is the newer one, or the answer does
+ *   not hold the category (the user left the list meanwhile: it is empty).
+ * - Only the two categories the move wrote are remembered as its versions:
+ *   the answer may also carry another member's move, committed just before,
+ *   whose echo is still theirs to tell.
  * - Once the last move settles, the route is read again.
  */
 export function useMoveCategory(userId: string, listId: string) {
@@ -164,25 +169,39 @@ export function useMoveCategory(userId: string, listId: string) {
       await queryClient.cancelQueries({ queryKey: key });
       const categories = queryClient.getQueryData<Category[]>(key);
       const moved = categories && moveCategory(categories, id, direction, past);
-      if (moved) queryClient.setQueryData<Category[]>(key, moved);
-      return { moved: Boolean(moved) };
+      if (!moved) return { moved: false as const };
+      queryClient.setQueryData<Category[]>(key, moved);
+      // Where it was: after this category, or first in the route.
+      const after = adjacentCategory(categories, id, "up")?.id ?? null;
+      const before = adjacentCategory(categories, id, "down")?.id ?? null;
+      return { moved: true as const, after, before };
     },
     onError: (_error, { id, direction, past }, context) => {
       if (!context?.moved) return;
-      const back = direction === "up" ? "down" : "up";
+      const side = direction === "up" ? "down" : "up";
       queryClient.setQueryData<Category[]>(key, (categories) => {
         if (!categories) return categories;
-        // Still right before (after) the one it moved past: put it back on
-        // the other side.
-        if (adjacentCategory(categories, id, back)?.id !== past) {
+        // Still right before (after) the one it moved past: it goes back
+        // where it was.
+        if (adjacentCategory(categories, id, side)?.id !== past) {
           return categories;
         }
-        return moveCategory(categories, id, back, past) ?? categories;
+        const back = context.after
+          ? moveCategory(categories, id, "down", context.after)
+          : context.before
+            ? moveCategory(categories, id, "up", context.before)
+            : null;
+        return back ?? categories;
       });
     },
-    onSuccess: (route) => {
-      rememberOwn(queryClient, listId, route);
+    onSuccess: (route, { id, past }) => {
+      rememberOwn(
+        queryClient,
+        listId,
+        route.filter((category) => category.id === id || category.id === past),
+      );
       if (queryClient.isMutating({ mutationKey: key }) > 1) return;
+      if (!route.some((category) => category.id === id)) return;
       queryClient.setQueryData<Category[]>(key, route);
     },
     onSettled: () => settleCategories(queryClient, key),

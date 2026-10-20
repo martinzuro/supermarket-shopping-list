@@ -104,6 +104,23 @@ async function renderRoute(initial: Category[] = ROUTE) {
 
 const order = (route: Category[] | undefined) => route?.map((c) => c.id);
 
+/**
+ * Every route the cache shows from now on, in route order: a rollback that
+ * the read of settle would hide is still seen here.
+ */
+function recordShown(queryClient: ReturnType<typeof makeTestQueryClient>) {
+  const shown: string[][] = [];
+  const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+    const route = queryClient.getQueryData<Category[]>(key);
+    if (!route) return;
+    const ids = [...route]
+      .sort((a, b) => a.position - b.position)
+      .map((c) => c.id);
+    if (shown.at(-1)?.join() !== ids.join()) shown.push(ids);
+  });
+  return { shown, unsubscribe };
+}
+
 function step(route: Category[] | undefined, id: string, up: boolean) {
   const target = route!.find((c) => c.id === id)!;
   return categoryStep(route!, target, up ? "up" : "down")!;
@@ -188,14 +205,7 @@ describe("useMoveCategory", () => {
     });
     read.mockImplementation(() => later({ data: answers[2], error: null }));
     // Every route the screen shows, to catch one that jumps back.
-    const shown: string[][] = [];
-    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
-      const route = queryClient.getQueryData<Category[]>(key);
-      const ids = [...route!]
-        .sort((a, b) => a.position - b.position)
-        .map((c) => c.id);
-      if (shown.at(-1)?.join() !== ids.join()) shown.push(ids);
-    });
+    const { shown, unsubscribe } = recordShown(queryClient);
 
     // Fiambres down once, then Otros up twice, before any answer.
     act(() =>
@@ -241,18 +251,22 @@ describe("useMoveCategory", () => {
   it("puts the category back when the server rejects the move", async () => {
     const { result, queryClient } = await renderRoute();
     callRpc.mockImplementation(() => later(rejection));
-    read.mockImplementation(() => later({ data: ROUTE, error: null }));
+    // The read of settle never answers: what shows is the rollback.
+    read.mockReturnValue(new Promise(() => {}));
+    const { shown, unsubscribe } = recordShown(queryClient);
 
     act(() =>
       result.current.move.mutate(
         step(result.current.route.data, "meat", false),
       ),
     );
-    await waitFor(() =>
-      expect(order(result.current.route.data)?.[2]).toBe("meat"),
-    );
-    await waitFor(() => expect(result.current.move.isError).toBe(true));
-    expect(order(queryClient.getQueryData(key))).toEqual(order(ROUTE));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    unsubscribe();
+    // Back at once, not only when the read of settle answers.
+    expect(shown).toEqual([
+      ["veg", "dairy", "meat", "other"],
+      ["veg", "meat", "dairy", "other"],
+    ]);
   });
 
   it("does not undo a later move when an earlier one is rejected", async () => {
@@ -300,7 +314,9 @@ describe("useMoveCategory", () => {
     callRpc
       .mockImplementationOnce(() => later({ data: first, error: null }))
       .mockImplementationOnce(() => later(rejection));
-    read.mockImplementation(() => later({ data: first, error: null }));
+    // The read of settle never answers: what shows is the rollback.
+    read.mockReturnValue(new Promise(() => {}));
+    const { shown, unsubscribe } = recordShown(queryClient);
 
     act(() =>
       result.current.move.mutate(
@@ -319,8 +335,67 @@ describe("useMoveCategory", () => {
       expect(order(result.current.route.data)?.[0]).toBe("dairy"),
     );
 
-    await waitFor(() => expect(result.current.move.isError).toBe(true));
-    expect(order(queryClient.getQueryData(key))).toEqual(order(first));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    unsubscribe();
+    expect(shown).toEqual([
+      ["veg", "dairy", "meat", "other"],
+      ["dairy", "veg", "meat", "other"],
+      ["veg", "dairy", "meat", "other"],
+    ]);
+  });
+
+  it("puts it back exactly where it was, also after a move further than a step", async () => {
+    const { result, queryClient } = await renderRoute();
+    callRpc.mockImplementation(() => later(rejection));
+    // The read of settle never answers: what shows is the rollback.
+    read.mockReturnValue(new Promise(() => {}));
+    const { shown, unsubscribe } = recordShown(queryClient);
+
+    // Otros straight up past Carnes (the arrows only ever step, but the
+    // hook takes any move).
+    act(() =>
+      result.current.move.mutate({
+        id: "other",
+        name: "Otros",
+        direction: "up",
+        past: "meat",
+      }),
+    );
+    await waitFor(() =>
+      expect(order(result.current.route.data)).toEqual([
+        "veg",
+        "other",
+        "meat",
+        "dairy",
+      ]),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    unsubscribe();
+    expect(shown).toEqual([
+      ["veg", "other", "meat", "dairy"],
+      ["veg", "meat", "dairy", "other"],
+    ]);
+  });
+
+  it("keeps the route when the answer comes without the category (the user left the list)", async () => {
+    const { result, queryClient } = await renderRoute();
+    callRpc.mockImplementation(() => later({ data: [], error: null }));
+    read.mockImplementation(() => later({ data: [], error: null }, 400));
+
+    act(() =>
+      result.current.move.mutate(
+        step(result.current.route.data, "dairy", true),
+      ),
+    );
+    await waitFor(() => expect(callRpc).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    // The answer is in, the read of settle is not: the route is still there.
+    expect(order(queryClient.getQueryData(key))).toEqual([
+      "veg",
+      "dairy",
+      "meat",
+      "other",
+    ]);
   });
 
   it("does not read the route on focus while a move is pending", async () => {

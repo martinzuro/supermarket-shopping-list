@@ -756,6 +756,35 @@ describe("the route, when another member moves a category", () => {
     expect(result.current.announcement.text).toBe("");
   });
 
+  it("still tells another member's move that the answer to the user's own carried", async () => {
+    const { result, channel, queryClient } = await renderRoute();
+    // Another member moved Otros up just before the user's move committed:
+    // the answer to the user's move holds their rows too.
+    const theirs = routeOf(["veg", "meat", "other", "dairy"], 4);
+    const both = routeOf(["meat", "veg", "other", "dairy"], 6, theirs);
+    callRpc.mockImplementation(() => later({ data: both, error: null }));
+    readCategories.mockImplementation(() =>
+      later({ data: both, error: null }, 30),
+    );
+
+    act(() =>
+      result.current.move.mutate(categoryStep(ROUTE, ROUTE[0], "down")!),
+    );
+    await waitFor(() => expect(result.current.move.isSuccess).toBe(true));
+    // Their echo arrives after the user's answer.
+    for (const event of eventsOf(ROUTE, theirs)) {
+      channel.emit("categories", event);
+    }
+    await waitFor(() =>
+      expect(result.current.announcement.text).toBe(
+        texts.remoteChanges.reordered,
+      ),
+    );
+    expect(idsOf(queryClient.getQueryData<Category[]>(routeKey)!)).toEqual(
+      idsOf(both),
+    );
+  });
+
   it("tells nothing of an echo that comes before the answer, and keeps the move", async () => {
     const { result, channel, queryClient } = await renderRoute();
     const moved = routeOf(["veg", "dairy", "meat", "other"], 5);

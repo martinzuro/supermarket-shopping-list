@@ -34,7 +34,9 @@
 --
 -- The lock is FOR NO KEY UPDATE, the lock the update of position takes
 -- anyway: it serializes moves in the list without blocking the item writes
--- that reference a category (their foreign keys take FOR KEY SHARE).
+-- that reference a category (their foreign keys take FOR KEY SHARE). Moves
+-- take the locks in id order, so two of them never deadlock; only a
+-- multi-row UPDATE of categories from elsewhere could, and the app has none.
 --
 -- Returns the list's live categories in their new order.
 --
@@ -115,6 +117,14 @@ begin
     from unnest(route) with ordinality as r (id, ord)
     where c.id = r.id
       and c.position is distinct from (r.ord - 1)::integer;
+  end if;
+
+  -- Every statement reads with its own snapshot: a caller taken out of the
+  -- list during the move would get an empty route back, as if the list had
+  -- no categories. They no longer see any of it.
+  if not private.is_list_member(target_list_id) then
+    raise exception 'category_not_found'
+      using errcode = 'P0001', detail = 'No category of a list of the caller matches this id.';
   end if;
 
   return query
