@@ -14,9 +14,10 @@ Para los puntos de tiempo real hacen falta los dos teléfonos en la misma lista
 - [ ] El proyecto de Supabase al que apunta la URL (staging) tiene todas las
       migraciones de `supabase/migrations/`: `npx supabase migration list
       --linked` no muestra ninguna sin aplicar en remoto. Si falta alguna,
-      `npx supabase db push`. Al 2026-10-20 staging tenía solo la inicial: sin
-      las demás no funcionan el tiempo real fino (2b), compartir (2c), el
-      recorrido (3a) ni el precio recordado con su unidad (3d).
+      `npx supabase db push`. Al 2026-10-20 staging las tiene todas (se
+      aplicaron ese día); sin ellas no funcionan el tiempo real fino (2b),
+      compartir (2c), el recorrido (3a) ni el precio recordado con su unidad
+      (3d).
 - [ ] iPhone con iOS al día, Safari. Modelo y versión: ______
 - [ ] Android con Chrome al día. Modelo y versión: ______
 - [ ] En los dos, la app abierta desde cero (sin datos del sitio: en iOS,

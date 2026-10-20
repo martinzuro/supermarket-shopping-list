@@ -440,8 +440,10 @@ Cuentas, hecho el 2026-10-17:
       São Paulo con Postgres 17 (requerido: `normalize_name` usa la
       collation `pg_c_utf8`). El CLI va como devDependency de npm
       (`npx supabase`), porque Homebrew no lo instala con el Xcode de la
-      máquina. Pendiente: proyecto de producción antes de la beta (Fase 4) y
-      `npx supabase db push` para aplicar la migración a staging.
+      máquina. Pendiente: proyecto de producción antes de la beta (Fase 4).
+      Las migraciones se aplican a staging con `npx supabase db push`; al
+      2026-10-20 tiene todas las de `supabase/migrations/` (verificado con
+      `npx supabase migration list --linked`).
 - [ ] **Sentry**: pospuesto por decisión del 2026-10-17 para ahorrar
       tiempo. Se retoma en la Fase 4 junto con la observabilidad.
 - [ ] **Resend** puede esperar a la Fase 4; requiere dominio propio para
@@ -705,8 +707,9 @@ probados en dispositivo real. Estado al 2026-10-20: implementado y cubierto por
 e2e en CI. Pendiente: la prueba en dispositivo real
 ([device-checklist.md](device-checklist.md), iPhone y Android con la PWA
 instalada, que también cierra el pendiente de la Fase 1), a cargo del usuario.
-Antes hay que aplicar a staging las migraciones que le faltan (al 2026-10-20
-tenía solo la inicial): `npx supabase db push`.
+Staging ya tiene todas las migraciones: se aplicaron el 2026-10-20 con
+`npx supabase db push` (las de la 2b, la 2c y la Fase 3, que le faltaban), y
+`migration list --linked` las muestra en local y en remoto.
 
 ### Fase 4. Preparación para producción — 3 a 4 días
 
