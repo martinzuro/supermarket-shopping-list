@@ -472,7 +472,7 @@ describe("EditItemSheet", () => {
       });
 
       it("sends the currency only when it changed", () => {
-        const { onSave } = renderSheet();
+        const { onSave } = renderSheet(makeItem({ estimated_price: 45 }));
         change(t.note, "Otra");
         save();
         expect(onSave).toHaveBeenLastCalledWith(expect.anything(), {
@@ -486,6 +486,27 @@ describe("EditItemSheet", () => {
         expect(onSave).toHaveBeenLastCalledWith(expect.anything(), {
           note: "Otra",
           currency: "USD",
+        });
+      });
+
+      it("does not send a currency alone for an item without price", () => {
+        // Sent alone, the catalog trigger would take it as a new (price,
+        // currency) pair and forget the product's last price.
+        const { onSave } = renderSheet(makeItem({ estimated_price: null }));
+        fireEvent.click(radio(dollars));
+        save();
+        expect(onSave).not.toHaveBeenCalled();
+      });
+
+      it("does not send a currency alone when the price is cleared", () => {
+        const { onSave } = renderSheet(
+          makeItem({ quantity: null, unit: null, estimated_price: 45 }),
+        );
+        change(t.price.unit, "");
+        fireEvent.click(radio(dollars));
+        save();
+        expect(onSave).toHaveBeenCalledWith(expect.anything(), {
+          estimated_price: null,
         });
       });
 

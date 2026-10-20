@@ -311,7 +311,18 @@ function EditForm({
     ) {
       changes.estimated_price = parsedPrice;
     }
-    if (currency !== initial.currency && currency !== currentCurrency) {
+    // The currency only means something with a price. Sent alone for an
+    // item without one, the catalog trigger would take it as a change of the
+    // (price, currency) pair and forget the product's last price.
+    const savedPrice =
+      changes.estimated_price !== undefined
+        ? changes.estimated_price
+        : item.estimated_price;
+    if (
+      currency !== initial.currency &&
+      currency !== currentCurrency &&
+      savedPrice !== null
+    ) {
       changes.currency = currency;
     }
     if (note !== initial.note && (note.trim() || null) !== item.note) {

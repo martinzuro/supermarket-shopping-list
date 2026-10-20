@@ -23,9 +23,10 @@ import {
  * Phase 3, part (b), two members: what one does to the price and to the
  * currency of an item reaches the other in under a second, with the new row
  * total and the new Pendientes total, the pulse on the other's row only, one
- * sentence for the other's screen reader and none for the actor's, and the
- * actor's own row untouched (the criteria are the stepper's, as in
- * phase-2b). Then, not measured, the catalog following the change: the
+ * sentence for the other's screen reader and none for the actor's, and no
+ * mount, unmount or check of the actor's own row (the criteria are the
+ * stepper's, as in phase-2b; its row log does not record totals, so the
+ * actor's new total is checked on its own). Then, not measured, the catalog following the change: the
  * product deleted and typed again comes with the other member's price and
  * currency, with no reload.
  */
@@ -201,6 +202,10 @@ for (const colorScheme of ["light", "dark"] as const) {
           () => showsTotals(a, "tomates", "US$ 179", "US$ 179"),
         );
         await expect(editor(b)).toBeHidden();
+        expect(await totalsOf(b, "tomates")).toEqual({
+          row: "US$ 179",
+          estimate: "US$ 179",
+        });
         await captureViewport(a, testInfo, `a-after-currency-${colorScheme}`);
         await captureViewport(b, testInfo, `b-after-currency-${colorScheme}`);
 

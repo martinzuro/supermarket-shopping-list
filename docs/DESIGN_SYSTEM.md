@@ -310,15 +310,21 @@ reducido de `visual.spec.ts` lo desactivan.
 
 ### Precio y totales
 
-- **Hoja de edición.** Bajo cantidad y unidad: el campo de precio (mono,
-  `inputMode="decimal"`, coma decimal) y la moneda. La etiqueta del campo
+- **Hoja de edición.** Bajo cantidad y unidad: el campo de precio (la misma
+  letra que los otros campos, con cifras tabulares; `inputMode="decimal"`,
+  coma decimal) y la moneda. La etiqueta del campo
   sigue a la unidad escrita en la hoja ("Precio por kg", "por litro", "por
   unidad"); debajo, si la línea difiere del precio, "Total: $ 135" con el
   monto en mono. La moneda es un `RadioGroup` de Radix con dos opciones, "$"
-  y "US$", estilizado con `buttonVariants` outline (la elegida pasa al par de
-  acción, tinta en claro y lima en oscuro); el nombre accesible es "$, pesos
-  uruguayos" / "US$, dólares". Guardar manda `estimated_price` y `currency`
-  solo si cambiaron.
+  y "US$", estilizado con `buttonVariants` outline; la elegida va en el par
+  neutro invertido (`bg-ink text-paper`: píldora tinta en claro, crema en
+  oscuro), nunca en lima, que queda para la acción primaria y "hecho". El
+  nombre accesible es "$, pesos uruguayos" / "US$, dólares". Guardar manda
+  `estimated_price` y `currency` solo si cambiaron, y la moneda sola nunca
+  para un ítem sin precio (el trigger del catálogo la tomaría como un par
+  nuevo y olvidaría el último precio). El pie de la hoja (Guardar, Borrar)
+  queda fijo abajo, sobre papel y con una regla de 1px, mientras el cuerpo
+  se desplaza.
 - **Fila.** `ListRow total`: el total de la línea bajo la cantidad.
 - **Totales** (`EstimateLine`, `src/components/list/estimate-line.tsx`, con
   muestra en `/design`): al pie de Pendientes y dentro del pistacho del carro,

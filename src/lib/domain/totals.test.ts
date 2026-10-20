@@ -95,6 +95,22 @@ describe("totalsByCurrency, line totals", () => {
   });
 });
 
+describe("totalsByCurrency, cents", () => {
+  it("counts in cents, so float noise never turns a whole sum into decimals", () => {
+    const totals = totalsByCurrency([
+      { estimated_price: 0.01, currency: "UYU" },
+      { estimated_price: 2.01, currency: "UYU" },
+      { estimated_price: 0.98, currency: "UYU" },
+    ]);
+    expect(totals).toEqual([{ currency: "UYU", total: 3 }]);
+    expect(formatMoney(totals[0].total, "UYU")).toBe(formatMoney(3, "UYU"));
+  });
+
+  it("writes an amount with noise as the whole amount it is", () => {
+    expect(formatMoney(2.9999999999999996, "UYU")).toBe(formatMoney(3, "UYU"));
+  });
+});
+
 describe("estimateOf", () => {
   it("tells how many live items the totals cover", () => {
     expect(

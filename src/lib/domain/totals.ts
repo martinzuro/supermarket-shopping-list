@@ -26,8 +26,9 @@ export function totalsByCurrency(
   return [...sums]
     .map(([currency, total]) => ({
       currency,
-      // Drops floating point noise such as 0.1 + 0.2.
-      total: Math.round(total * 1e6) / 1e6,
+      // Money is counted in cents: this also drops floating point noise,
+      // such as 0.01 + 2.01 + 0.98 adding up to 2.9999999999999996.
+      total: Math.round(total * 100) / 100,
     }))
     .sort((a, b) => {
       if (a.currency === b.currency) return 0;
@@ -56,9 +57,10 @@ export function estimateOf(items: readonly PricedItem[]): Estimate {
 }
 
 // Whole amounts without decimals ("$ 1.234"), any other with two
-// ("$ 133,50"), as prices are written here.
+// ("$ 133,50"), as prices are written here. Whole is judged in cents, so
+// floating point noise never shows as "$ 3,00".
 export function formatMoney(amount: number, currency: string): string {
-  const digits = Number.isInteger(amount) ? 0 : 2;
+  const digits = Math.round(amount * 100) % 100 === 0 ? 0 : 2;
   return new Intl.NumberFormat("es-UY", {
     style: "currency",
     currency,
