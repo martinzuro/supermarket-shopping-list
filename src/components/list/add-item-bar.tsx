@@ -372,7 +372,7 @@ export function AddItemBar() {
         catalog.data ?? [],
         categories.data ?? [],
       ),
-      price: rememberedPrice(name, catalog.data ?? []),
+      price: rememberedPrice(name, catalog.data ?? [], details.unit),
     });
     const at = Date.now();
     add.mutateAsync(item).catch(() => {
@@ -467,7 +467,8 @@ export function AddItemBar() {
           catalog.data ?? [],
           categories.data ?? [],
         ),
-        price: rememberedPrice(entry.display_name, catalog.data ?? []),
+        // Nothing typed: no unit, so only a price per unit comes along.
+        price: rememberedPrice(entry.display_name, catalog.data ?? [], null),
       }),
     );
     const variables = addItems(created);
@@ -632,7 +633,8 @@ export function AddItemBar() {
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={open}
-          aria-controls={LISTBOX_ID}
+          // Only while the list is there to point to.
+          aria-controls={open ? LISTBOX_ID : undefined}
           aria-activedescendant={
             activeIndex === -1 ? undefined : optionId(LISTBOX_ID, activeIndex)
           }

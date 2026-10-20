@@ -119,25 +119,61 @@ describe("formatPriceField", () => {
 
 describe("rememberedPrice", () => {
   const catalog = [
-    { name_normalized: "leche", last_price: 45, last_currency: "UYU" },
+    {
+      name_normalized: "leche",
+      last_price: 45,
+      last_currency: "UYU",
+      last_unit: null,
+    },
     {
       name_normalized: "aceite de oliva",
       last_price: 12.5,
       last_currency: "USD",
+      last_unit: null,
     },
-    { name_normalized: "pan", last_price: null, last_currency: null },
-    { name_normalized: "yerba", last_price: 210, last_currency: null },
+    {
+      name_normalized: "pan",
+      last_price: null,
+      last_currency: null,
+      last_unit: null,
+    },
+    {
+      name_normalized: "yerba",
+      last_price: 210,
+      last_currency: null,
+      last_unit: null,
+    },
+    {
+      name_normalized: "tomates",
+      last_price: 180,
+      last_currency: "UYU",
+      last_unit: "kg",
+    },
   ];
 
   it("is the catalog's last price and currency, by normalized name", () => {
-    expect(rememberedPrice("  LECHE ", catalog)).toEqual({
+    expect(rememberedPrice("  LECHE ", catalog, null)).toEqual({
       price: 45,
       currency: "UYU",
     });
-    expect(rememberedPrice("Aceite de Oliva", catalog)).toEqual({
+    expect(rememberedPrice("Aceite de Oliva", catalog, null)).toEqual({
       price: 12.5,
       currency: "USD",
     });
+  });
+
+  it("is a price of the same basis: per kilo for grams or kilos, never per unit", () => {
+    expect(rememberedPrice("Tomates", catalog, "kg")).toEqual({
+      price: 180,
+      currency: "UYU",
+    });
+    expect(rememberedPrice("Tomates", catalog, "g")).toEqual({
+      price: 180,
+      currency: "UYU",
+    });
+    // "3 tomates": per unit, where $ 180 per kilo would total $ 540.
+    expect(rememberedPrice("Tomates", catalog, null)).toBeNull();
+    expect(rememberedPrice("Leche", catalog, "L")).toBeNull();
   });
 
   it.each([
@@ -145,6 +181,6 @@ describe("rememberedPrice", () => {
     ["an entry without price", "Pan"],
     ["a price without its currency", "Yerba"],
   ])("is null for %s", (_label, name) => {
-    expect(rememberedPrice(name, catalog)).toBeNull();
+    expect(rememberedPrice(name, catalog, null)).toBeNull();
   });
 });

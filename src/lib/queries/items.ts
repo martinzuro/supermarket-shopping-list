@@ -877,15 +877,17 @@ const CATALOG_FIELDS = [
   "currency",
 ] as const satisfies readonly (keyof Item)[];
 
-/** The next add reads the catalog to pick the category. */
+/**
+ * The next add reads the catalog for the category, the price and the
+ * suggestions. Once per burst (readAgain): another member's "lo de siempre"
+ * is up to fifteen inserts, and each read would cancel the one before.
+ */
 function readCatalogAgain(
   queryClient: QueryClient,
   userId: string,
   listId: string,
 ) {
-  void queryClient.invalidateQueries({
-    queryKey: queryKeys.catalog(userId, listId),
-  });
+  readAgain(queryClient, queryKeys.catalog(userId, listId));
 }
 
 /** Fields the list shows: a change to any of them pulses the row. */
@@ -968,6 +970,9 @@ export function applyRemoteItem(
     // not ours, a read brought it first, unannounced: it is told now.
     if (order === 0) {
       if (own || pendingWritesTo(queryClient, listId, id) > 0) return null;
+      // A read brought another member's change first: the catalog it
+      // changed was not read with it.
+      readCatalogAgain(queryClient, userId, listId);
       return outcome(
         change.row,
         change.type === "INSERT" ? undefined : (change.previous ?? {}),

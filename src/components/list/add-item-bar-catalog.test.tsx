@@ -101,8 +101,11 @@ const CATALOG = [
     last_currency: "UYU",
   }),
   entry("Lechuga", 1, { last_category_id: VEGETABLES }),
+  // Priced per kilo: its price comes along with "2 kg tom", not with a
+  // bare "tomates" (another basis).
   entry("Tomates", 4, {
     last_category_id: VEGETABLES,
+    last_unit: "kg",
     last_price: 90,
     last_currency: "UYU",
   }),
@@ -214,8 +217,8 @@ describe("the add field as a combobox", () => {
     const { field } = await renderBar();
     expect(field).toHaveAttribute("aria-autocomplete", "list");
     expect(field).toHaveAttribute("aria-expanded", "false");
-    const listbox = field.getAttribute("aria-controls");
-    expect(listbox).toBeTruthy();
+    // It points to the list only while the list is there.
+    expect(field).not.toHaveAttribute("aria-controls");
     expect(field).not.toHaveAttribute("aria-activedescendant");
     expect(screen.queryByRole("listbox")).toBeNull();
 
@@ -225,7 +228,7 @@ describe("the add field as a combobox", () => {
     const list = screen.getByRole("listbox", {
       name: texts.addItem.suggestions,
     });
-    expect(list.id).toBe(listbox);
+    expect(field).toHaveAttribute("aria-controls", list.id);
     // The best match sits next to the field, at the bottom.
     expect(names()).toEqual(["Lechuga", "Leche"]);
   });
@@ -553,7 +556,12 @@ describe("Lo de siempre", () => {
     expect(rows).toEqual([
       expect.objectContaining({ category_id: null, estimated_price: null }),
       expect.objectContaining({ category_id: DAIRY, estimated_price: 45 }),
-      expect.objectContaining({ category_id: VEGETABLES, estimated_price: 90 }),
+      // Tomates is priced per kilo and comes with no unit: no price, rather
+      // than $ 90 read per unit.
+      expect.objectContaining({
+        category_id: VEGETABLES,
+        estimated_price: null,
+      }),
     ]);
     expect(field).toHaveFocus();
 
