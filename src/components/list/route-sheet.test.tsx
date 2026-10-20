@@ -134,12 +134,14 @@ describe("RouteSheet", () => {
     ]);
   });
 
-  it("shows how many pending items each category holds, empty ones too", () => {
+  it("shows how many pending items a category holds, and nothing for none", () => {
     renderRoute();
     const counts = rows().map(
       (row) => row.querySelector("[data-numeric] [aria-hidden]")?.textContent,
     );
-    expect(counts).toEqual(["3", "1", "0", "0"]);
+    expect(counts).toEqual(["3", "1", undefined, undefined]);
+    expect(rows()[2].querySelector("[data-numeric]")).toBeNull();
+    expect(screen.queryByText(t.pendingCount(0))).toBeNull();
     expect(within(rows()[0]).getByText(t.pendingCount(3))).toBeInTheDocument();
     expect(within(rows()[1]).getByText(t.pendingCount(1))).toBeInTheDocument();
   });

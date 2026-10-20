@@ -60,7 +60,8 @@ export const texts = {
     /** Nombre accesible del botón de la cabecera de Pendientes. */
     open: "Ordenar el recorrido",
     title: "Recorrido",
-    description: "Pendientes sigue este orden, el de tu pasada por el súper.",
+    description:
+      "Ordená las categorías como recorrés el súper. Pendientes sigue este orden.",
     listLabel: "Categorías, en el orden del recorrido",
     up: (name: string) => `Subir “${name}”`,
     down: (name: string) => `Bajar “${name}”`,

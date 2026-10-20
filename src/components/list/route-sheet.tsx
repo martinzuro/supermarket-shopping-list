@@ -216,12 +216,15 @@ function RouteBody({
               <span className="text-row min-w-0 flex-1 truncate">
                 {category.name}
               </span>
-              <span data-numeric className="text-ink-2 text-label font-mono">
-                <span aria-hidden>{count}</span>
-                <span className="sr-only">
-                  {texts.route.pendingCount(count)}
+              {/* Only what there is: a column of zeros would be noise. */}
+              {count > 0 ? (
+                <span data-numeric className="text-ink-2 text-label font-mono">
+                  <span aria-hidden>{count}</span>
+                  <span className="sr-only">
+                    {texts.route.pendingCount(count)}
+                  </span>
                 </span>
-              </span>
+              ) : null}
               <div className="-mr-2.5 flex shrink-0">
                 {(["up", "down"] as const).map((direction) => {
                   const end =

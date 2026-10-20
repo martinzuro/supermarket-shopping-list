@@ -1,8 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { texts } from "../src/lib/texts";
-import { SCHEMES, capture } from "./sharing";
+import { SCHEMES } from "./sharing";
 import { categoryIds, setCategory } from "./supabase-admin";
 import {
+  captureViewport,
   catalogLoaded,
   editor,
   openAndCreateList,
@@ -250,7 +251,7 @@ for (const scheme of SCHEMES) {
         "aria-pressed",
         "false",
       );
-      await capture(page, testInfo, "edit-sheet-picker", scheme);
+      await captureViewport(page, testInfo, `edit-sheet-picker-${scheme}`);
 
       // The sheet may be taller than the viewport: it scrolls to the end,
       // where Guardar is.
@@ -315,11 +316,16 @@ for (const scheme of SCHEMES) {
         "Frutas y verduras",
         "Carnes y pescados",
       ]);
-      // Empty categories are here too, with their count.
+      // Empty categories are here too, with no count; the others show theirs.
+      const carnes = routeRows(page).filter({ hasText: "Carnes y pescados" });
+      await expect(carnes).toHaveCount(1);
+      await expect(carnes.locator("[data-numeric]")).toHaveCount(0);
       await expect(
-        routeRows(page).filter({ hasText: "Carnes y pescados" }),
-      ).toContainText("0");
-      await capture(page, testInfo, "route-sheet", scheme);
+        routeRows(page)
+          .filter({ hasText: "Almacén" })
+          .locator("[data-numeric]"),
+      ).toHaveText(/^1/);
+      await captureViewport(page, testInfo, `route-sheet-${scheme}`);
 
       // The ends: aria-disabled (not disabled), and a tap changes nothing.
       const first = arrow(page, "up", "Frutas y verduras");
@@ -384,7 +390,7 @@ for (const scheme of SCHEMES) {
       ];
       expect(await groupTitles(page)).toEqual(expected);
       await page.evaluate(() => document.fonts.ready);
-      await capture(page, testInfo, "list-after-reorder", scheme);
+      await captureViewport(page, testInfo, `list-after-reorder-${scheme}`);
 
       // It is on the server: a reload shows the same order, in both places.
       await reload(page);
@@ -395,6 +401,66 @@ for (const scheme of SCHEMES) {
         "Carnes y pescados",
         "Bebidas",
       ]);
+    });
+  });
+}
+
+for (const scheme of SCHEMES) {
+  test.describe(`phase 3a, a rejected move (${scheme})`, () => {
+    test.skip(
+      process.env.E2E_SUPABASE !== "1",
+      "Needs `npm run db:start`. Run with E2E_SUPABASE=1.",
+    );
+    test.use({ colorScheme: scheme, viewport: { width: 375, height: 812 } });
+
+    test("the category goes back and the sheet says so", async ({
+      page,
+    }, testInfo) => {
+      test.setTimeout(60_000);
+      await openAndCreateList(page);
+      let calls = 0;
+      await page.route("**/rest/v1/rpc/move_category", async (route) => {
+        calls += 1;
+        // Slow enough to see the category where the tap put it.
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "P0001",
+            message: "category_not_found",
+          }),
+        });
+      });
+      await routeButton(page).click();
+      await expect(routeSheet(page)).toBeVisible();
+      const before = await routeOrder(page);
+      expect(before.slice(0, 3)).toEqual([
+        "Frutas y verduras",
+        "Carnes y pescados",
+        "Fiambres y lácteos",
+      ]);
+      await expect(routeSheet(page).getByRole("alert")).toHaveCount(0);
+
+      await arrow(page, "down", "Frutas y verduras").click();
+      // It moves at once...
+      await expect
+        .poll(async () => (await routeOrder(page)).slice(0, 2))
+        .toEqual(["Carnes y pescados", "Frutas y verduras"]);
+      // ...and goes back when the server says no, with the notice.
+      const alert = routeSheet(page).getByRole("alert");
+      await expect(alert).toContainText(
+        t.route.error.title("Frutas y verduras"),
+      );
+      await expect(alert).toContainText(t.route.error.body);
+      await expect.poll(() => routeOrder(page)).toEqual(before);
+      expect(calls).toBe(1);
+      await expect(arrow(page, "down", "Frutas y verduras")).toBeFocused();
+      await captureViewport(page, testInfo, `route-sheet-rejected-${scheme}`);
+
+      // The notice goes with its button.
+      await alert.getByRole("button", { name: t.itemErrors.dismiss }).click();
+      await expect(alert).toHaveCount(0);
     });
   });
 }

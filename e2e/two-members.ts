@@ -261,7 +261,9 @@ declare global {
  * `__rows`: what happens to the rows themselves, as strings, in order:
  * `mount <name> <pending|cart>` and `unmount <name> <pending|cart>` for each
  * `[data-item-id]` element that enters or leaves the DOM (with its group, if
- * the group goes too), `checked <name> <old>><new>` when its `data-checked`
+ * the group goes too; a row React only moves in place, removed and inserted
+ * again in one batch as when the groups are reordered, logs nothing),
+ * `checked <name> <old>><new>` when its `data-checked`
  * changes where it stands, and `note <name> <text>` when the note under its
  * name changes. A row that flickers (gone and back, back to its old place or
  * state, a note that shows and disappears) leaves more here than the change
@@ -348,6 +350,23 @@ export async function recordPulses(context: BrowserContext) {
       )?.id ?? "?";
     new MutationObserver((mutations) => {
       const touched = new Set<Element>();
+      // A row (or a group with rows) that React moves in the DOM is removed
+      // and inserted again in the same batch, and it is the same element: a
+      // reorder, not a row going away and coming back. It logs nothing.
+      const removedRows = new Set<Element>();
+      const addedRows = new Set<Element>();
+      for (const mutation of mutations) {
+        if (mutation.type !== "childList") continue;
+        mutation.removedNodes.forEach((node) =>
+          rowsIn(node).forEach((row) => removedRows.add(row)),
+        );
+        mutation.addedNodes.forEach((node) =>
+          rowsIn(node).forEach((row) => addedRows.add(row)),
+        );
+      }
+      const moved = new Set(
+        [...removedRows].filter((row) => addedRows.has(row) && row.isConnected),
+      );
       for (const mutation of mutations) {
         if (mutation.type === "attributes") {
           const target = mutation.target as Element;
@@ -365,12 +384,14 @@ export async function recordPulses(context: BrowserContext) {
           mutation.addedNodes.forEach(lit);
           for (const node of mutation.addedNodes) {
             for (const row of rowsIn(node)) {
+              if (moved.has(row)) continue;
               rows.push(`mount ${nameOf(row)} ${place(row, mutation.target)}`);
               notes.set(row.getAttribute("data-item-id")!, noteOf(row));
             }
           }
           for (const node of mutation.removedNodes) {
             for (const row of rowsIn(node)) {
+              if (moved.has(row)) continue;
               rows.push(
                 `unmount ${nameOf(row)} ${place(row, mutation.target)}`,
               );
@@ -403,6 +424,23 @@ export async function recordPulses(context: BrowserContext) {
       attributeFilter: ["data-highlighted", "data-checked"],
     });
   });
+}
+
+/**
+ * A screenshot of what the viewport shows (not the whole page: a fixed sheet
+ * floats over the page with its scrim, and the page below it would show
+ * without), on disk (test-results/) and attached to the report.
+ */
+export async function captureViewport(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(700);
+  const path = testInfo.outputPath(`${name}.png`);
+  await page.screenshot({ path });
+  await testInfo.attach(name, { path, contentType: "image/png" });
 }
 
 export function pulsesOf(page: Page) {
