@@ -705,6 +705,8 @@ probados en dispositivo real. Estado al 2026-10-20: implementado y cubierto por
 e2e en CI. Pendiente: la prueba en dispositivo real
 ([device-checklist.md](device-checklist.md), iPhone y Android con la PWA
 instalada, que también cierra el pendiente de la Fase 1), a cargo del usuario.
+Antes hay que aplicar a staging las migraciones que le faltan (al 2026-10-20
+tenía solo la inicial): `npx supabase db push`.
 
 ### Fase 4. Preparación para producción — 3 a 4 días
 
