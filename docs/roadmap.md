@@ -45,7 +45,9 @@ moneda y totales por moneda. Falta la prueba en dispositivo real
   borrados lógicos).
 - Múltiples listas.
 - Añadir ítems por voz.
-- Importar ítems desde texto pegado.
+- ~~Importar ítems desde texto pegado.~~ Hecho el 2026-10-21 como F-2 de
+  [improvements.md](improvements.md): pegar una lista en el campo la repasa
+  antes de agregarla.
 - Notificaciones push cuando alguien añade algo.
 
 ## Mejoras y arreglos

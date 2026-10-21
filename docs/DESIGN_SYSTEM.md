@@ -410,7 +410,8 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   la barra no suma las dos alturas mientras una sale).
 - **"Lo de siempre"** (repaso desde `docs/improvements.md`, A-3). Solo con 2 o
   más productos habituales sin pendiente. La píldora (`aria-haspopup="dialog"`)
-  abre una hoja desde abajo (`usuals-sheet.tsx`, con las piezas de `Sheet`):
+  abre la hoja de repaso desde abajo (`review-sheet.tsx`, con las piezas de
+  `Sheet`; la misma de una lista pegada, ver abajo):
   los productos en el orden del recorrido (`inRouteOrder`), todos tildados con
   el `CheckCircle` de la lista, el icono de su categoría y la cantidad con que
   vuelven en mono. Cada fila es un `role="checkbox"` de 56px; destildada, el
@@ -427,6 +428,22 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   (`data-slot="add-announcement"`) siempre montada lo lee. Un rechazo del alta
   de varios o del deshacer tiene su propio texto (`itemErrors.addMany`,
   `itemErrors.undoAdd`) y reemplaza al aviso.
+- **Lista pegada** (F-2). Pegar en el campo dos productos o más en varias
+  líneas, o tres o más en una ("leche, pan, 1,5 kg de papas"), no los escribe
+  en el campo: abre la misma hoja de repaso, "Lista pegada", con un producto
+  por línea tal como se habría escrito (`pastedList`: sin la fecha y el autor
+  de WhatsApp, viñetas, numeración, casillas, emoji al principio ni marcas de
+  negrita; los títulos "Súper:" fuera; "Tomates, 2 kg" es un producto; cada
+  uno una vez), todos tildados con su cantidad y el icono de la categoría que
+  les tocaría. Lo que ya está pendiente se ve sin círculo, en tinta secundaria,
+  con "Ya está en la lista", y no se agrega. Hasta 50 por pegado; si vinieron
+  más, una línea lo dice bajo la descripción. "Agregar N productos" los suma
+  en una escritura, en el orden pegado, con la categoría y el precio del
+  catálogo y el mismo aviso con "Deshacer". Una lista de una línea que se
+  cierra sin agregar queda en el campo, como un pegado común; una de varias
+  líneas se descarta. Lo que no es lista se pega como siempre. Un segundo
+  toque en "Agregar" mientras la hoja sale no agrega dos veces (también en
+  "Lo de siempre").
 - **Ya está en la lista** (`docs/improvements.md`, A-2). Un producto pendiente
   (mismo nombre normalizado; lo del carro no cuenta) no se agrega dos veces.
   En las sugerencias, lo pendiente que coincide va primero, pegado al campo,
@@ -681,6 +698,11 @@ catálogo de la lista recuerda de cada producto agregado alguna vez.
   y agregar el resto en una petición con su cantidad y su precio por kilo, un
   frecuente que entra con su cantidad, y cerrar sin agregar. Con capturas a
   375px en claro y oscuro.
+- `e2e/f2-paste.spec.ts`: una lista pegada abre el repaso (lo pendiente se
+  ve y no se agrega), lo tildado entra en una sola petición con su categoría
+  y su precio, un doble toque en "Agregar" agrega una vez, y una lista de una
+  línea cerrada sin agregar queda en el campo.
+  Con capturas a 375px en claro y oscuro.
 - `e2e/m5-forget.spec.ts`: "Productos guardados" en el menú (orden, cuántas
   veces, la búsqueda), olvidar un producto mal escrito con dos toques (un
   solo DELETE) y que deje de sugerirse, también tras recargar. Con capturas

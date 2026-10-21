@@ -67,12 +67,33 @@ export const texts = {
       title: "Lo de siempre",
       description: "Destildá lo que todavía tenés en casa y agregá el resto.",
       listLabel: "Productos de siempre",
-      add: (count: number) =>
-        count === 1 ? "Agregar 1 producto" : `Agregar ${count} productos`,
-      none: "Nada para agregar",
+      /** El aviso de lo agregado de una vez, de aquí o de una lista pegada. */
       added: (count: number) =>
         count === 1 ? "Agregaste 1 producto" : `Agregaste ${count} productos`,
       undo: "Deshacer",
+    },
+    /**
+     * La hoja que repasa lo que se agrega de una vez: "Lo de siempre" y una
+     * lista pegada en el campo.
+     */
+    review: {
+      add: (count: number) =>
+        count === 1 ? "Agregar 1 producto" : `Agregar ${count} productos`,
+      none: "Nada para agregar",
+      /** Lo que ya está pendiente: no se agrega otra vez (A-2). */
+      inList: "Ya está en la lista",
+    },
+    /**
+     * Varias líneas (o una con comas) pegadas en el campo: una lista, que se
+     * repasa antes de agregarla (docs/improvements.md, F-2).
+     */
+    paste: {
+      title: "Lista pegada",
+      description:
+        "Esto es lo que pegaste. Destildá lo que no va y agregá el resto.",
+      listLabel: "Productos pegados",
+      limit: (count: number) =>
+        `Pegaste más de ${count} productos: van los primeros ${count}.`,
     },
     /**
      * Lo escrito ya está pendiente: no se agrega otra fila. Se avisa y, si las

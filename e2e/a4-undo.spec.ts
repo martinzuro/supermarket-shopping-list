@@ -24,6 +24,13 @@ import {
  * the other member too. Taps are real touches.
  */
 
+/**
+ * The steps that only set the scene for the measured one get more than a
+ * second: on a loaded machine the local Realtime is slower, and the
+ * criterion is for the undo.
+ */
+const SETUP_MS = 5000;
+
 const c = texts.list.cart;
 const m = texts.moments.cartEmptied;
 
@@ -253,14 +260,15 @@ test.describe("A-4, the other member sees the cart come back", () => {
         const answered = itemWriteAnswered(a);
         await checkbox(a, name).tap();
         expect((await answered).ok()).toBe(true);
-        await expect(row(cart(b), name)).toBeVisible({ timeout: CHANGE_MS });
+        // Setup: what is measured is the undo, below.
+        await expect(row(cart(b), name)).toBeVisible({ timeout: SETUP_MS });
       }
 
       const emptied = itemWriteAnswered(a);
       await emptyAction(a).tap();
       expect((await emptied).ok()).toBe(true);
       for (const name of ["Leche", "Pan"]) {
-        await expect(row(cart(b), name)).toHaveCount(0, { timeout: CHANGE_MS });
+        await expect(row(cart(b), name)).toHaveCount(0, { timeout: SETUP_MS });
       }
 
       await moment(a).getByRole("button", { name: m.undo, exact: true }).tap();

@@ -79,7 +79,7 @@ function usualsButton(page: Page, count: number) {
 function usualsAdd(page: Page, count: number) {
   return page
     .getByRole("dialog", { name: t.addItem.usuals.title })
-    .getByRole("button", { name: t.addItem.usuals.add(count), exact: true });
+    .getByRole("button", { name: t.addItem.review.add(count), exact: true });
 }
 
 function undoButton(page: Page) {
