@@ -17,7 +17,11 @@ type ListRowProps = {
   /** Nota corta: marca, tamaño, preferencia. */
   note?: string;
   checked: boolean;
-  onCheckedChange?: (checked: boolean) => void;
+  /** Con el toque, para quien distinga un doble toque accidental. */
+  onCheckedChange?: (
+    checked: boolean,
+    event: React.MouseEvent<HTMLButtonElement>,
+  ) => void;
   /** Pulso naranja que se apaga: lo cambió otro miembro. */
   highlighted?: boolean;
   /** Acción al tocar el nombre (editar). Sin ella el nombre es texto. */
@@ -70,7 +74,7 @@ export function ListRow({
         aria-checked={checked}
         // Solo el nombre: el rol y aria-checked ya dicen "casilla, marcada".
         aria-label={name}
-        onClick={() => onCheckedChange?.(!checked)}
+        onClick={(event) => onCheckedChange?.(!checked, event)}
         className="group/check size-touch -ml-2.5 flex shrink-0 items-center justify-center rounded-full"
       >
         <CheckCircle

@@ -177,12 +177,12 @@ async function renderBar({
   queryClient.setQueryData(queryKeys.categories(USER, LIST), CATEGORIES);
   queryClient.setQueryData(queryKeys.catalog(USER, LIST), catalog);
   server = listed();
-  render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
+  const view = render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
   const field = screen.getByRole<HTMLInputElement>("combobox", {
     name: texts.addItem.label,
   });
   field.focus();
-  return { field, queryClient };
+  return { field, queryClient, view };
 }
 
 /** Types into the uncontrolled field, as a person does. */
@@ -823,6 +823,12 @@ describe("notices of the writes of several", () => {
       texts.itemErrors.undoAdd,
       texts.itemErrors.undoAddBody,
     ],
+    [
+      "restore-cart",
+      { ids: ["a"], rows: [], deletedAt: "2026-10-20T00:00:00.000Z" },
+      texts.itemErrors.restoreCart,
+      texts.itemErrors.restoreCartBody,
+    ],
   ])("shows a rejected %s", async (kind, variables, title, body) => {
     const { queryClient } = await renderBar();
     const mutation = queryClient.getMutationCache().build(queryClient, {
@@ -1059,6 +1065,160 @@ describe("a product that is already pending (A-2)", () => {
         expect.objectContaining({ name: "leche" }),
       ),
     );
+    expect(infoBanner()).toBeNull();
+  });
+});
+
+describe("the last product checked (A-4)", () => {
+  const c = texts.list.cart;
+  const infoBanner = () =>
+    document.querySelector('[data-slot="banner"][data-tone="info"]');
+  const undoButton = (name: string) =>
+    screen.queryByRole("button", { name: c.undoAria(name) });
+
+  /** A check from the list, as useToggleItem leaves it: in the cache, on its way. */
+  async function check(
+    queryClient: ReturnType<typeof makeTestQueryClient>,
+    id: string,
+    name: string,
+    checked = true,
+  ) {
+    act(() => {
+      queryClient.setQueryData<ReturnType<typeof serverItem>[]>(
+        queryKeys.items(USER, LIST),
+        (rows) =>
+          rows?.map((row) => (row.id === id ? { ...row, checked } : row)),
+      );
+    });
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: [...queryKeys.items(USER, LIST), "toggle"],
+      mutationFn: () => new Promise<unknown>(() => {}),
+    });
+    act(() => {
+      void mutation.execute({ id, name, checked });
+    });
+  }
+
+  it("offers to send it back to Pendientes, without going down to the cart", async () => {
+    update.mockReturnValue(new Promise(() => {}));
+    const { queryClient } = await renderBar({ pending: ["Leche"] });
+
+    await check(queryClient, "item-Leche", "Leche");
+
+    await waitFor(() =>
+      expect(infoBanner()).toHaveTextContent(c.checked("Leche")),
+    );
+    const button = undoButton("Leche")!;
+    expect(button).toHaveTextContent(c.undo);
+    // A check is said by its checkbox: the bar's region stays quiet.
+    expect(
+      document.querySelector('[data-slot="add-announcement"]'),
+    ).toHaveTextContent("");
+    expect(fireEvent.mouseDown(button)).toBe(false);
+    fireEvent.click(button);
+
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith(
+        { checked: false, checked_at: null },
+        [["id", "item-Leche"]],
+      ),
+    );
+    await waitFor(() => expect(infoBanner()).toBeNull());
+  });
+
+  it("shows only the last one, and only while it is still in the cart", async () => {
+    const { queryClient } = await renderBar({ pending: ["Leche", "Pan"] });
+
+    await check(queryClient, "item-Leche", "Leche");
+    await check(queryClient, "item-Pan", "Pan");
+    await waitFor(() =>
+      expect(infoBanner()).toHaveTextContent(c.checked("Pan")),
+    );
+    expect(infoBanner()).not.toHaveTextContent(c.checked("Leche"));
+
+    // Unchecked from the cart (or by another member): nothing to take back.
+    act(() => {
+      queryClient.setQueryData<ReturnType<typeof serverItem>[]>(
+        queryKeys.items(USER, LIST),
+        (rows) =>
+          rows?.map((row) =>
+            row.id === "item-Pan" ? { ...row, checked: false } : row,
+          ),
+      );
+    });
+    await waitFor(() => expect(infoBanner()).toBeNull());
+  });
+
+  it("never covers a rejection, nor hides it when it goes", async () => {
+    write.mockResolvedValue(rejection);
+    const { field, queryClient } = await renderBar({ pending: ["Leche"] });
+
+    type(field, "Pan");
+    fireEvent.submit(field.form!);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(texts.itemErrors.add("Pan"));
+    // A check after it: the rejection stays in sight.
+    await check(queryClient, "item-Leche", "Leche");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      texts.itemErrors.add("Pan"),
+    );
+    expect(infoBanner()).toBeNull();
+
+    // Read and closed, the check is offered.
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.itemErrors.dismiss }),
+    );
+    await waitFor(() =>
+      expect(infoBanner()).toHaveTextContent(c.checked("Leche")),
+    );
+  });
+
+  it("does not come back once it left the cart, even if the product returns", async () => {
+    const { queryClient } = await renderBar({ pending: ["Leche"] });
+    const archive = (deleted_at: string | null) =>
+      act(() => {
+        queryClient.setQueryData<Record<string, unknown>[]>(
+          queryKeys.items(USER, LIST),
+          (rows) => rows?.map((row) => ({ ...row, deleted_at })),
+        );
+      });
+
+    await check(queryClient, "item-Leche", "Leche");
+    await waitFor(() =>
+      expect(infoBanner()).toHaveTextContent(c.checked("Leche")),
+    );
+    // Emptied, then brought back by the moment's Deshacer.
+    archive("2026-10-21T18:00:00.000Z");
+    await waitFor(() => expect(infoBanner()).toBeNull());
+    archive(null);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(infoBanner()).toBeNull();
+  });
+
+  it("is old news after the bar mounts again", async () => {
+    const { queryClient, view } = await renderBar({ pending: ["Leche"] });
+    await check(queryClient, "item-Leche", "Leche");
+    await waitFor(() =>
+      expect(infoBanner()).toHaveTextContent(c.checked("Leche")),
+    );
+
+    // Back from another page: the same cache, a new bar.
+    view.unmount();
+    render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(infoBanner()).toBeNull();
+  });
+
+  it("says nothing for an uncheck", async () => {
+    const { queryClient } = await renderBar({
+      rows: [serverItem("Leche", { checked: true })],
+    });
+
+    await check(queryClient, "item-Leche", "Leche", false);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(infoBanner()).toBeNull();
   });
 });

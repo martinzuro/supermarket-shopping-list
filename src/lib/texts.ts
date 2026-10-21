@@ -22,6 +22,14 @@ export const texts = {
       title: "En el carro",
       empty: "Lo que marques como comprado baja acá.",
       emptyAction: "Vaciar el carro",
+      /**
+       * Aviso de la barra al marcar (A-4): la fila se fue al carro, fuera de
+       * la vista, y se puede devolver sin ir a buscarla.
+       */
+      checked: (name: string) => `“${name}” al carro`,
+      undo: "Deshacer",
+      /** Empieza con lo que se ve, para quien lo dice en voz alta. */
+      undoAria: (name: string) => `Deshacer: devolver “${name}” a pendientes`,
     },
     /**
      * Lo que se estima gastar en una sección: el total por moneda y, si a
@@ -159,6 +167,8 @@ export const texts = {
     addManyBody: "Se sacaron de la lista. Probá de nuevo.",
     undoAdd: "No se pudo deshacer",
     undoAddBody: "Los productos siguen en la lista. Probá de nuevo.",
+    restoreCart: "No volvió lo del carro",
+    restoreCartBody: "El carro sigue vacío. Probá de nuevo.",
     dismiss: "Cerrar aviso",
   },
   /**
@@ -449,6 +459,8 @@ export const texts = {
       em: "compra",
       body: "El carro quedó vacío. Lo que faltó sigue en tu lista.",
       action: "Volver a la lista",
+      /** Vuelve todo al carro, por si se vació antes de tiempo (A-4). */
+      undo: "Deshacer",
     },
   },
   welcome: {

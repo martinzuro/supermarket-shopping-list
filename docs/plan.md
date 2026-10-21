@@ -769,10 +769,12 @@ documento propone un orden (A-1, A-2, A-4 y M-6 antes de la beta). El uso
 sin señal dentro del supermercado no está ahí: sigue como riesgo (sección
 6) y fase futura.
 
-Estado al 2026-10-20: A-2 (aviso de duplicados) y A-3 (repaso de "Lo de
+Estado al 2026-10-21: A-2 (aviso de duplicados), A-3 (repaso de "Lo de
 siempre" y cantidad recordada en el catálogo, migración
-`catalog_last_quantity`) están hechas, a pedido del usuario, antes de empezar
-la Fase 4; el detalle de lo decidido está en sus entradas.
+`catalog_last_quantity`, ya aplicada en staging) y A-4 (deshacer al marcar y
+al vaciar el carro, guarda del doble toque en la lista) están hechas, a pedido
+del usuario, antes de empezar la Fase 4; el detalle de lo decidido está en sus
+entradas.
 
 ---
 

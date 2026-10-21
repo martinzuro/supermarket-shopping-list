@@ -332,6 +332,9 @@ export const itemMutationKeys = {
   /** Taking back the items of an add of several. */
   undoAdd: (userId: string, listId: string) =>
     [...queryKeys.items(userId, listId), "undo-add"] as const,
+  /** Bringing back what an emptying of the cart archived (A-4). */
+  restoreCart: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "restore-cart"] as const,
 };
 
 /**
@@ -811,6 +814,96 @@ export function useEmptyCart(userId: string, listId: string) {
   });
 }
 
+export type RestoreCart = {
+  /** The items the emptying archived. */
+  ids: readonly string[];
+  /**
+   * Those items as they were in the cart: the refetch after the emptying may
+   * have dropped them from the cache, and they come back at once.
+   */
+  rows: readonly Item[];
+  /** The emptying's archive time: only what it archived comes back. */
+  deletedAt: string;
+};
+
+/** Puts rows into the list in their place in the server's order. */
+function insertInOrder(items: Item[], rows: readonly Item[]): Item[] {
+  return rows.reduce((next, row) => {
+    const at = next.findIndex((item) => compareServerOrder(row, item) < 0);
+    return at === -1
+      ? [...next, row]
+      : [...next.slice(0, at), row, ...next.slice(at)];
+  }, items);
+}
+
+/**
+ * Undoes an emptying of the cart (docs/improvements.md, A-4): the rows it
+ * archived come back to the cart, still checked, in one request. Only rows
+ * still archived with that emptying's time: if the emptying was rejected
+ * (its rows are already back) or someone archived a row otherwise, nothing
+ * else changes. It runs after the emptying in the list's queue. A rejection
+ * hides the rows again, marked with the emptying's time until the refetch.
+ * The catalog does not move: its trigger ignores an archive change.
+ */
+export function useRestoreCart(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId, listId);
+
+  return useMutation({
+    mutationKey: itemMutationKeys.restoreCart(userId, listId),
+    scope: listScope(listId),
+    mutationFn: async ({ ids, deletedAt }: RestoreCart) =>
+      unwrap(
+        await createClient()
+          .from("items")
+          .update({ deleted_at: null })
+          .in("id", [...ids])
+          .eq("deleted_at", deletedAt)
+          .select()
+          .abortSignal(writeSignal()),
+      ),
+    onMutate: async ({ ids, rows, deletedAt }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      setItems(queryClient, key, (items) => {
+        // The same instant, however written: after the emptying's answer
+        // the cache holds the server's "+00:00", not the client's "Z".
+        const back = items.map((item) =>
+          ids.includes(item.id) &&
+          item.deleted_at !== null &&
+          compareTimestamps(item.deleted_at, deletedAt) === 0
+            ? { ...item, deleted_at: null }
+            : item,
+        );
+        const missing = rows
+          .filter(
+            (row) =>
+              ids.includes(row.id) && !items.some((item) => item.id === row.id),
+          )
+          .map((row) => ({ ...row, deleted_at: null }));
+        return insertInOrder(back, missing);
+      });
+    },
+    onError: (_error, { ids, deletedAt }) => {
+      setItems(queryClient, key, (items) =>
+        items.map((item) =>
+          ids.includes(item.id) && item.deleted_at === null && item.checked
+            ? { ...item, deleted_at: deletedAt }
+            : item,
+        ),
+      );
+    },
+    onSuccess: (restored) => {
+      rememberOwn(queryClient, listId, restored);
+      for (const row of restored) {
+        if (isLastWriteTo(queryClient, listId, row.id)) {
+          patchItem(queryClient, key, row.id, () => row);
+        }
+      }
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
 /**
  * Rows a write of the user's own created on the server (a merge, a carry
  * over): into the cache in the server's order, remembered as our own so
@@ -828,15 +921,13 @@ export function receiveOwnRows(
   const key = queryKeys.items(userId, listId);
   if (queryClient.getQueryData(key) === undefined) return;
   setItems(queryClient, key, (items) =>
-    rows.reduce((next, row) => {
-      if (next.some((item) => item.id === row.id)) {
-        return next.map((item) => (item.id === row.id ? row : item));
-      }
-      const at = next.findIndex((item) => compareServerOrder(row, item) < 0);
-      return at === -1
-        ? [...next, row]
-        : [...next.slice(0, at), row, ...next.slice(at)];
-    }, items),
+    rows.reduce(
+      (next, row) =>
+        next.some((item) => item.id === row.id)
+          ? next.map((item) => (item.id === row.id ? row : item))
+          : insertInOrder(next, [row]),
+      items,
+    ),
   );
 }
 
