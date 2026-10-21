@@ -40,7 +40,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | A-1 | Los productos nuevos caen en "Otros"                | Nada                  | Antes de beta  |
 | A-2 | Duplicados sin aviso                                | Nada                  | Hecho          |
 | A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
-| A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Antes de beta  |
+| A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
 | M-1 | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
 | M-2 | Totales a la vista mientras se compra               | Nada                  | Con la beta    |
 | M-3 | "Buena compra" con resumen                          | Nada                  | Con la beta    |
@@ -224,6 +224,42 @@ compartir), que copia las columnas del catálogo una por una al fusionar.
 Después, `npm run db:reset` y `npm run db:types`.
 
 ### A-4. Errores de pulgar al marcar y al vaciar el carro
+
+**Estado: hecho el 2026-10-21**, a pedido del usuario después de A-3 (rama
+`feat/a4-undo-check-and-cart`). Lo decidido al implementarlo:
+
+- Al marcar, la barra avisa "“Tomates” al carro" con "Deshacer" (8 s, como
+  los otros avisos): el último marcado desde este dispositivo, solo mientras
+  siga en el carro. Se lee de las mutaciones de marcar (`useMutationState`),
+  así la lista no tiene que pasarle nada a la barra. No se anuncia en la
+  región de la barra: lo dice el checkbox.
+- La guarda del doble toque salió de la barra a un hook (`use-double-tap.ts`)
+  y la usan también los círculos de marcar (`ListRow` pasa el evento). Un
+  segundo toque rápido en el mismo lugar no marca la fila siguiente ni
+  desmarca la que se acaba de marcar.
+- El momento "Buena compra" tiene "Deshacer" mientras se ve (sin
+  temporizador: es la pantalla de confirmación). `useRestoreCart` pone
+  `deleted_at` en null solo en las filas archivadas con la hora de esa
+  vaciada, en una escritura, y las vuelve a mostrar al instante desde una copia
+  que la lista guarda al vaciar (la relectura posterior ya las sacó de la
+  caché). Va en la cola de la lista: si el pedido de vaciar todavía no había
+  salido, ya no encuentra nada que archivar.
+- Para el otro miembro, una fila que vuelve llega por Realtime como un UPDATE
+  más nuevo: si la tenía marcada como archivada, vuelve y pulsa (se le anuncia
+  como agregada); si una lectura ya la había sacado, se relee la lista.
+- Código: `use-double-tap.ts`, `useRestoreCart` en `items.ts`, la barra en
+  `add-item-bar.tsx` y la lista en `list-view.tsx`. Pruebas en
+  `items.test.tsx`, `add-item-bar-catalog.test.tsx` y `e2e/a4-undo.spec.ts`
+  (también con dos miembros).
+- El aviso del marcado sale una sola vez y queda fuera del orden de los
+  avisos de escrituras, como el de A-2: un rechazo siempre le gana (y no se
+  pierde al cerrarlo), y no vuelve si el producto sale del carro y vuelve,
+  ni al volver de otra página. Su "Deshacer" tiene como nombre accesible
+  "Deshacer: devolver “…” a pendientes".
+- Si el servidor rechaza el "Deshacer" del carro, el momento vuelve con su
+  "Deshacer" para probar de nuevo.
+- Queda abierto: al otro miembro, lo que vuelve se le anuncia como
+  "Agregaron …"; podría decir que volvió al carro.
 
 **Qué pasa.**
 
@@ -486,7 +522,8 @@ de F-1.
 Pendiente de decisión del usuario.
 
 - **Antes de la beta** (baratas, definen la primera impresión): A-1, A-2
-  (hecha el 2026-10-20), A-4 y M-6. F-3 coincide con la Fase 4.
+  (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6. F-3 coincide con
+  la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2.
 - **Después:** M-4, M-5, M-7, F-4, F-5 y F-6.

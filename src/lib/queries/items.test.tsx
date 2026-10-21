@@ -8,6 +8,7 @@ import {
   useUndoAdd,
   useEditItem,
   useEmptyCart,
+  useRestoreCart,
   useItems,
   useRemoveItem,
   useToggleItem,
@@ -81,6 +82,7 @@ async function renderItems(
       edit: useEditItem(USER, LIST),
       remove: useRemoveItem(USER, LIST),
       emptyCart: useEmptyCart(USER, LIST),
+      restoreCart: useRestoreCart(USER, LIST),
       addMany: useAddItems(USER, LIST),
       undoAdd: useUndoAdd(USER, LIST),
     }),
@@ -881,6 +883,219 @@ function later(result: Result, ms = 150) {
     setTimeout(() => resolve(result), ms),
   );
 }
+
+describe("useRestoreCart", () => {
+  const AT = "2026-10-21T18:00:00.000Z";
+  const checked = { checked: true, checked_at: "2026-10-21T17:00:00.000Z" };
+
+  it("brings the emptied rows back to the cart at once, in one request", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const bread = serverRow({
+      id: "bread",
+      name: "Pan",
+      position: 1,
+      ...checked,
+    });
+    const rice = serverRow({ id: "rice", name: "Arroz", position: 2 });
+    // After the emptying and its refetch: only Arroz is in the cache.
+    const { result, queryClient } = await renderItems([rice]);
+    const pending = deferred<Result>();
+    update.mockReturnValue(pending.promise);
+
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk", "bread"],
+        rows: [
+          { ...milk, deleted_at: AT },
+          { ...bread, deleted_at: AT },
+        ],
+        deletedAt: AT,
+      }),
+    );
+    // Back in their place, checked, before the server answers.
+    await waitFor(() =>
+      expect(cached(queryClient).map((item) => item.id)).toEqual([
+        "milk",
+        "bread",
+        "rice",
+      ]),
+    );
+    expect(cached(queryClient).filter((item) => item.checked)).toHaveLength(2);
+    expect(cached(queryClient).every((item) => item.deleted_at === null)).toBe(
+      true,
+    );
+    await waitFor(() =>
+      expect(items.update).toHaveBeenCalledWith({ deleted_at: null }, [
+        ["id", ["milk", "bread"]],
+        ["deleted_at", AT],
+      ]),
+    );
+
+    read.mockResolvedValue({ data: [milk, bread, rice], error: null });
+    await act(async () =>
+      pending.resolve({ data: [milk, bread], error: null }),
+    );
+    await waitFor(() =>
+      expect(cached(queryClient)).toEqual([milk, bread, rice]),
+    );
+  });
+
+  it("unmarks rows the cache still shows archived by that emptying", async () => {
+    const milk = serverRow({
+      id: "milk",
+      name: "Leche",
+      ...checked,
+      deleted_at: AT,
+    });
+    // Archived otherwise: it stays archived.
+    const old = serverRow({
+      id: "old",
+      name: "Yerba",
+      ...checked,
+      deleted_at: "2026-10-14T18:00:00.000Z",
+    });
+    const { result, queryClient } = await renderItems([milk, old]);
+    update.mockReturnValue(new Promise(() => {}));
+
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk", "old"],
+        rows: [milk, old],
+        deletedAt: AT,
+      }),
+    );
+    await waitFor(() =>
+      expect(cached(queryClient).find((item) => item.id === "milk")).toEqual({
+        ...milk,
+        deleted_at: null,
+      }),
+    );
+    expect(cached(queryClient)).toHaveLength(2);
+    expect(cached(queryClient).find((item) => item.id === "old")).toEqual(old);
+  });
+
+  it("finds them by the instant, as the server writes it back", async () => {
+    // The emptying's answer put the server's spelling of the same instant in
+    // the cache, before the refetch dropped the rows.
+    const milk = serverRow({
+      id: "milk",
+      name: "Leche",
+      ...checked,
+      deleted_at: "2026-10-21T18:00:00+00:00",
+    });
+    const { result, queryClient } = await renderItems([milk]);
+    update.mockReturnValue(new Promise(() => {}));
+
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk"],
+        rows: [milk],
+        deletedAt: AT,
+      }),
+    );
+    await waitFor(() =>
+      expect(cached(queryClient)).toEqual([{ ...milk, deleted_at: null }]),
+    );
+  });
+
+  it("hides them again when the server rejects", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const { result, queryClient } = await renderItems([]);
+    update.mockResolvedValue(rejection);
+
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk"],
+        rows: [{ ...milk, deleted_at: AT }],
+        deletedAt: AT,
+      }),
+    );
+    await waitFor(() => expect(result.current.restoreCart.isError).toBe(true));
+    expect(
+      cached(queryClient).filter((item) => item.deleted_at === null),
+    ).toEqual([]);
+  });
+
+  it("waits in the list's queue for an emptying already on its way", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const { result } = await renderItems([milk]);
+    const emptying = deferred<Result>();
+    update
+      .mockReturnValueOnce(emptying.promise)
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    act(() =>
+      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+    );
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk"],
+        rows: [milk],
+        deletedAt: AT,
+      }),
+    );
+    await act(async () =>
+      emptying.resolve({ data: [{ ...milk, deleted_at: AT }], error: null }),
+    );
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(items.update.mock.calls[1]).toEqual([
+      { deleted_at: null },
+      [
+        ["id", ["milk"]],
+        ["deleted_at", AT],
+      ],
+    ]);
+  });
+
+  it("leaves an emptying that had not left yet with nothing to archive", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const bread = serverRow({ id: "bread", name: "Pan", position: 1 });
+    const { result, queryClient } = await renderItems([milk, bread]);
+    // A write queued first keeps the emptying from leaving.
+    const toggle = deferred<Result>();
+    update.mockReturnValueOnce(toggle.promise);
+
+    act(() =>
+      result.current.toggle.mutate({ id: "bread", name: "Pan", checked: true }),
+    );
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    act(() =>
+      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+    );
+    await waitFor(() =>
+      expect(cached(queryClient).find((i) => i.id === "milk")?.deleted_at).toBe(
+        AT,
+      ),
+    );
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk"],
+        rows: [milk],
+        deletedAt: AT,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        cached(queryClient).find((i) => i.id === "milk")?.deleted_at,
+      ).toBeNull(),
+    );
+
+    update.mockResolvedValue({ data: [], error: null });
+    await act(async () =>
+      toggle.resolve({ data: { ...bread, ...checked }, error: null }),
+    );
+    // The emptying finds nothing marked by it and archives nothing; the
+    // restore unarchives nothing either.
+    await waitFor(() =>
+      expect(result.current.restoreCart.isSuccess).toBe(true),
+    );
+    const archives = items.update.mock.calls.filter(
+      ([changes]) => (changes as { deleted_at?: string }).deleted_at === AT,
+    );
+    expect(archives).toEqual([]);
+  });
+});
 
 describe("useAddItems (lo de siempre)", () => {
   it("adds them all at once after the list, in one request", async () => {

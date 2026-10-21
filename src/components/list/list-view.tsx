@@ -3,7 +3,13 @@
 import { useIsMutating } from "@tanstack/react-query";
 import { ArrowUpDown, CircleAlert } from "lucide-react";
 import { useReducedMotion } from "motion/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
 import { BringOver } from "@/components/list/bring-over";
 import { EditItemSheet } from "@/components/list/edit-item-sheet";
@@ -11,6 +17,7 @@ import { EstimateLine } from "@/components/list/estimate-line";
 import { MembershipNotices } from "@/components/list/membership-notice";
 import { ListSection } from "@/components/list/list-section";
 import { RouteSheet } from "@/components/list/route-sheet";
+import { useDoubleTap } from "@/components/list/use-double-tap";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import { FullBagIllustration } from "@/components/illustrations";
 import { Enter, transitions } from "@/components/motion";
@@ -43,6 +50,7 @@ import {
   useRemoteAnnouncement,
   useRemoteChanges,
   useRemoveItem,
+  useRestoreCart,
   useToggleItem,
   type Item,
 } from "@/lib/queries";
@@ -165,16 +173,24 @@ export function ListView() {
   const routeButton = useRef<HTMLButtonElement>(null);
   const categories = useCategories(userId, listId);
   const emptyCart = useEmptyCart(userId ?? "", listId ?? "");
+  const restoreCart = useRestoreCart(userId ?? "", listId ?? "");
   // The archive time of the emptying whose moment is on screen. Plain state
   // on purpose: the moment shows once per emptying, so after a dismiss or a
   // reload there is nothing to remember.
   const [emptied, setEmptied] = useState<string | null>(null);
+  // What that emptying took, as it was: "Deshacer" brings it back (A-4).
+  const [emptiedRows, setEmptiedRows] = useState<readonly Item[]>([]);
   // Whether the cart has been seen empty during this moment. The optimistic
   // archive lands a moment after the tap (onMutate awaits), so only a cart
   // that fills up again after that ends the moment.
   const [cartCleared, setCartCleared] = useState(false);
   const fresh = useFreshIds(items.data?.map((item) => item.id));
   const { lingering, hold } = useLingering();
+  // A second tap at the same spot right after a check lands on what moved
+  // there (the next row, once the checked one left or its group closed), or
+  // on the same row, still in its place: either way, not a second request
+  // (docs/improvements.md, A-4).
+  const doubleTap = useDoubleTap();
   // While the first list is being created the add bar waits too (the server
   // does not know the list yet): nothing below the titles until both are in.
   // "Has data", not isSuccess: a failed background refetch keeps the data but
@@ -279,10 +295,12 @@ export function ListView() {
   function handleEmptyCart() {
     // Only what is really in the cart: a row unchecked a moment ago is still
     // held there while it leaves, and must not be archived with the rest.
-    const ids = cart.filter((item) => item.checked).map((item) => item.id);
+    const rows = cart.filter((item) => item.checked);
+    const ids = rows.map((item) => item.id);
     if (ids.length === 0) return;
     const deletedAt = new Date().toISOString();
     setEmptied(deletedAt);
+    setEmptiedRows(rows);
     setCartCleared(false);
     // A rejection brings the rows back, and that ends the moment (above).
     emptyCart.mutate({ ids, deletedAt });
@@ -293,7 +311,32 @@ export function ListView() {
     setEmptied(null);
   }
 
-  function handleCheckedChange(item: Item, next: boolean) {
+  // The rows land back in the cart at once, and that ends the moment (as a
+  // rejected emptying does): the focus goes to "Vaciar el carro".
+  function undoEmptying() {
+    if (emptied === null) return;
+    const deletedAt = emptied;
+    const rows = emptiedRows;
+    restoreCart.mutate(
+      { ids: rows.map((item) => item.id), rows, deletedAt },
+      {
+        // A rejection hides the rows again: the moment comes back, with its
+        // Deshacer to try again (the bar says it did not work).
+        onError: () => {
+          setEmptied(deletedAt);
+          setEmptiedRows(rows);
+          setCartCleared(false);
+        },
+      },
+    );
+  }
+
+  function handleCheckedChange(
+    item: Item,
+    next: boolean,
+    event: MouseEvent<HTMLButtonElement>,
+  ) {
+    if (doubleTap.isDoubleTap(event)) return;
     fresh.settle();
     freshGroups.settle();
     // Something is in the cart again: the emptying is over.
@@ -335,7 +378,9 @@ export function ListView() {
           note={item.note ?? undefined}
           checked={item.checked}
           highlighted={remote.has(item.id)}
-          onCheckedChange={(next) => handleCheckedChange(item, next)}
+          onCheckedChange={(next, event) =>
+            handleCheckedChange(item, next, event)
+          }
           onPress={() => setEditingId(item.id)}
         />
       </Enter>
@@ -474,16 +519,27 @@ export function ListView() {
             body={texts.moments.cartEmptied.body}
             illustration={<FullBagIllustration />}
             action={
-              <Button
-                ref={momentAction}
-                type="button"
-                // Lima sobre tinta: el primario del sistema se perdería en
-                // la superficie inversa.
-                className="bg-lime text-on-lime hover:bg-lime/90 dark:hover:bg-lime/90"
-                onClick={dismissMoment}
-              >
-                {texts.moments.cartEmptied.action}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  ref={momentAction}
+                  type="button"
+                  // Lima sobre tinta: el primario del sistema se perdería en
+                  // la superficie inversa.
+                  className="bg-lime text-on-lime hover:bg-lime/90 dark:hover:bg-lime/90"
+                  onClick={dismissMoment}
+                >
+                  {texts.moments.cartEmptied.action}
+                </Button>
+                {/* Callado sobre tinta, como "Ahora no" de la invitación. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-inverse-fg hover:bg-inverse-fg/10"
+                  onClick={undoEmptying}
+                >
+                  {texts.moments.cartEmptied.undo}
+                </Button>
+              </div>
             }
           />
         </div>

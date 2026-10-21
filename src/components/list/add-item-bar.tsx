@@ -1,6 +1,11 @@
 "use client";
 
-import { useIsMutating, useMutationState } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutationState,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { Plus, XIcon } from "lucide-react";
 import {
   useEffect,
@@ -18,6 +23,7 @@ import {
   type Suggestion,
 } from "@/components/list/suggestion-list";
 import { useBarHeight } from "@/components/list/use-bar-height";
+import { useDoubleTap } from "@/components/list/use-double-tap";
 import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
 import { UsualsSheet, type UsualProduct } from "@/components/list/usuals-sheet";
 import { Collapse } from "@/components/motion";
@@ -53,6 +59,7 @@ import {
   useAddItem,
   useAddItems,
   useEditItem,
+  useToggleItem,
   useUndoAdd,
   useCatalog,
   useCategories,
@@ -78,29 +85,31 @@ const INPUT_ID = ADD_ITEM_INPUT_ID;
 /** El aviso se va solo; para entonces el cambio ya se deshizo a la vista. */
 const NOTICE_MS = 8000;
 
-/**
- * Un segundo toque antes de esto y casi en el mismo lugar es un doble toque
- * accidental (el mismo criterio que la confirmación de borrar de la hoja).
- */
-const DOUBLE_TAP_MS = 350;
-const DOUBLE_TAP_PX = 24;
-
 /** Mismo límite que la columna `items.name`. */
 export const MAX_NAME_LENGTH = 200;
 
 type Amount = Pick<ParsedItemInput, "quantity" | "unit">;
 
 /**
+ * Lo que "Deshacer" deshace: lo que "Lo de siempre" acaba de agregar, o el
+ * último producto que se marcó (A-4), que vuelve a pendientes. `label` es el
+ * nombre accesible del botón cuando "Deshacer" solo no alcanza.
+ */
+type Undo =
+  | { kind: "add"; ids: readonly string[] }
+  | { kind: "check"; id: string; name: string; label: string };
+
+/**
  * Un aviso de la barra: un rechazo del servidor (tono error, con su cierre)
- * o, en tono info, lo que "Lo de siempre" acaba de agregar (`undo`, con
- * "Deshacer") o un producto que ya estaba pendiente (`duplicate`).
+ * o, en tono info, algo que se puede deshacer (`undo`) o un producto que ya
+ * estaba pendiente (`duplicate`).
  */
 type Notice = {
   key: string;
   at: number;
   title: string;
   body?: string;
-  undo?: { ids: readonly string[] };
+  undo?: Undo;
   /**
    * Lo escrito ya estaba pendiente y no se agregó (A-2). `add` es el botón
    * que le suma lo escrito ("Sumar 2", con su nombre accesible); sin él las
@@ -121,6 +130,7 @@ const FAILURE_KINDS = new Set([
   "empty-cart",
   "add-many",
   "undo-add",
+  "restore-cart",
 ]);
 
 /**
@@ -158,6 +168,14 @@ function useWriteFailures(userId: string, listId: string): Notice[] {
           body: texts.itemErrors.undoAddBody,
         };
       }
+      if (kind === "restore-cart") {
+        return {
+          key,
+          at,
+          title: texts.itemErrors.restoreCart,
+          body: texts.itemErrors.restoreCartBody,
+        };
+      }
       if (kind === "toggle") {
         const { name, checked } = mutation.state.variables as ToggleItem;
         return {
@@ -193,6 +211,57 @@ function useWriteFailures(userId: string, listId: string): Notice[] {
           };
     },
   });
+}
+
+/**
+ * El último producto que este dispositivo marcó, mientras su marca va al
+ * servidor o ya llegó (docs/improvements.md, A-4): la fila se fue al carro,
+ * fuera de la vista, y la barra ofrece devolverla sin ir a buscarla. Un
+ * marcado rechazado tiene su propio aviso.
+ */
+function useLastCheck(userId: string, listId: string): Notice | null {
+  const checks = useMutationState({
+    filters: {
+      mutationKey: itemMutationKeys.toggle(userId, listId),
+      predicate: (mutation) =>
+        mutation.state.status !== "error" &&
+        (mutation.state.variables as ToggleItem | undefined)?.checked === true,
+    },
+    select: (mutation): Notice => {
+      const { id, name } = mutation.state.variables as ToggleItem;
+      return {
+        key: `check:${mutation.mutationId}`,
+        at: mutation.state.submittedAt,
+        title: texts.list.cart.checked(name),
+        undo: {
+          kind: "check",
+          id,
+          name,
+          label: texts.list.cart.undoAria(name),
+        },
+      };
+    },
+  });
+  return latestNotice(checks, 0);
+}
+
+/**
+ * When the last check already in the cache was made: the checks a bar finds
+ * when it mounts (back from another page) are old news. Not the clock: the
+ * page is prerendered, and a time read while rendering would be the build's.
+ */
+function lastCheckAt(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+): number {
+  return queryClient
+    .getMutationCache()
+    .findAll({ mutationKey: itemMutationKeys.toggle(userId, listId) })
+    .reduce(
+      (latest, mutation) => Math.max(latest, mutation.state.submittedAt),
+      0,
+    );
 }
 
 /**
@@ -286,6 +355,7 @@ export function AddItemBar() {
   const addMany = useAddItems(userId ?? "", listId ?? "");
   const undoAdd = useUndoAdd(userId ?? "", listId ?? "");
   const edit = useEditItem(userId ?? "", listId ?? "");
+  const toggle = useToggleItem(userId ?? "", listId ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // El campo no es controlado (se vacía y se llena a mano al agregar y al
@@ -303,33 +373,71 @@ export function AddItemBar() {
   const writeFailures = useWriteFailures(userId ?? "", listId ?? "");
   const routeFailures = useRouteFailures(userId ?? "", listId ?? "");
   const [dismissedAt, setDismissedAt] = useState(0);
+
+  // The last check (A-4), shown while its product is in the cart, and once:
+  // closed (its timer, Deshacer, something newer in its place) or out of the
+  // cart after it was there (unchecked here or by another member, deleted,
+  // emptied), it does not come back, not even with the product. Checks from
+  // before this bar mounted (back from another page) are old news.
+  const queryClient = useQueryClient();
+  const lastCheck = useLastCheck(userId ?? "", listId ?? "");
+  const [checksClosedAt, setChecksClosedAt] = useState(() =>
+    lastCheckAt(queryClient, userId ?? "", listId ?? ""),
+  );
+  const checkedId =
+    lastCheck?.undo?.kind === "check" ? lastCheck.undo.id : null;
+  const checkInCart =
+    checkedId !== null &&
+    (items.data?.some(
+      (item) =>
+        item.id === checkedId && item.checked && item.deleted_at == null,
+    ) ??
+      false);
+  // Adjusted during render: the check that was seen in the cart, until it
+  // leaves it (the optimistic check lands a moment after the tap, so "not in
+  // the cart yet" is not "out of it").
+  const [checkSeen, setCheckSeen] = useState<string | null>(null);
+  if (lastCheck && checkInCart && checkSeen !== lastCheck.key) {
+    setCheckSeen(lastCheck.key);
+  }
+  if (lastCheck && !checkInCart && checkSeen === lastCheck.key) {
+    setCheckSeen(null);
+    setChecksClosedAt((current) => Math.max(current, lastCheck.at));
+  }
+  const checkNotice =
+    lastCheck && checkInCart && lastCheck.at > checksClosedAt
+      ? lastCheck
+      : null;
+
   // Los rechazos van después: si empatan con el aviso de lo agregado, gana
   // el rechazo.
   const written = latestNotice(
     [usualsNotice, addFailure, ...writeFailures, ...routeFailures],
     dismissedAt,
   );
-  // "Ya está en la lista" no es una escritura, así que no entra en el orden
-  // de la cola: un rechazo que llega mientras se ve lo tapa (es una novedad),
-  // y cerrarlo no cierra nada más (el rechazo de algo enviado antes sigue por
-  // mostrarse).
+  // Two notices stand outside the order of the queue's writes: "ya está en
+  // la lista" (A-2) and the last check (A-4). A rejection outranks them (it
+  // is news, and must not hide behind a check made after it), and closing
+  // them closes nothing else: the rejection of something sent before them is
+  // still to be shown. Against "Lo de siempre" and each other, the newest.
+  const aside = latestNotice([duplicateNotice, checkNotice], 0);
   const notice =
-    duplicateNotice &&
-    (!written ||
-      (written.undo !== undefined && written.at < duplicateNotice.at))
-      ? duplicateNotice
+    aside && (!written || (written.undo !== undefined && written.at < aside.at))
+      ? aside
       : written;
 
   function dismiss(at: number) {
     setDismissedAt((current) => Math.max(current, at));
   }
 
-  /** Cierra el aviso que se ve: el de "ya está" sin tocar los demás. */
+  /** Cierra el aviso que se ve; el de "ya está" y el del marcado, solos. */
   function close(shown: Notice) {
     if (shown.duplicate) {
       setDuplicateNotice((current) =>
         current?.key === shown.key ? null : current,
       );
+    } else if (shown.undo?.kind === "check") {
+      setChecksClosedAt((current) => Math.max(current, shown.at));
     } else {
       dismiss(shown.at);
     }
@@ -337,20 +445,26 @@ export function AddItemBar() {
 
   const noticeAt = notice?.at ?? null;
   const noticeKey = notice?.key ?? null;
-  const noticeIsDuplicate = notice?.duplicate !== undefined;
+  const noticeKind = notice?.duplicate
+    ? "duplicate"
+    : notice?.undo?.kind === "check"
+      ? "check"
+      : "written";
   useEffect(() => {
     if (noticeAt === null) return;
     const timer = setTimeout(() => {
-      if (noticeIsDuplicate) {
+      if (noticeKind === "duplicate") {
         setDuplicateNotice((current) =>
           current?.key === noticeKey ? null : current,
         );
+      } else if (noticeKind === "check") {
+        setChecksClosedAt((current) => Math.max(current, noticeAt));
       } else {
         dismiss(noticeAt);
       }
     }, NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [noticeAt, noticeKey, noticeIsDuplicate]);
+  }, [noticeAt, noticeKey, noticeKind]);
 
   // Lo que se propone sale del catálogo, sin lo que ya está pendiente: eso
   // se ofrece aparte, como lo que ya está en la lista.
@@ -583,22 +697,11 @@ export function AddItemBar() {
   }
 
   // El último toque que agregó algo desde la lista o la fila: un segundo
-  // toque casi en el mismo lugar antes de DOUBLE_TAP_MS es un doble toque
-  // accidental, no otro pedido (lo que quedó bajo el dedo puede ser otra
-  // opción u otra píldora). Con teclado no hay doble toque.
-  const lastTap = useRef<{ x: number; y: number; at: number } | null>(null);
-  function isDoubleTap(event: MouseEvent<HTMLElement>) {
-    if (event.detail === 0) return false;
-    const now = Date.now();
-    const previous = lastTap.current;
-    lastTap.current = { x: event.clientX, y: event.clientY, at: now };
-    return (
-      previous !== null &&
-      now - previous.at < DOUBLE_TAP_MS &&
-      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <
-        DOUBLE_TAP_PX
-    );
-  }
+  // toque casi en el mismo lugar enseguida es un doble toque accidental, no
+  // otro pedido (lo que quedó bajo el dedo puede ser otra opción u otra
+  // píldora).
+  const doubleTap = useDoubleTap();
+  const isDoubleTap = doubleTap.isDoubleTap;
 
   /**
    * Una opción de la lista: el producto del catálogo con lo escrito, o lo
@@ -699,23 +802,32 @@ export function AddItemBar() {
       key,
       at,
       title: texts.addItem.usuals.added(created.length),
-      undo: { ids: variables.ids },
+      undo: { kind: "add", ids: variables.ids },
     };
   }
 
-  function undoUsuals(
-    shown: Notice & { undo: NonNullable<Notice["undo"]> },
+  /** "Deshacer": lo agregado de una vez sale; lo marcado vuelve a pendientes. */
+  function undo(
+    shown: Notice & { undo: Undo },
     event: MouseEvent<HTMLButtonElement>,
   ) {
     if (document.activeElement === event.currentTarget) {
       inputRef.current?.focus();
     }
-    const variables: UndoAdd = {
-      ids: shown.undo.ids,
-      deletedAt: new Date().toISOString(),
-    };
-    undoAdd.mutate(variables);
-    dismiss(shown.at);
+    if (shown.undo.kind === "add") {
+      const variables: UndoAdd = {
+        ids: shown.undo.ids,
+        deletedAt: new Date().toISOString(),
+      };
+      undoAdd.mutate(variables);
+    } else {
+      toggle.mutate({
+        id: shown.undo.id,
+        name: shown.undo.name,
+        checked: false,
+      });
+    }
+    close(shown);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -757,16 +869,16 @@ export function AddItemBar() {
   }
 
   const undoNotice =
-    notice?.undo !== undefined
-      ? (notice as Notice & { undo: NonNullable<Notice["undo"]> })
-      : null;
+    notice?.undo !== undefined ? (notice as Notice & { undo: Undo }) : null;
   const duplicateShown =
     notice?.duplicate !== undefined
       ? (notice as Notice & { duplicate: NonNullable<Notice["duplicate"]> })
       : null;
   // Los avisos info los lee la región de abajo; los de error se anuncian
   // solos (role="alert").
-  const infoNotice = undoNotice ?? duplicateShown;
+  // A check is already said by its checkbox, which keeps the focus.
+  const infoNotice =
+    (undoNotice?.undo.kind === "add" ? undoNotice : null) ?? duplicateShown;
 
   return (
     <div
@@ -789,9 +901,14 @@ export function AddItemBar() {
               <Button
                 type="button"
                 variant="outline"
+                aria-label={
+                  undoNotice.undo.kind === "check"
+                    ? undoNotice.undo.label
+                    : undefined
+                }
                 onPointerDown={keepFocus}
                 onMouseDown={keepFocus}
-                onClick={(event) => undoUsuals(undoNotice, event)}
+                onClick={(event) => undo(undoNotice, event)}
               >
                 {texts.addItem.usuals.undo}
               </Button>
@@ -913,7 +1030,7 @@ export function AddItemBar() {
             // Escape cerró la lista para ese texto; cualquier cambio la abre.
             setClosedFor(null);
             // Escribir entre dos toques es otro pedido, no un doble toque.
-            lastTap.current = null;
+            doubleTap.reset();
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => setAway(false)}

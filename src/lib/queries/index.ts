@@ -53,6 +53,7 @@ export {
   useEditItem,
   useRemoveItem,
   useEmptyCart,
+  useRestoreCart,
   newItem,
   itemMutationKeys,
   type Item,
@@ -64,6 +65,7 @@ export {
   type EditableFields,
   type RemoveItem,
   type EmptyCart,
+  type RestoreCart,
 } from "./items";
 export {
   useCategories,

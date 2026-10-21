@@ -440,11 +440,26 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   `add-announcement`. No es una escritura: un rechazo que llega mientras se
   ve lo tapa, y cerrarlo no cierra otros avisos. No se suma solo: dos
   personas que anotan "pan" quieren un pan, no dos.
-- **Guarda del doble toque.** En la lista de sugerencias y en la fila de
-  frecuentes, un segundo toque casi en el mismo lugar (menos de 24px) antes de
-  350 ms no agrega nada: lo que quedó bajo el dedo después de que la primera
-  opción salió puede ser otra opción u otra píldora. El teclado (Enter, o
-  `event.detail === 0`) no tiene doble toque.
+- **Guarda del doble toque** (`use-double-tap.ts`). En la lista de
+  sugerencias, en la fila de frecuentes y en los círculos de marcar de la
+  lista (A-4), un segundo toque casi en el mismo lugar (menos de 24px) antes
+  de 350 ms no hace nada: lo que quedó bajo el dedo después del primero puede
+  ser otra opción, otra píldora, la fila siguiente (la marcada se fue al carro
+  o su grupo se cerró) o la misma fila todavía en su lugar. El teclado
+  (Enter, Espacio, o `event.detail === 0`) no tiene doble toque.
+- **"Al carro" con deshacer** (A-4). Marcar algo deja en la barra "“Tomates”
+  al carro" (`Banner` info) con "Deshacer" (`outline`, nombre accesible
+  "Deshacer: devolver “Tomates” a pendientes", que empieza con lo que se ve),
+  que lo devuelve a pendientes sin ir a buscarlo al carro. Es el último
+  marcado desde este dispositivo, mientras su marca va al servidor o ya llegó
+  (`useMutationState` de los marcados), y solo mientras siga en el carro, una
+  sola vez: cerrado (a los 8 s, con Deshacer o reemplazado) o fuera del carro
+  después de haber estado (desmarcado acá o por otro miembro, borrado,
+  vaciado), no vuelve aunque vuelva el producto; los marcados de antes de que
+  la barra se montara tampoco. Como "ya está en la lista", queda fuera del
+  orden de los avisos de escrituras: un rechazo siempre le gana y cerrarlo no
+  cierra nada más. No pasa por la región `add-announcement`: lo dice el
+  checkbox, que conserva el foco.
 - **Alto de la barra.** `useBarHeight` mide la barra con un `ResizeObserver` y
   publica su alto real en `--add-bar-measured`, que lee `pb-add-bar` en la
   página (con el alto nominal de respaldo hasta medirla). También cuenta el
@@ -492,7 +507,13 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   `requestNoticeFocus`; `MembershipNotices` lleva el foco al botón "Cerrar
   aviso" apenas hay aviso (también si salir falló). Es el mismo patrón del
   momento de carro vaciado: la región `role="status"` dice qué pasó y el
-  nombre del botón solo no lo diría. La petición caduca a los 15 s, para que
+  nombre del botón solo no lo diría. Ese momento tiene además "Deshacer"
+  (A-4), un `ghost` callado sobre tinta como "Ahora no" de la invitación, al
+  lado de "Volver a la lista": devuelve al carro lo que esa vaciada archivó
+  (`useRestoreCart`, una escritura), y como algo vuelve al carro el momento
+  termina y el foco va a "Vaciar el carro". Si el servidor lo rechaza, lo
+  vaciado se vuelve a ir, el momento vuelve con su "Deshacer" para probar de
+  nuevo y la barra avisa "No volvió lo del carro". La petición caduca a los 15 s, para que
   un aviso tardío nunca le robe el foco a quien ya fue a otro lado.
 - **Avisos de lista perdida** (`MembershipNotices`, arriba de la lista,
   encima de "Pendientes"): `Banner` con botón de cerrar, sin cierre
@@ -632,6 +653,11 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   y agregar el resto en una petición con su cantidad y su precio por kilo, un
   frecuente que entra con su cantidad, y cerrar sin agregar. Con capturas a
   375px en claro y oscuro.
+- `e2e/a4-undo.spec.ts`: el aviso "al carro" con su Deshacer (una sola
+  escritura), dos toques rápidos en el mismo círculo que marcan uno solo, el
+  Deshacer del momento de carro vaciado (lo vaciado vuelve, también tras
+  recargar; rechazado, el momento vuelve), y entre dos miembros que lo que vuelve le llega al otro en menos
+  de 1 s. Con capturas a 375px en claro y oscuro.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.
