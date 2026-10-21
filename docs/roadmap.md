@@ -56,7 +56,9 @@ Propuestas de experiencia de uso, sin fase asignada, en
 [improvements.md](improvements.md): categoría automática para productos
 nuevos, aviso de duplicados, repaso de "Lo de siempre" con cantidades,
 deshacer al marcar y al vaciar, modo compra, pegar una lista, historial de
-compras y otras.
+compras y otras. El historial de compras (F-4, hecho el 2026-10-21) completa
+el "Historial" de "Diferencial": cada carro vaciado queda en el menú, y sus
+productos se vuelven a agregar, todos o algunos.
 
 ## Fuera de alcance
 

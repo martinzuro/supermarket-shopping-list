@@ -47,6 +47,7 @@ function item(
     created_by: null,
     currency: null,
     deleted_at: null,
+    trip_id: null,
     estimated_price: null,
     note: null,
     position,

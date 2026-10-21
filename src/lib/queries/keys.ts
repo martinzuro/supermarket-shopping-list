@@ -16,6 +16,9 @@ export const queryKeys = {
     ["user", userId, "list", listId, "catalog"] as const,
   members: (userId: string, listId: string) =>
     ["user", userId, "list", listId, "members"] as const,
+  /** The list's past trips, for the history (docs/improvements.md, F-4). */
+  trips: (userId: string, listId: string) =>
+    ["user", userId, "list", listId, "trips"] as const,
   /** What an invite link says before the user joins (invite_preview). */
   invite: (userId: string, token: string) =>
     ["user", userId, "invite", token] as const,

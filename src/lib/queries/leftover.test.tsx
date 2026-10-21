@@ -93,6 +93,7 @@ function item(id: string, listId: string, deleted = false): Item {
     created_at: "2026-10-19T00:00:00.000Z",
     updated_at: "2026-10-19T00:00:00.000Z",
     deleted_at: deleted ? "2026-10-19T01:00:00.000Z" : null,
+    trip_id: null,
   };
 }
 

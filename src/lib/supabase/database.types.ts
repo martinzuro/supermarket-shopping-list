@@ -53,14 +53,14 @@ isOneToOne: false
                   ]
                 },"items": {
                   Row: {
-                    "category_id": string | null,"checked": boolean,"checked_at": string | null,"created_at": string,"created_by": string | null,"currency": string | null,"deleted_at": string | null,"estimated_price": number | null,"id": string,"list_id": string,"name": string,"name_normalized": string,"note": string | null,"position": number,"quantity": number | null,"unit": string | null,"updated_at": string
+                    "category_id": string | null,"checked": boolean,"checked_at": string | null,"created_at": string,"created_by": string | null,"currency": string | null,"deleted_at": string | null,"estimated_price": number | null,"id": string,"list_id": string,"name": string,"name_normalized": string,"note": string | null,"position": number,"quantity": number | null,"trip_id": string | null,"unit": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "category_id"?: string | null,"checked"?: boolean,"checked_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"currency"?: string | null,"deleted_at"?: string | null,"estimated_price"?: number | null,"id"?: string,"list_id": string,"name": string,"name_normalized"?: string,"note"?: string | null,"position"?: number,"quantity"?: number | null,"unit"?: string | null,"updated_at"?: string
+                    "category_id"?: string | null,"checked"?: boolean,"checked_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"currency"?: string | null,"deleted_at"?: string | null,"estimated_price"?: number | null,"id"?: string,"list_id": string,"name": string,"name_normalized"?: string,"note"?: string | null,"position"?: number,"quantity"?: number | null,"trip_id"?: string | null,"unit"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "category_id"?: string | null,"checked"?: boolean,"checked_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"currency"?: string | null,"deleted_at"?: string | null,"estimated_price"?: number | null,"id"?: string,"list_id"?: string,"name"?: string,"name_normalized"?: string,"note"?: string | null,"position"?: number,"quantity"?: number | null,"unit"?: string | null,"updated_at"?: string
+                    "category_id"?: string | null,"checked"?: boolean,"checked_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"currency"?: string | null,"deleted_at"?: string | null,"estimated_price"?: number | null,"id"?: string,"list_id"?: string,"name"?: string,"name_normalized"?: string,"note"?: string | null,"position"?: number,"quantity"?: number | null,"trip_id"?: string | null,"unit"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -75,6 +75,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "lists"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "items_trip_id_fkey"
+      columns: ["list_id","trip_id"]
+isOneToOne: false
+      referencedRelation: "trips"
+      referencedColumns: ["list_id","id"]
     }
                   ]
                 },"list_invites": {
@@ -131,6 +137,26 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"trips": {
+                  Row: {
+                    "created_at": string,"deleted_at": string | null,"emptied_at": string,"emptied_by": string | null,"id": string,"list_id": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"deleted_at"?: string | null,"emptied_at": string,"emptied_by"?: string | null,"id": string,"list_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"deleted_at"?: string | null,"emptied_at"?: string,"emptied_by"?: string | null,"id"?: string,"list_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "trips_list_id_fkey"
+      columns: ["list_id"]
+isOneToOne: false
+      referencedRelation: "lists"
+      referencedColumns: ["id"]
+    }
+                  ]
                 }
           }
           Views: {
@@ -157,6 +183,34 @@ isOneToOne: false
 "note": string | null,
 "position": number,
 "quantity": number | null,
+"trip_id": string | null,
+"unit": string | null,
+"updated_at": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "items"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"empty_cart":
+{ Args: { "emptied_at": string,"item_ids": (string)[],"target_list_id": string,"target_trip_id": string }; Returns: {
+              "category_id": string | null,
+"checked": boolean,
+"checked_at": string | null,
+"created_at": string,
+"created_by": string | null,
+"currency": string | null,
+"deleted_at": string | null,
+"estimated_price": number | null,
+"id": string,
+"list_id": string,
+"name": string,
+"name_normalized": string,
+"note": string | null,
+"position": number,
+"quantity": number | null,
+"trip_id": string | null,
 "unit": string | null,
 "updated_at": string
             }[]
@@ -193,6 +247,7 @@ isOneToOne: false
 "note": string | null,
 "position": number,
 "quantity": number | null,
+"trip_id": string | null,
 "unit": string | null,
 "updated_at": string
             }[]
@@ -221,7 +276,34 @@ isOneToOne: false
       } },
 "normalize_name":
 { Args: { "value": string }; Returns: string
-                           }
+                           },
+"restore_trip":
+{ Args: { "target_trip_id": string }; Returns: {
+              "category_id": string | null,
+"checked": boolean,
+"checked_at": string | null,
+"created_at": string,
+"created_by": string | null,
+"currency": string | null,
+"deleted_at": string | null,
+"estimated_price": number | null,
+"id": string,
+"list_id": string,
+"name": string,
+"name_normalized": string,
+"note": string | null,
+"position": number,
+"quantity": number | null,
+"trip_id": string | null,
+"unit": string | null,
+"updated_at": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "items"
+        isOneToOne: false
+        isSetofReturn: true
+      } }
           }
           Enums: {
             [_ in never]: never

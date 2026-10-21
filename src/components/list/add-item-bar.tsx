@@ -17,6 +17,13 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
+import {
+  lastAddedAt,
+  showAdded,
+  useAddSeveral,
+  useAddedNotice,
+  type SeveralAdded,
+} from "@/components/list/add-several";
 import { FrequentsRow } from "@/components/list/frequents-row";
 import { lastCopyAt, useLastCopy } from "@/components/list/send-pending";
 import {
@@ -59,14 +66,12 @@ import {
   type ParsedItemInput,
 } from "@/lib/domain";
 import {
-  addItems,
   categoryMutationKeys,
   itemMutationKeys,
   newItem,
   type NewItem,
   queryKeys,
   useAddItem,
-  useAddItems,
   useEditItem,
   useToggleItem,
   useUndoAdd,
@@ -379,7 +384,7 @@ export function AddItemBar() {
     (catalog.data !== undefined || catalog.isError) &&
     !creatingList;
   const add = useAddItem(userId ?? "", listId ?? "");
-  const addMany = useAddItems(userId ?? "", listId ?? "");
+  const addMany = useAddSeveral(userId ?? "", listId ?? "");
   const undoAdd = useUndoAdd(userId ?? "", listId ?? "");
   const edit = useEditItem(userId ?? "", listId ?? "");
   const toggle = useToggleItem(userId ?? "", listId ?? "");
@@ -395,7 +400,6 @@ export function AddItemBar() {
   const [away, setAway] = useState(false);
 
   const [addFailure, setAddFailure] = useState<Notice | null>(null);
-  const [addedNotice, setAddedNotice] = useState<Notice | null>(null);
   const [duplicateNotice, setDuplicateNotice] = useState<Notice | null>(null);
   const writeFailures = useWriteFailures(userId ?? "", listId ?? "");
   const routeFailures = useRouteFailures(userId ?? "", listId ?? "");
@@ -434,6 +438,22 @@ export function AddItemBar() {
   const checkNotice =
     lastCheck && checkInCart && lastCheck.at > checksClosedAt
       ? lastCheck
+      : null;
+
+  // What an add of several put on the list: "Lo de siempre" or a paste, from
+  // this bar's review sheet, or a past trip, from the menu's (F-4). They
+  // share it through add-several.ts. Adds from before this bar mounted (back
+  // from another page) are old news.
+  const severalAdded = useAddedNotice();
+  const [addsSeenAt] = useState(() => lastAddedAt(queryClient));
+  const addedNotice: Notice | null =
+    severalAdded && severalAdded.at > addsSeenAt
+      ? {
+          key: severalAdded.key,
+          at: severalAdded.at,
+          title: texts.addItem.usuals.added(severalAdded.ids.length),
+          undo: { kind: "add", ids: severalAdded.ids },
+        }
       : null;
 
   // The pending list was copied from the header of Pendientes (F-3): the
@@ -504,6 +524,15 @@ export function AddItemBar() {
     setCopyTook(copyNotice.key);
     const covered = shownOf(latestNotice([duplicateNotice, checkNotice], 0));
     if (covered) close(covered);
+  }
+  // So does an add of several: this bar's own close the notice they cover
+  // when they add (addSeveral), but a past trip's comes from the menu (F-4),
+  // which cannot. Once per add, adjusted during render.
+  const [addedTook, setAddedTook] = useState<string | null>(null);
+  if (addedNotice && notice === addedNotice && addedTook !== addedNotice.key) {
+    setAddedTook(addedNotice.key);
+    const covered = latestNotice([duplicateNotice, checkNotice, copyNotice], 0);
+    if (covered && covered.at < addedNotice.at) close(covered);
   }
 
   const noticeAt = notice?.at ?? null;
@@ -595,7 +624,7 @@ export function AddItemBar() {
   // The notice of what the review added waits for the sheet to be gone:
   // while it closes, Radix hides the rest of the page from screen readers,
   // and the status region would change unheard.
-  const reviewAdded = useRef<Notice | null>(null);
+  const reviewAdded = useRef<SeveralAdded | null>(null);
   // The review was answered ("Agregar"): a second tap on the sheet while it
   // leaves (it stays on screen for its exit) is not a second add, and a
   // one-line paste is not put back in the field.
@@ -896,7 +925,7 @@ export function AddItemBar() {
     const added = reviewAdded.current;
     reviewAdded.current = null;
     if (added) {
-      setAddedNotice(added);
+      showAdded(queryClient, added);
     } else if (
       closed?.kind === "paste" &&
       closed.fallback &&
@@ -982,26 +1011,16 @@ export function AddItemBar() {
       );
   }
 
-  /** Several at once, in one write, with "Deshacer" once the sheet is gone. */
+  /**
+   * Several at once, in one write (add-several.ts), with "Deshacer" once the
+   * sheet is gone.
+   */
   function addSeveral(created: NewItem[]) {
     if (created.length === 0) return;
     if (notice) close(notice);
-    const variables = addItems(created);
-    // Antes de escribir: si el servidor rechaza, su aviso (con la hora de
-    // envío) es posterior a este y lo reemplaza.
-    const at = Date.now();
-    const key = `several:${variables.ids[0]}`;
-    addMany.mutateAsync(variables).catch(() => {
-      if (reviewAdded.current?.key === key) reviewAdded.current = null;
-      setAddedNotice((current) => (current?.key === key ? null : current));
-    });
-    // Shown once the sheet is gone (afterReviewClose).
-    reviewAdded.current = {
-      key,
-      at,
-      title: texts.addItem.usuals.added(created.length),
-      undo: { kind: "add", ids: variables.ids },
-    };
+    // Shown once the sheet is gone (afterReviewClose). If the server rejects
+    // the add, its notice outranks this one (see showAdded).
+    reviewAdded.current = addMany(created);
   }
 
   /** "Deshacer": lo agregado de una vez sale; lo marcado vuelve a pendientes. */

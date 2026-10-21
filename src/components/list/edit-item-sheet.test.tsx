@@ -32,6 +32,7 @@ function makeItem(partial: Partial<Item> = {}): Item {
     created_at: "2026-10-18T00:00:00.000Z",
     updated_at: "2026-10-18T00:00:00.000Z",
     deleted_at: null,
+    trip_id: null,
     ...partial,
   };
 }

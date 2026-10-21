@@ -133,6 +133,12 @@ actualizaciones optimistas.** [ADR 0003](decisions/0003-online-only.md)
     evento de ítems. Se relee con las altas remotas y con los cambios de
     nombre, categoría, unidad, precio o moneda (los campos que sigue su
     trigger).
+  - Las compras anteriores (`trips`, F-4) tampoco: el historial se lee cada
+    vez que se abre, y vaciar el carro o deshacerlo lo marcan para leerlo
+    de nuevo. Vaciar y deshacer son RPC (`empty_cart`, `restore_trip`) que
+    escriben la compra y sus filas en una transacción; van en la cola de la
+    lista como cualquier escritura de ítems, y los otros miembros reciben
+    los cambios de las filas por Realtime como antes.
   - Recuperación: cada `SUBSCRIBED` vuelve a leer ítems, categorías y
     catálogo con las mismas reglas. El foco y la reconexión releen la
     lista aunque esté fresca, salvo que haya una escritura pendiente.
@@ -310,7 +316,19 @@ items
   category_id uuid null fk,
   estimated_price numeric null, currency text null default 'UYU',
   checked bool default false, checked_at timestamptz null,
-  position int, created_by uuid, created_at, updated_at, deleted_at
+  position int, created_by uuid, created_at, updated_at, deleted_at,
+  trip_id uuid null fk (list_id, trip_id)
+  -- trip_id: la vaciada del carro que archivó la fila (F-4); solo lo
+  -- escriben las RPC empty_cart y restore_trip
+
+trips
+  id uuid pk, list_id fk, emptied_at timestamptz, emptied_by uuid,
+  created_at, updated_at, deleted_at
+  unique (list_id, id)
+  -- una vaciada del carro, para el historial "Compras anteriores"
+  -- (docs/improvements.md, F-4); de solo lectura para los miembros, la
+  -- crea empty_cart y la borra (lógico) restore_trip, el "Deshacer", solo
+  -- de quien vació; una fila con trip_id está archivada (check)
 
 catalog
   list_id fk, name_normalized text, display_name text,
@@ -780,9 +798,11 @@ siempre" y cantidad recordada en el catálogo, migración
 al vaciar el carro, guarda del doble toque en la lista), M-5 ("Productos
 guardados" en el menú para olvidar lo que el catálogo recuerda, migración
 `catalog_forget`), F-2 (pegar una lista en el campo, con repaso antes de
-agregarla) y F-3 (mandar lo que falta como texto, que cubre "exportar lista
-como texto" de la Fase 4) están hechas, a pedido del usuario, antes de
-empezar la Fase 4; el detalle de lo decidido está en sus entradas.
+agregarla), F-3 (mandar lo que falta como texto, que cubre "exportar lista
+como texto" de la Fase 4) y F-4 (historial de compras en el menú, con
+"Agregar de nuevo"; migración `trips`, ya aplicada en staging el 2026-10-21)
+están hechas, a pedido del usuario, antes de empezar la Fase 4; el detalle
+de lo decidido está en sus entradas.
 
 ---
 

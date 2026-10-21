@@ -67,7 +67,10 @@ export const texts = {
       title: "Lo de siempre",
       description: "Destildá lo que todavía tenés en casa y agregá el resto.",
       listLabel: "Productos de siempre",
-      /** El aviso de lo agregado de una vez, de aquí o de una lista pegada. */
+      /**
+       * El aviso de lo agregado de una vez: de aquí, de una lista pegada o de
+       * una compra anterior.
+       */
       added: (count: number) =>
         count === 1 ? "Agregaste 1 producto" : `Agregaste ${count} productos`,
       undo: "Deshacer",
@@ -524,6 +527,35 @@ export const texts = {
     body: "Volvemos a intentar solos en unos segundos.",
     retry: "Reintentar",
     retrying: "Conectando…",
+  },
+  /**
+   * Las compras anteriores, en el menú: cada vez que se vació el carro, con lo
+   * que se llevó, para volver a agregar todo o parte (docs/improvements.md,
+   * F-4).
+   */
+  trips: {
+    title: "Compras anteriores",
+    description:
+      "Cada vez que vaciás el carro, la compra queda acá. Tocá una para volver a agregar lo que llevaste.",
+    loading: "Cargando…",
+    empty: "Todavía no vaciaste el carro. Tu próxima compra va a quedar acá.",
+    count: (count: number) =>
+      count === 1 ? "1 producto" : `${count} productos`,
+    /** Dos compras el mismo día: la hora las distingue. */
+    at: (date: string, time: string) => `${date}, ${time}`,
+    /** Nombre accesible de una compra: lo que se ve, dicho de corrido. */
+    label: (name: string, count: string, totals: readonly string[]) =>
+      [name, count, ...totals].join(", "),
+    more: (limit: number) => `Se ven las últimas ${limit} compras.`,
+    review: {
+      description:
+        "Lo que llevaste ese día. Destildá lo que no hace falta y agregá el resto.",
+      listLabel: "Productos de esa compra",
+    },
+    errors: {
+      load: "No pudimos cargar las compras anteriores.",
+      retry: "Reintentar",
+    },
   },
   /**
    * Lo que la lista recuerda de cada producto que se agregó alguna vez (el
