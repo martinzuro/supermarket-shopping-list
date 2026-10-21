@@ -800,7 +800,7 @@ guardados" en el menú para olvidar lo que el catálogo recuerda, migración
 `catalog_forget`), F-2 (pegar una lista en el campo, con repaso antes de
 agregarla), F-3 (mandar lo que falta como texto, que cubre "exportar lista
 como texto" de la Fase 4) y F-4 (historial de compras en el menú, con
-"Agregar de nuevo"; migración `trips`, pendiente de aplicar en staging)
+"Agregar de nuevo"; migración `trips`, ya aplicada en staging el 2026-10-21)
 están hechas, a pedido del usuario, antes de empezar la Fase 4; el detalle
 de lo decidido está en sus entradas.
 

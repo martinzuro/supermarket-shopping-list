@@ -721,7 +721,8 @@ portapapeles.
   historial y tests que no podían fallar o que dependían del año.
 - Antes de desplegar, la migración tiene que estar en staging (`npx supabase
   db push`): sin ella, vaciar el carro falla (la RPC no existe) y lo vaciado
-  vuelve a la lista con el aviso de error.
+  vuelve a la lista con el aviso de error. Aplicada en staging el 2026-10-21
+  (`migration list --linked` la muestra en local y en remoto).
 - Queda abierto: "Agregar de nuevo" no trae las notas ("descremada"); el
   historial de una lista anónima no viaja con el carry-over a una cuenta; dos
   compras del mismo minuto se llaman igual (las distinguen la cuenta y el
