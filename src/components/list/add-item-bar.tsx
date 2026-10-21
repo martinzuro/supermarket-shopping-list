@@ -18,6 +18,7 @@ import {
   type MouseEvent,
 } from "react";
 import { FrequentsRow } from "@/components/list/frequents-row";
+import { lastCopyAt, useLastCopy } from "@/components/list/send-pending";
 import {
   SuggestionList,
   optionId,
@@ -125,8 +126,8 @@ type Undo =
 
 /**
  * Un aviso de la barra: un rechazo del servidor (tono error, con su cierre)
- * o, en tono info, algo que se puede deshacer (`undo`) o un producto que ya
- * estaba pendiente (`duplicate`).
+ * o, en tono info, algo que se puede deshacer (`undo`), un producto que ya
+ * estaba pendiente (`duplicate`) o lo que falta, copiado (`copied`, F-3).
  */
 type Notice = {
   key: string;
@@ -144,6 +145,8 @@ type Notice = {
     added: Amount;
     add?: { label: string; aria: string };
   };
+  /** Se copió lo que falta para pegarlo en un chat (F-3); solo se cierra. */
+  copied?: true;
 };
 
 /** Las escrituras sobre ítems que avisan si el servidor las rechaza. */
@@ -433,28 +436,52 @@ export function AddItemBar() {
       ? lastCheck
       : null;
 
+  // The pending list was copied from the header of Pendientes (F-3): the
+  // button is up there, the place for news is here. Once, like the check;
+  // copies from before this bar mounted are old news.
+  const lastCopy = useLastCopy();
+  const [copiesClosedAt, setCopiesClosedAt] = useState(() =>
+    lastCopyAt(queryClient),
+  );
+  const copyNotice: Notice | null =
+    lastCopy && lastCopy.at > copiesClosedAt
+      ? {
+          key: lastCopy.key,
+          at: lastCopy.at,
+          title: texts.sendPending.copied,
+          body: texts.sendPending.copiedBody,
+          copied: true,
+        }
+      : null;
+
   // Los rechazos van después: si empatan con el aviso de lo agregado, gana
   // el rechazo.
   const written = latestNotice(
     [addedNotice, addFailure, ...writeFailures, ...routeFailures],
     dismissedAt,
   );
-  // Two notices stand outside the order of the queue's writes: "ya está en
-  // la lista" (A-2) and the last check (A-4). A rejection outranks them (it
-  // is news, and must not hide behind a check made after it), and closing
-  // them closes nothing else: the rejection of something sent before them is
-  // still to be shown. Against "Lo de siempre" and each other, the newest.
-  const aside = latestNotice([duplicateNotice, checkNotice], 0);
-  const notice =
+  // Three notices stand outside the order of the queue's writes: "ya está en
+  // la lista" (A-2), the last check (A-4) and the copy of what is pending
+  // (F-3). A rejection outranks them (it is news, and must not hide behind a
+  // check made after it), and closing them closes nothing else: the
+  // rejection of something sent before them is still to be shown. Against
+  // "Lo de siempre" and each other, the newest.
+  const shownOf = (aside: Notice | null) =>
     aside && (!written || (written.undo !== undefined && written.at < aside.at))
       ? aside
       : written;
+  const notice = shownOf(
+    latestNotice([duplicateNotice, checkNotice, copyNotice], 0),
+  );
 
   function dismiss(at: number) {
     setDismissedAt((current) => Math.max(current, at));
   }
 
-  /** Cierra el aviso que se ve; el de "ya está" y el del marcado, solos. */
+  /**
+   * Cierra el aviso que se ve; el de "ya está", el del marcado y el de lo
+   * copiado, solos.
+   */
   function close(shown: Notice) {
     if (shown.duplicate) {
       setDuplicateNotice((current) =>
@@ -462,9 +489,21 @@ export function AddItemBar() {
       );
     } else if (shown.undo?.kind === "check") {
       setChecksClosedAt((current) => Math.max(current, shown.at));
+    } else if (shown.copied) {
+      setCopiesClosedAt((current) => Math.max(current, shown.at));
     } else {
       dismiss(shown.at);
     }
+  }
+  // A copy takes the place of the info notice it covers, as a notice of the
+  // bar's own does (close(notice) when it adds): once it closes, that one
+  // does not come back. Once per copy, adjusted during render. A rejection
+  // is never covered: it outranks the copy.
+  const [copyTook, setCopyTook] = useState<string | null>(null);
+  if (copyNotice && notice === copyNotice && copyTook !== copyNotice.key) {
+    setCopyTook(copyNotice.key);
+    const covered = shownOf(latestNotice([duplicateNotice, checkNotice], 0));
+    if (covered) close(covered);
   }
 
   const noticeAt = notice?.at ?? null;
@@ -473,7 +512,9 @@ export function AddItemBar() {
     ? "duplicate"
     : notice?.undo?.kind === "check"
       ? "check"
-      : "written";
+      : notice?.copied
+        ? "copied"
+        : "written";
   useEffect(() => {
     if (noticeAt === null) return;
     const timer = setTimeout(() => {
@@ -483,6 +524,8 @@ export function AddItemBar() {
         );
       } else if (noticeKind === "check") {
         setChecksClosedAt((current) => Math.max(current, noticeAt));
+      } else if (noticeKind === "copied") {
+        setCopiesClosedAt((current) => Math.max(current, noticeAt));
       } else {
         dismiss(noticeAt);
       }
@@ -1029,11 +1072,14 @@ export function AddItemBar() {
     notice?.duplicate !== undefined
       ? (notice as Notice & { duplicate: NonNullable<Notice["duplicate"]> })
       : null;
+  const copiedShown = notice?.copied ? notice : null;
   // Los avisos info los lee la región de abajo; los de error se anuncian
   // solos (role="alert").
   // A check is already said by its checkbox, which keeps the focus.
   const infoNotice =
-    (undoNotice?.undo.kind === "add" ? undoNotice : null) ?? duplicateShown;
+    (undoNotice?.undo.kind === "add" ? undoNotice : null) ??
+    duplicateShown ??
+    copiedShown;
 
   return (
     <div
@@ -1100,6 +1146,26 @@ export function AddItemBar() {
                   <XIcon aria-hidden strokeWidth={1.5} />
                 </Button>
               )
+            }
+          />
+        ) : copiedShown ? (
+          <Banner
+            tone="info"
+            title={copiedShown.title}
+            body={copiedShown.body}
+            liveRegion={false}
+            action={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-touch"
+                aria-label={texts.itemErrors.dismiss}
+                onPointerDown={keepFocus}
+                onMouseDown={keepFocus}
+                onClick={() => close(copiedShown)}
+              >
+                <XIcon aria-hidden strokeWidth={1.5} />
+              </Button>
             }
           />
         ) : notice ? (

@@ -167,6 +167,30 @@ export const texts = {
       body: "Volvió a donde estaba. Probá de nuevo.",
     },
   },
+  /**
+   * Mandar lo que falta como texto (docs/improvements.md, F-3): el botón de
+   * la cabecera de Pendientes, el mensaje que arma y lo que se avisa.
+   */
+  sendPending: {
+    /** Nombre accesible del botón: abre la hoja de compartir del sistema. */
+    share: "Mandar lo que falta",
+    /** El navegador no puede compartir: el botón copia. */
+    copy: "Copiar lo que falta",
+    /**
+     * Primera línea del mensaje. Termina en ":" para que, si se vuelve a
+     * pegar en la app, se lea como título y no como producto (F-2).
+     */
+    heading: "Lo que falta:",
+    /** Aviso de la barra cuando se copió. */
+    copied: "Copiamos lo que falta",
+    copiedBody: "Pegalo en el chat que quieras.",
+    /** Ni compartir ni copiar: el texto se ofrece para copiarlo a mano. */
+    manual: {
+      title: "Lo que falta",
+      description:
+        "No pudimos copiarlo solo. Dejamos el texto seleccionado: copialo a mano.",
+    },
+  },
   /** Aviso cuando el servidor rechaza un cambio que ya se veía aplicado. */
   itemErrors: {
     add: (name: string) => `No se guardó “${name}”`,

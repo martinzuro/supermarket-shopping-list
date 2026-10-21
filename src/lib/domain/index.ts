@@ -51,3 +51,4 @@ export {
 } from "./catalog";
 export { addedQuantity, findPending, pendingMatchesFor } from "./duplicates";
 export { PASTE_LIMIT, pastedList, splitPastedList } from "./paste";
+export { pendingText } from "./pending-text";

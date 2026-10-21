@@ -728,7 +728,10 @@ Staging ya tiene todas las migraciones: se aplicaron el 2026-10-20 con
 - **Email:** Resend como SMTP de Supabase con dominio verificado (SPF,
   DKIM, DMARC). El SMTP por defecto no sirve para usuarios reales.
 - **Datos y legal:** página de privacidad simple, borrado de cuenta
-  autoservicio, exportar lista como texto.
+  autoservicio, exportar lista como texto. Lo último quedó cubierto el
+  2026-10-21 por F-3 de [improvements.md](improvements.md) ("Mandar lo que
+  falta": lo pendiente como texto, compartido o copiado); exportar también lo
+  del carro no se pidió.
 - **Observabilidad:** Sentry en cliente y servidor con alertas, Vercel
   Analytics activado.
 - **Backups:** Supabase Pro antes de la beta, restauración documentada y
@@ -774,11 +777,12 @@ sin señal dentro del supermercado no está ahí: sigue como riesgo (sección
 Estado al 2026-10-21: A-2 (aviso de duplicados), A-3 (repaso de "Lo de
 siempre" y cantidad recordada en el catálogo, migración
 `catalog_last_quantity`, ya aplicada en staging), A-4 (deshacer al marcar y
-al vaciar el carro, guarda del doble toque en la lista) y M-5 ("Productos
+al vaciar el carro, guarda del doble toque en la lista), M-5 ("Productos
 guardados" en el menú para olvidar lo que el catálogo recuerda, migración
-`catalog_forget`) y F-2 (pegar una lista en el campo, con repaso antes de
-agregarla) están hechas, a pedido del usuario, antes de empezar la
-Fase 4; el detalle de lo decidido está en sus entradas.
+`catalog_forget`), F-2 (pegar una lista en el campo, con repaso antes de
+agregarla) y F-3 (mandar lo que falta como texto, que cubre "exportar lista
+como texto" de la Fase 4) están hechas, a pedido del usuario, antes de
+empezar la Fase 4; el detalle de lo decidido está en sus entradas.
 
 ---
 

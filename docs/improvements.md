@@ -51,7 +51,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
 | F-1 | Modo compra                                         | Nada                  | Con la beta    |
 | F-2 | Pegar una lista                                     | Nada                  | Hecho          |
-| F-3 | Mandar lo que falta como texto                      | Nada                  | Fase 4         |
+| F-3 | Mandar lo que falta como texto                      | Nada                  | Hecho          |
 | F-4 | Historial de compras                                | Migración             | Después        |
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
 | F-6 | Presupuesto por compra                              | Migración             | Después        |
@@ -504,6 +504,10 @@ diseño según `DESIGN_DIRECTION.md`.
   líneas se descarta. Si se tocó "Agregar", no vuelve al campo.
 - Un segundo toque en "Agregar" mientras la hoja se va (sigue en pantalla
   durante su salida) no agrega dos veces; vale también para "Lo de siempre".
+- Desde F-3, la nota " — _nota_" con que "Mandar lo que falta" la escribe se
+  descarta antes de partir la línea, y un pegado de varias líneas con un
+  título y un solo producto ("Súper:\nLeche") también es una lista: pegado
+  como texto, el título quedaba en el nombre (ver F-3).
 - Pruebas en `paste.test.ts`, `add-item-bar-catalog.test.tsx` y
   `e2e/f2-paste.spec.ts`.
 
@@ -526,8 +530,89 @@ escribir.
 
 ### F-3. Mandar lo que falta como texto
 
-La Fase 4 ya tiene "exportar lista como texto" ([plan.md](plan.md), Datos y
-legal): conviene que sea la misma pieza.
+**Estado: hecho el 2026-10-21**, a pedido del usuario después de F-2 (rama
+`feat/f3-share-pending`). Cubre también "exportar lista como
+texto" de la Fase 4 ([plan.md](plan.md), Datos y legal): es la misma pieza.
+Lo decidido al implementarlo:
+
+- Un botón de icono en la cabecera de Pendientes, a la izquierda de "Ordenar
+  el recorrido" (así ese no se mueve cuando el otro no está): `ghost`,
+  `icon-touch`, "Mandar lo que falta" con el avión de papel (`Send`) si el
+  navegador tiene Web Share y "Copiar lo que falta" con `Copy` si no, porque
+  el nombre dice lo que hace. Sin nada pendiente no se muestra.
+- Con Web Share manda solo `{ text }`. Si quien comparte cierra la hoja del
+  sistema (`AbortError`) no se avisa nada; cualquier otro fallo copia, como
+  la hoja de compartir. Un segundo toque mientras la hoja del sistema está
+  abierta no hace nada (fallaría y copiaría sin que nadie lo pida).
+- Copiado, lo avisa la barra de abajo como los otros avisos info ("Copiamos
+  lo que falta", "Pegalo en el chat que quieras.", con cierre y 8 s), fuera
+  del orden de las escrituras como el de A-2 y el de A-4, y lo lee la región
+  `add-announcement`. El botón está arriba, pero las noticias de la lista
+  salen abajo; la lista se lo pasa a la barra por un aviso por `QueryClient`
+  (como los avisos de membresía), sin props. Toma el lugar del aviso info que
+  tapa (que no vuelve al cerrarlo), como un aviso propio de la barra; un
+  rechazo le gana y, mientras se ve, el de copiado espera.
+- Si tampoco se puede copiar, una hoja desde abajo ("Lo que falta") muestra
+  el texto seleccionado (`select-all`), para copiarlo a mano. Al cerrarla el
+  foco vuelve al botón.
+- El texto (`pendingText` en `src/lib/domain/pending-text.ts`) es solo lo
+  pendiente, agrupado en el orden del recorrido, lo sin categoría en "Otros",
+  sin precios:
+
+  ```
+  Lo que falta:
+
+  *Frutas y verduras:*
+  - Tomates 2 kg
+  - Bananas ×6
+
+  *Fiambres y lácteos:*
+  - Leche ×3 — _descremada_
+  ```
+
+  La primera línea y cada categoría terminan en ":" (F-2 las lee como
+  títulos) y las categorías van en negrita de WhatsApp; con un solo grupo
+  (todo en "Otros", la primera semana) no hay título de categoría. Cada
+  producto en su línea con la viñeta de lista de WhatsApp, como se escribiría
+  en el campo: la cuenta después de "×" y la cantidad con unidad después del
+  nombre (`formatQuantity`). Una unidad sin cantidad no se escribe. Lo que el
+  campo leería como otra cosa va con la nota, en la cola en cursiva: una
+  unidad escrita en la hoja de edición que el campo no conoce ("Agua ×2 —
+  _botella 1L_": vuelve la cuenta, no la unidad, que con un número adentro
+  cambiaría la cantidad) y una cuenta sin unidad de más de 999, que el campo
+  no toma (vuelve el producto, sin cantidad).
+- **Notas.** Van al final, después de una raya y en cursiva de WhatsApp. Era
+  la única forma de que no rompieran la vuelta: en otra línea serían un
+  producto, entre paréntesis o detrás de una coma quedarían en el nombre o
+  partirían la línea. F-2 (`splitPastedList`) aprendió a descartar esa forma
+  (" — _…_", al final de la línea o, escrita a mano, antes de una coma o un
+  punto y coma) antes de partir la línea por comas, así una nota con comas
+  tampoco parte nada. La forma es propia de este texto: una lista escrita a
+  mano con raya y sin cursiva se pega como antes.
+- Vuelta: pegado en el campo, el texto da los mismos productos con las
+  mismas cantidades y unidades (test de ida y vuelta en
+  `pending-text.test.ts`; en el e2e, pegarlo en la misma lista marca todo
+  como "Ya está en la lista"). Con un solo producto también: F-2 toma como
+  lista un pegado de varias líneas con un título y un producto.
+- `src/components/share/web-share.ts` reúne lo de la hoja de compartir que
+  ahora usan las dos (`useCanShare`, `shareOrCopy`, `selectText`).
+- Código: `pending-text.ts`, `paste.ts`, `send-pending.tsx`, `web-share.ts`,
+  `list-view.tsx` y la barra en `add-item-bar.tsx`. Pruebas en
+  `pending-text.test.ts`, `paste.test.ts`, `send-pending.test.tsx` y
+  `e2e/f3-share-text.spec.ts`.
+- Revisado por Sonnet (Fable sin cupo); se corrigieron las unidades libres de
+  la hoja de edición, las cuentas de más de 999, la nota escrita a mano antes
+  de otro producto, el pegado de un solo producto y el aviso tapado que
+  volvía al cerrar el de copiado.
+- Queda abierto: pegar el texto no trae las notas ni una unidad que el campo
+  no conoce (F-2 no tiene dónde ponerlas: se descartan). F-2 limpia los
+  nombres como limpia una lista escrita a mano: uno con coma o punto y coma
+  ("Aceite de oliva, extra virgen") vuelve partido en dos; uno que empieza
+  con un emoji o un signo ("🍞 Pan", "(Marca) Yerba"), o que termina en ":"
+  o en una marca de WhatsApp, vuelve recortado o no vuelve; y uno que el
+  campo leería con cantidad (escrito desde la hoja de edición, como "Pilas AA
+  4") vuelve con esa cantidad. Dos filas pendientes con el mismo nombre
+  vuelven como una. No lleva el nombre de la lista ni un enlace a la app.
 
 **Propuesta.** "Mandar pendientes" arma un texto con lo pendiente agrupado
 por categoría en el orden del recorrido, con cantidades y notas, pensado
@@ -588,8 +673,8 @@ de F-1.
 Pendiente de decisión del usuario.
 
 - **Antes de la beta** (baratas, definen la primera impresión): A-1, A-2
-  (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6. F-3 coincide con
-  la Fase 4.
+  (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6. F-3 (hecha el
+  2026-10-21) cubre "exportar lista como texto" de la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2 (hecha el 2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4, F-5 y F-6.

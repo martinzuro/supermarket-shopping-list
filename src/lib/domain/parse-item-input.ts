@@ -25,7 +25,7 @@ export type ParsedItemInput = {
 // parsed when it would leave the name empty ("2 kg", "3", "x3") or when the
 // number is glued to letters that are not a unit ("7up") or sits in the
 // middle of the name ("Coca 1.5L zero").
-const MAX_QUANTITY = 999;
+export const MAX_QUANTITY = 999;
 // With a unit the number is a measure, and grams or millilitres go well past
 // 999 ("Jamón 1000 g"); a bare 2025 is still a name ("Pinturas 2025").
 export const MAX_MEASURED_QUANTITY = 99_999;
@@ -194,6 +194,15 @@ export function parseItemInput(text: string): ParsedItemInput {
     parseLeading(clean) ??
     parseTrailing(clean) ?? { name: clean, quantity: null, unit: null }
   );
+}
+
+/**
+ * Whether the add field reads the word as a unit after a quantity ("kg",
+ * "kilos", "latas"); "unidades" is one too, a bare count. Not a word typed in
+ * the edit sheet that it does not know ("sachet", "botella 1L").
+ */
+export function isUnit(word: string): boolean {
+  return parseUnit(word.trim().replace(/\.$/, "")) !== undefined;
 }
 
 /**

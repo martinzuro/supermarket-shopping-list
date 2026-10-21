@@ -10,13 +10,19 @@ import {
   Users,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Enter } from "@/components/motion";
 import {
   GuestAccount,
   type PendingSignIn,
 } from "@/components/menu/account-section";
 import { MembersSection } from "@/components/share/members-section";
+import {
+  selectText,
+  shareOrCopy,
+  useCanShare,
+  type ShareOutcome,
+} from "@/components/share/web-share";
 import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -257,25 +263,11 @@ function GuestShare({
   );
 }
 
-const noopSubscribe = () => () => {};
-const getCanShare = () => typeof navigator.share === "function";
-const getServerCanShare = () => false;
-
 function errorText(error: unknown) {
   const kind = sharingErrorOf(error);
   if (kind === "network") return t.errors.network;
   if (kind === "not_authenticated") return t.errors.notAuthenticated;
   return t.errors.unknown;
-}
-
-/** Puts the text of an element in the selection, to copy it by hand. */
-function selectText(element: HTMLElement | null) {
-  if (!element) return;
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  const selection = window.getSelection();
-  selection?.removeAllRanges();
-  selection?.addRange(range);
 }
 
 /**
@@ -288,11 +280,7 @@ function InviteStep({ list, userId }: { list: List; userId: string }) {
   const { mutate } = create;
   const asked = useRef(false);
   const linkRef = useRef<HTMLParagraphElement>(null);
-  const canShare = useSyncExternalStore(
-    noopSubscribe,
-    getCanShare,
-    getServerCanShare,
-  );
+  const canShare = useCanShare();
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -316,32 +304,32 @@ function InviteStep({ list, userId }: { list: List; userId: string }) {
     mutate({ fresh: true });
   }
 
-  async function copy(link: string) {
-    setCopyFailed(false);
-    try {
-      await navigator.clipboard.writeText(link);
+  function showCopy(outcome: ShareOutcome) {
+    if (outcome === "copied") {
+      setCopyFailed(false);
       setCopied(true);
       clearTimeout(copiedTimer.current);
       copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
-    } catch {
+    } else if (outcome === "failed") {
       setCopied(false);
       setCopyFailed(true);
       selectText(linkRef.current);
     }
   }
 
+  async function copy(link: string) {
+    setCopyFailed(false);
+    showCopy(await shareOrCopy(null, link));
+  }
+
+  // A failure to share (not the person closing the sheet) copies the link.
   async function share(link: string) {
-    try {
-      await navigator.share({
-        title: t.message.title,
-        text: t.message.text,
-        url: link,
-      });
-    } catch (error) {
-      // The person closed the share sheet: nothing to say.
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      await copy(link);
-    }
+    showCopy(
+      await shareOrCopy(
+        { title: t.message.title, text: t.message.text, url: link },
+        link,
+      ),
+    );
   }
 
   if (create.isError) {
