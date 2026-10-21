@@ -320,6 +320,7 @@ catalog
   times_added int, last_added_at
   pk (list_id, name_normalized)
   -- fuente del autocompletado y de "frecuentes"; se actualiza por trigger
+  -- y los miembros solo pueden leerlo u olvidar (borrar) productos (M-5)
   -- last_unit es la unidad del precio; last_quantity_unit, la de la
   -- cantidad (A-3, docs/improvements.md)
 ```
@@ -771,10 +772,11 @@ sin señal dentro del supermercado no está ahí: sigue como riesgo (sección
 
 Estado al 2026-10-21: A-2 (aviso de duplicados), A-3 (repaso de "Lo de
 siempre" y cantidad recordada en el catálogo, migración
-`catalog_last_quantity`, ya aplicada en staging) y A-4 (deshacer al marcar y
-al vaciar el carro, guarda del doble toque en la lista) están hechas, a pedido
-del usuario, antes de empezar la Fase 4; el detalle de lo decidido está en sus
-entradas.
+`catalog_last_quantity`, ya aplicada en staging), A-4 (deshacer al marcar y
+al vaciar el carro, guarda del doble toque en la lista) y M-5 ("Productos
+guardados" en el menú para olvidar lo que el catálogo recuerda, migración
+`catalog_forget`) están hechas, a pedido del usuario, antes de empezar la
+Fase 4; el detalle de lo decidido está en sus entradas.
 
 ---
 

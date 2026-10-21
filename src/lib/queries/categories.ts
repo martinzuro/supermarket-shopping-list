@@ -292,3 +292,63 @@ export function useCatalog(userId: string | null, listId: string | null) {
     enabled: userId !== null && listId !== null,
   });
 }
+
+export type ForgetProduct = {
+  /** The product's normalized name, the catalog's key within the list. */
+  key: string;
+  /** As the list shows it, for the notice if the server rejects it. */
+  name: string;
+};
+
+/**
+ * Forgets a product of the list's catalog (docs/improvements.md, M-5): it
+ * stops being suggested, frequent or usual. If it is added again, the
+ * catalog trigger starts it from scratch. Optimistic: the entry leaves the
+ * cache at once and comes back if the server rejects. The catalog is not in
+ * Realtime: other members see it gone with their next read.
+ */
+export function useForgetProduct(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.catalog(userId, listId);
+
+  return useMutation({
+    mutationKey: [...key, "forget"],
+    mutationFn: async ({ key: product }: ForgetProduct) =>
+      unwrap(
+        await createClient()
+          .from("catalog")
+          .delete()
+          .eq("list_id", listId)
+          .eq("name_normalized", product)
+          .abortSignal(writeSignal()),
+      ),
+    onMutate: async ({ key: product }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient
+        .getQueryData<CatalogEntry[]>(key)
+        ?.find((entry) => entry.name_normalized === product);
+      queryClient.setQueryData<CatalogEntry[]>(key, (entries) =>
+        entries?.filter((entry) => entry.name_normalized !== product),
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      const previous = context?.previous;
+      if (!previous) return;
+      // Back, unless a read brought it back already.
+      queryClient.setQueryData<CatalogEntry[]>(key, (entries) =>
+        entries &&
+        !entries.some(
+          (entry) => entry.name_normalized === previous.name_normalized,
+        )
+          ? [...entries, previous]
+          : entries,
+      );
+    },
+    // Not awaited: the forgetting is done (and its rejection told) without
+    // waiting for the read that follows it.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
+    },
+  });
+}

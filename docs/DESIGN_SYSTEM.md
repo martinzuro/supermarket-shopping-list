@@ -540,6 +540,34 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   los botones para reintentar. Una lista propia vacía se fusiona sin
   preguntar.
 
+### Productos guardados (menú)
+
+`ProductsSection` (`src/components/menu/products-section.tsx`, M-5) va en
+la hoja del menú debajo de "Cuenta", separada por una regla: lo que el
+catálogo de la lista recuerda de cada producto agregado alguna vez.
+
+- Título `text-heading` ("Productos guardados"), una línea de explicación en
+  tinta secundaria y un campo "Buscar producto" (`Field` + `Input`,
+  `type="text"` con `enterKeyHint="search"`: sin el botón de borrar nativo
+  del navegador). La búsqueda sigue la regla de las sugerencias (el comienzo
+  del nombre o de una palabra posterior, sin importar tildes ni mayúsculas).
+- Filas como las de miembros: 56px de alto con regla inferior, el icono de
+  la categoría que el catálogo recuerda, el nombre y debajo cuántas veces se
+  agregó ("Agregado 4 veces"), en orden alfabético.
+- "Olvidar" (`danger`) con la confirmación ligera del sistema
+  (`src/components/use-confirm.ts`, la misma de "Sacar" a un miembro): el
+  primer toque pasa a "Tocá otra vez" sobre el fondo de peligro y la segunda
+  línea dice "Deja de sugerirse." (corta, para que la fila no crezca y el
+  segundo toque caiga en el mismo botón); el segundo toque, pasados 350 ms,
+  olvida. La pregunta se lee en una región `role="status"` siempre montada.
+  Optimista: la fila sale al instante; si el servidor rechaza, vuelve y lo
+  dice un `Banner` error. El foco, si estaba en el botón que se fue, pasa
+  al título de la sección (`tabIndex={-1}`), no al buscador, que en el
+  teléfono abriría el teclado.
+- No está en las sugerencias mismas: una opción de un `listbox` no puede
+  tener un botón propio (sus hijos son presentacionales, y axe lo marca
+  como `nested-interactive`).
+
 ## 9. Accesibilidad
 
 - Contraste AA garantizado por test para cada par de tokens.
@@ -653,6 +681,12 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   y agregar el resto en una petición con su cantidad y su precio por kilo, un
   frecuente que entra con su cantidad, y cerrar sin agregar. Con capturas a
   375px en claro y oscuro.
+- `e2e/m5-forget.spec.ts`: "Productos guardados" en el menú (orden, cuántas
+  veces, la búsqueda), olvidar un producto mal escrito con dos toques (un
+  solo DELETE) y que deje de sugerirse, también tras recargar. Con capturas
+  a 375px en claro y oscuro. `e2e/catalog-db.spec.ts` prueba contra la base
+  que un miembro puede olvidar, que alguien de afuera no, y que el catálogo
+  sigue sin poder escribirse fuera de los triggers.
 - `e2e/a4-undo.spec.ts`: el aviso "al carro" con su Deshacer (una sola
   escritura), dos toques rápidos en el mismo círculo que marcan uno solo, el
   Deshacer del momento de carro vaciado (lo vaciado vuelve, también tras

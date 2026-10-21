@@ -7,6 +7,7 @@ import {
   type MenuNotice,
   type PendingSignIn,
 } from "@/components/menu/account-section";
+import { ProductsSection } from "@/components/menu/products-section";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -56,7 +57,7 @@ type AppMenuProps = {
   onPendingSignInChange: (pending: PendingSignIn | null) => void;
 };
 
-/** Header menu button and the sheet it opens (account and, later, more). */
+/** Header menu button and the sheet it opens: the account, then the products the list remembers. */
 export function AppMenu({
   pendingSignIn,
   onPendingSignInChange,
@@ -113,6 +114,7 @@ export function AppMenu({
             pendingSignIn={pendingSignIn}
             onPendingSignInChange={onPendingSignInChange}
           />
+          <ProductsSection />
         </SheetBody>
       </SheetContent>
     </Sheet>

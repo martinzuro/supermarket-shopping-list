@@ -1,10 +1,10 @@
 "use client";
 
 import { CircleAlert } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
+import { useConfirm } from "@/components/use-confirm";
 import {
   useLeaveList,
   useMembers,
@@ -16,52 +16,6 @@ import { texts } from "@/lib/texts";
 import { cn } from "@/lib/utils";
 
 const t = texts.members;
-
-/** A confirmation that is not followed by the second tap turns itself off. */
-const CONFIRM_MS = 4000;
-/**
- * A second tap sooner than this is an accidental double tap, not a
- * confirmation: ignored. The same two numbers as the edit sheet's delete.
- */
-const ARM_MS = 350;
-
-/**
- * The light confirmation of the system (the delete of the edit sheet): the
- * first tap on a target asks, a second one a moment later does it. One
- * target at a time, so asking about another one replaces the first.
- */
-function useConfirm() {
-  const [target, setTarget] = useState<string | null>(null);
-  const [armed, setArmed] = useState(false);
-
-  useEffect(() => {
-    if (target === null) return;
-    const arm = setTimeout(() => setArmed(true), ARM_MS);
-    const reset = setTimeout(() => {
-      setTarget(null);
-      setArmed(false);
-    }, CONFIRM_MS);
-    return () => {
-      clearTimeout(arm);
-      clearTimeout(reset);
-    };
-  }, [target]);
-
-  /** Returns true when this tap is the confirmation. */
-  function press(key: string): boolean {
-    if (target !== key) {
-      setTarget(key);
-      setArmed(false);
-      return false;
-    }
-    if (!armed) return false;
-    setTarget(null);
-    setArmed(false);
-    return true;
-  }
-
-  return { target, armed, press };
-}
 
 function spokenName(member: Member) {
   return member.email ?? t.noAccountSpoken;

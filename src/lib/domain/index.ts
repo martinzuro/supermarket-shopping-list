@@ -44,6 +44,7 @@ export {
   SUGGESTION_LIMIT,
   USUAL_LIMIT,
   frequentsOf,
+  matchOf,
   rememberedAmount,
   suggestionsFor,
   usualsOf,
