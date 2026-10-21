@@ -295,7 +295,9 @@ export function ListView() {
 
   function handleEmptyCart() {
     // Only what is really in the cart: a row unchecked a moment ago is still
-    // held there while it leaves, and must not be archived with the rest.
+    // held there while it leaves, and must not be archived with the rest. A
+    // row checked a moment ago is still held in Pendientes, unseen in the
+    // cart: it stays out, lands in the cart afterwards and ends the moment.
     const rows = cart.filter((item) => item.checked);
     const ids = rows.map((item) => item.id);
     if (ids.length === 0) return;
