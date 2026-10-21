@@ -1,7 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { v7 as newId } from "uuid";
 import type { TablesUpdate } from "../src/lib/supabase/database.types";
-import { adminClient, anonymousUser, type Client } from "./supabase-admin";
+import {
+  addMember,
+  adminClient,
+  anonymousUser,
+  type Client,
+} from "./supabase-admin";
 
 /**
  * Phase 3, the database side of the remembered price (migration
@@ -298,5 +303,110 @@ test.describe("the catalog's remembered quantity", () => {
       last_quantity: 1,
       last_quantity_unit: "kg",
     });
+  });
+});
+
+test.describe("forgetting a product (M-5)", () => {
+  async function entries(listId: string) {
+    const { data, error } = await adminClient()
+      .from("catalog")
+      .select("name_normalized")
+      .eq("list_id", listId);
+    if (error) throw error;
+    return data.map((row) => row.name_normalized);
+  }
+
+  test("a member forgets it, and added again it starts from scratch", async () => {
+    const ana = await person();
+    await add(ana, {
+      name: "Tomatse",
+      quantity: 2,
+      unit: "kg",
+      estimated_price: 90,
+    });
+    await add(ana, { name: "Leche" });
+
+    const { data, error } = await ana.client
+      .from("catalog")
+      .delete()
+      .eq("list_id", ana.listId)
+      .eq("name_normalized", "tomatse")
+      .select("name_normalized");
+    if (error) throw error;
+    expect(data).toEqual([{ name_normalized: "tomatse" }]);
+    expect(await entries(ana.listId)).toEqual(["leche"]);
+
+    await add(ana, { name: "Tomatse" });
+    expect(await remembered(ana.listId, "tomatse")).toMatchObject({
+      times_added: 1,
+      last_price: null,
+      last_quantity: null,
+    });
+  });
+
+  test("someone outside the list cannot forget anything of it", async () => {
+    const ana = await person();
+    await add(ana, { name: "Leche" });
+    const stranger = await person();
+
+    const { data, error } = await stranger.client
+      .from("catalog")
+      .delete()
+      .eq("list_id", ana.listId)
+      .select("name_normalized");
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+    expect(await entries(ana.listId)).toEqual(["leche"]);
+  });
+
+  test("a member who left the list cannot forget anything of it any more", async () => {
+    const ana = await person();
+    await add(ana, { name: "Leche" });
+    await add(ana, { name: "Pan" });
+    const bob = await anonymousUser();
+    await addMember(ana.listId, bob.id);
+
+    // While in the list, Bob forgets Pan.
+    const forgot = await bob.client
+      .from("catalog")
+      .delete()
+      .eq("list_id", ana.listId)
+      .eq("name_normalized", "pan")
+      .select("name_normalized");
+    expect(forgot.data).toEqual([{ name_normalized: "pan" }]);
+
+    // Out of it, he cannot touch Leche.
+    const { error: leaveError } = await bob.client
+      .from("list_members")
+      .delete()
+      .eq("list_id", ana.listId)
+      .eq("user_id", bob.id);
+    if (leaveError) throw leaveError;
+    const after = await bob.client
+      .from("catalog")
+      .delete()
+      .eq("list_id", ana.listId)
+      .select("name_normalized");
+    expect(after.error).toBeNull();
+    expect(after.data).toEqual([]);
+    expect(await entries(ana.listId)).toEqual(["leche"]);
+  });
+
+  test("members still cannot write the catalog: only the triggers do", async () => {
+    const ana = await person();
+    await add(ana, { name: "Leche" });
+
+    const update = await ana.client
+      .from("catalog")
+      .update({ times_added: 99 })
+      .eq("list_id", ana.listId);
+    expect(update.error?.code).toBe("42501");
+    const insert = await ana.client.from("catalog").insert({
+      list_id: ana.listId,
+      name_normalized: "inventado",
+      display_name: "Inventado",
+    });
+    expect(insert.error?.code).toBe("42501");
+    expect((await remembered(ana.listId, "leche")).times_added).toBe(1);
   });
 });

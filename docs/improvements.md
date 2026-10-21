@@ -45,7 +45,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | M-2 | Totales a la vista mientras se compra               | Nada                  | Con la beta    |
 | M-3 | "Buena compra" con resumen                          | Nada                  | Con la beta    |
 | M-4 | Categorías propias: crear, renombrar, borrar        | Migración             | Después        |
-| M-5 | Olvidar una sugerencia del catálogo                 | Migración             | Después        |
+| M-5 | Olvidar una sugerencia del catálogo                 | Migración             | Hecho          |
 | M-6 | Nombres con mayúscula inicial                       | Nada                  | Antes de beta  |
 | M-7 | Quién agregó cada producto                          | Migración             | Después        |
 | M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
@@ -361,17 +361,49 @@ recorrido), renombrarla y borrarla (borrado lógico; sus ítems pasan a
 
 ### M-5. Olvidar una sugerencia del catálogo
 
-**Qué pasa.** Un producto mal escrito ("tomatse") queda en el catálogo y
-vuelve en las sugerencias y los frecuentes. El catálogo es de solo lectura
-para los miembros (policy "Members can read the catalog"; lo escriben los
-triggers).
+**Estado: hecho el 2026-10-21**, a pedido del usuario después de A-4 (rama
+`feat/m5-forget-products`). Lo decidido al implementarlo:
 
-**Propuesta.** "Olvidar" desde la sugerencia o desde la píldora de
-frecuentes, con una RPC que compruebe la membresía y borre la entrada. Si el
-producto se vuelve a agregar, empieza de cero.
+- Se olvida desde el menú, en una sección "Productos guardados" debajo de
+  "Cuenta" (`products-section.tsx`), y no desde la sugerencia ni la píldora:
+  una opción de un `listbox` no puede tener un botón propio accesible (sus
+  hijos son presentacionales, axe lo marca como `nested-interactive`), y la
+  sección también sirve para lo que no aparece en los frecuentes (un error de
+  tipeo con una sola alta). Lista todo lo que el catálogo recuerda, en orden
+  alfabético, con cuántas veces se agregó y una búsqueda con la regla de las
+  sugerencias.
+- "Olvidar" usa la confirmación ligera de "Sacar" a un miembro, que pasó a
+  un hook compartido (`src/components/use-confirm.ts`). Es optimista
+  (`useForgetProduct` en `categories.ts`) y un rechazo trae la fila de vuelta
+  con un aviso.
+- En la base, una policy de DELETE para miembros en lugar de una RPC
+  (migración `20261021144038_catalog_forget.sql`), como las de ítems y
+  categorías: se concede solo DELETE, así que insertar o editar el catálogo
+  sigue siendo cosa de los triggers. Si el producto se agrega de nuevo,
+  empieza de cero.
+- Lo olvidado vuelve si el producto se vuelve a agregar (empieza de cero),
+  si se edita un pendiente con ese nombre (el trigger lo vuelve a crear con
+  una sola alta) o si una fusión de listas trae el historial de otra lista
+  que lo tenía.
+- Un DELETE que no borra nada (otro miembro ya lo había olvidado, o quien lo
+  pide ya no está en la lista) no da error: la relectura posterior deja el
+  catálogo como está en el servidor.
+- Antes de desplegar, la migración tiene que estar en staging (`npx supabase
+  db push`); sin ella el cliente no rompe, pero "Olvidar" falla.
+- Pruebas en `src/lib/queries/catalog.test.tsx`,
+  `src/components/menu/products-section.test.tsx`, `e2e/catalog-db.spec.ts`
+  y `e2e/m5-forget.spec.ts`.
 
-**Requiere.** Migración (RPC) y test de base de datos. El catálogo no está en
-Realtime: el otro miembro lo ve en su próxima lectura.
+**Qué pasaba** (antes de M-5). Un producto mal escrito ("tomatse") quedaba
+en el catálogo y volvía en las sugerencias y los frecuentes. El catálogo era
+de solo lectura para los miembros (policy "Members can read the catalog"; lo
+escriben los triggers).
+
+**Propuesta original** (reemplazada por lo decidido arriba). "Olvidar" desde
+la sugerencia o desde la píldora de frecuentes, con una RPC que compruebe la
+membresía y borre la entrada. Si el producto se vuelve a agregar, empieza de
+cero. El catálogo no está en Realtime: el otro miembro lo ve en su próxima
+lectura.
 
 ### M-6. Nombres con mayúscula inicial
 
@@ -526,4 +558,4 @@ Pendiente de decisión del usuario.
   la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2.
-- **Después:** M-4, M-5, M-7, F-4, F-5 y F-6.
+- **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4, F-5 y F-6.

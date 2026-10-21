@@ -70,6 +70,8 @@ export {
 export {
   useCategories,
   useCatalog,
+  useForgetProduct,
+  type ForgetProduct,
   useMoveCategory,
   categoryStep,
   categoryMutationKeys,

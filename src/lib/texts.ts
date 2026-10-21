@@ -480,6 +480,36 @@ export const texts = {
     retry: "Reintentar",
     retrying: "Conectando…",
   },
+  /**
+   * Lo que la lista recuerda de cada producto que se agregó alguna vez (el
+   * catálogo), en el menú: se olvida lo mal escrito o lo que ya no se compra
+   * (docs/improvements.md, M-5).
+   */
+  products: {
+    title: "Productos guardados",
+    description:
+      "Lo que la lista recuerda para sugerirte. Olvidá lo que ya no comprás o quedó mal escrito.",
+    loading: "Cargando…",
+    empty: "Todavía no hay productos guardados: aparecen a medida que agregás.",
+    search: "Buscar producto",
+    searchPlaceholder: "Tomates, yerba…",
+    none: (query: string) => `Ningún producto con “${query}”.`,
+    times: (count: number) =>
+      count === 1 ? "Agregado 1 vez" : `Agregado ${count} veces`,
+    forget: {
+      action: "Olvidar",
+      confirm: "Tocá otra vez",
+      label: (name: string) => `Olvidar “${name}”`,
+      confirmLabel: (name: string) => `Tocá otra vez para olvidar “${name}”`,
+      /** Corto: la fila no crece y el segundo toque cae en el mismo botón. */
+      consequence: "Deja de sugerirse.",
+    },
+    errors: {
+      load: "No pudimos cargar los productos guardados.",
+      forget: (name: string) => `No se olvidó “${name}”. Probá de nuevo.`,
+      retry: "Reintentar",
+    },
+  },
   account: {
     title: "Cuenta",
     loading: "Cargando tu cuenta…",
