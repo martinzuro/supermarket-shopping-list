@@ -121,6 +121,10 @@ describe("splitPastedList", () => {
         "- Leche ×3 — _descremada, la de caja_\n- Pan — _de molde_\nTé — verde",
       ),
     ).toEqual(["Leche ×3", "Pan", "Té — verde"]);
+    // Written by hand, one note before the next product.
+    expect(
+      splitPastedList("Leche, Pan — _de molde_, Queso — _rallado_; Yerba"),
+    ).toEqual(["Leche", "Pan", "Queso", "Yerba"]);
   });
 
   it("drops the date and author of messages copied from WhatsApp", () => {
@@ -159,6 +163,14 @@ describe("pastedList", () => {
       products: ["leche", "pan", "yerba"],
       oneLine: true,
     });
+  });
+
+  it("is a list with one product under a title", () => {
+    expect(pastedList("Súper:\n- Leche x3")).toEqual({
+      products: ["Leche x3"],
+      oneLine: false,
+    });
+    expect(pastedList("Súper: leche")).toBeNull();
   });
 
   it("is not a list with a single product", () => {

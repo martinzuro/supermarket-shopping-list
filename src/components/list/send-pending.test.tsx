@@ -117,19 +117,22 @@ function withWebShare(available: boolean) {
   });
 }
 
-function renderScreen({ visible = true } = {}) {
-  const queryClient = makeTestQueryClient();
+function renderScreen({
+  items = ITEMS,
+  queryClient = makeTestQueryClient(),
+  bar = true,
+} = {}) {
   queryClient.setQueryData(queryKeys.lists(USER), [
     { id: LIST, name: "Mi lista" },
   ]);
-  queryClient.setQueryData(queryKeys.items(USER, LIST), ITEMS);
+  queryClient.setQueryData(queryKeys.items(USER, LIST), items);
   queryClient.setQueryData(queryKeys.categories(USER, LIST), CATEGORIES);
   queryClient.setQueryData(queryKeys.catalog(USER, LIST), []);
   // The header of Pendientes and the add bar, as the list page has them.
-  render(
+  return render(
     <>
-      <SendPending items={ITEMS} categories={CATEGORIES} visible={visible} />
-      <AddItemBar />
+      <SendPending items={items} categories={CATEGORIES} />
+      {bar ? <AddItemBar /> : null}
     </>,
     { wrapper: makeWrapper(queryClient) },
   );
@@ -250,10 +253,70 @@ describe("SendPending", () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
+  it("shares again once the share sheet is gone", async () => {
+    withWebShare(true);
+    renderScreen();
+
+    const button = screen.getByRole("button", { name: t.share });
+    fireEvent.click(button);
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    fireEvent.click(button);
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+  });
+
   it("is not there while nothing is pending", () => {
     withWebShare(true);
-    renderScreen({ visible: false });
+    // Pan is in the cart; Leche was just checked.
+    renderScreen({
+      items: [ITEMS[2], { ...ITEMS[0], checked: true }],
+    });
 
     expect(screen.queryByRole("button", { name: t.share })).toBeNull();
+  });
+
+  it("takes the place of the notice it covers, which does not come back", async () => {
+    withWebShare(false);
+    renderScreen();
+    const field = screen.getByRole<HTMLInputElement>("combobox", {
+      name: texts.addItem.label,
+    });
+
+    // Leche is pending: the bar says so instead of adding it again.
+    fireEvent.change(field, { target: { value: "Leche" } });
+    fireEvent.submit(field.form!);
+    const duplicate = texts.addItem.duplicate.title("Leche");
+    await waitFor(() =>
+      expect(screen.getByText(duplicate)).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: t.copy }));
+    await waitFor(() => expect(copiedNotice()).toBeInTheDocument());
+    expect(screen.queryByText(duplicate)).toBeNull();
+
+    const banner = copiedNotice()!.closest('[data-slot="banner"]');
+    fireEvent.click(
+      within(banner as HTMLElement).getByRole("button", {
+        name: texts.itemErrors.dismiss,
+      }),
+    );
+    await waitFor(() => expect(copiedNotice()).toBeNull());
+    await act(async () => {});
+    expect(screen.queryByText(duplicate)).toBeNull();
+  });
+
+  it("is old news for a bar that comes after the copy", async () => {
+    withWebShare(false);
+    const queryClient = makeTestQueryClient();
+    const first = renderScreen({ queryClient, bar: false });
+    fireEvent.click(screen.getByRole("button", { name: t.copy }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    first.unmount();
+
+    // Back from another page: the list and its bar mount again.
+    renderScreen({ queryClient });
+    await act(async () => {});
+    expect(copiedNotice()).toBeNull();
   });
 });

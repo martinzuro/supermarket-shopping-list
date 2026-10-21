@@ -504,8 +504,10 @@ diseño según `DESIGN_DIRECTION.md`.
   líneas se descarta. Si se tocó "Agregar", no vuelve al campo.
 - Un segundo toque en "Agregar" mientras la hoja se va (sigue en pantalla
   durante su salida) no agrega dos veces; vale también para "Lo de siempre".
-- Desde F-3, el final " — _nota_" con que "Mandar lo que falta" escribe una
-  nota se descarta antes de partir la línea (ver F-3).
+- Desde F-3, la nota " — _nota_" con que "Mandar lo que falta" la escribe se
+  descarta antes de partir la línea, y un pegado de varias líneas con un
+  título y un solo producto ("Súper:\nLeche") también es una lista: pegado
+  como texto, el título quedaba en el nombre (ver F-3).
 - Pruebas en `paste.test.ts`, `add-item-bar-catalog.test.tsx` y
   `e2e/f2-paste.spec.ts`.
 
@@ -529,7 +531,7 @@ escribir.
 ### F-3. Mandar lo que falta como texto
 
 **Estado: hecho el 2026-10-21**, a pedido del usuario después de F-2 (rama
-`feat/f3-share-pending`, sobre la de F-2). Cubre también "exportar lista como
+`feat/f3-share-pending`). Cubre también "exportar lista como
 texto" de la Fase 4 ([plan.md](plan.md), Datos y legal): es la misma pieza.
 Lo decidido al implementarlo:
 
@@ -547,7 +549,9 @@ Lo decidido al implementarlo:
   del orden de las escrituras como el de A-2 y el de A-4, y lo lee la región
   `add-announcement`. El botón está arriba, pero las noticias de la lista
   salen abajo; la lista se lo pasa a la barra por un aviso por `QueryClient`
-  (como los avisos de membresía), sin props.
+  (como los avisos de membresía), sin props. Toma el lugar del aviso info que
+  tapa (que no vuelve al cerrarlo), como un aviso propio de la barra; un
+  rechazo le gana y, mientras se ve, el de copiado espera.
 - Si tampoco se puede copiar, una hoja desde abajo ("Lo que falta") muestra
   el texto seleccionado (`select-all`), para copiarlo a mano. Al cerrarla el
   foco vuelve al botón.
@@ -571,33 +575,44 @@ Lo decidido al implementarlo:
   (todo en "Otros", la primera semana) no hay título de categoría. Cada
   producto en su línea con la viñeta de lista de WhatsApp, como se escribiría
   en el campo: la cuenta después de "×" y la cantidad con unidad después del
-  nombre (`formatQuantity`), sin coma antes, para que una unidad que el campo
-  no conoce vuelva en el nombre y no como otro producto. Una unidad sin
-  cantidad no se escribe.
+  nombre (`formatQuantity`). Una unidad sin cantidad no se escribe. Lo que el
+  campo leería como otra cosa va con la nota, en la cola en cursiva: una
+  unidad escrita en la hoja de edición que el campo no conoce ("Agua ×2 —
+  _botella 1L_": vuelve la cuenta, no la unidad, que con un número adentro
+  cambiaría la cantidad) y una cuenta sin unidad de más de 999, que el campo
+  no toma (vuelve el producto, sin cantidad).
 - **Notas.** Van al final, después de una raya y en cursiva de WhatsApp. Era
   la única forma de que no rompieran la vuelta: en otra línea serían un
   producto, entre paréntesis o detrás de una coma quedarían en el nombre o
-  partirían la línea. F-2 (`splitPastedList`) aprendió a descartar
-  exactamente ese final (" — _…_") antes de partir la línea por comas, así
-  una nota con comas tampoco parte nada. La forma es propia de este texto:
-  una lista escrita a mano con raya y sin cursiva se pega como antes.
+  partirían la línea. F-2 (`splitPastedList`) aprendió a descartar esa forma
+  (" — _…_", al final de la línea o, escrita a mano, antes de una coma o un
+  punto y coma) antes de partir la línea por comas, así una nota con comas
+  tampoco parte nada. La forma es propia de este texto: una lista escrita a
+  mano con raya y sin cursiva se pega como antes.
 - Vuelta: pegado en el campo, el texto da los mismos productos con las
   mismas cantidades y unidades (test de ida y vuelta en
   `pending-text.test.ts`; en el e2e, pegarlo en la misma lista marca todo
-  como "Ya está en la lista").
+  como "Ya está en la lista"). Con un solo producto también: F-2 toma como
+  lista un pegado de varias líneas con un título y un producto.
 - `src/components/share/web-share.ts` reúne lo de la hoja de compartir que
   ahora usan las dos (`useCanShare`, `shareOrCopy`, `selectText`).
 - Código: `pending-text.ts`, `paste.ts`, `send-pending.tsx`, `web-share.ts`,
   `list-view.tsx` y la barra en `add-item-bar.tsx`. Pruebas en
   `pending-text.test.ts`, `paste.test.ts`, `send-pending.test.tsx` y
   `e2e/f3-share-text.spec.ts`.
-- Queda abierto: pegar el texto no trae las notas (F-2 no tiene dónde
-  ponerlas: se descartan). Un nombre con coma o punto y coma ("Aceite de
-  oliva, extra virgen") vuelve partido en dos, y uno que el campo leería con
-  cantidad (escrito desde la hoja de edición, como "Pilas AA 4") vuelve con
-  esa cantidad. Dos filas pendientes con el mismo nombre vuelven como una.
-  Con un solo producto pendiente, pegarlo no abre el repaso (F-2 pide dos).
-  No lleva el nombre de la lista ni un enlace a la app.
+- Revisado por Sonnet (Fable sin cupo); se corrigieron las unidades libres de
+  la hoja de edición, las cuentas de más de 999, la nota escrita a mano antes
+  de otro producto, el pegado de un solo producto y el aviso tapado que
+  volvía al cerrar el de copiado.
+- Queda abierto: pegar el texto no trae las notas ni una unidad que el campo
+  no conoce (F-2 no tiene dónde ponerlas: se descartan). F-2 limpia los
+  nombres como limpia una lista escrita a mano: uno con coma o punto y coma
+  ("Aceite de oliva, extra virgen") vuelve partido en dos; uno que empieza
+  con un emoji o un signo ("🍞 Pan", "(Marca) Yerba"), o que termina en ":"
+  o en una marca de WhatsApp, vuelve recortado o no vuelve; y uno que el
+  campo leería con cantidad (escrito desde la hoja de edición, como "Pilas AA
+  4") vuelve con esa cantidad. Dos filas pendientes con el mismo nombre
+  vuelven como una. No lleva el nombre de la lista ni un enlace a la app.
 
 **Propuesta.** "Mandar pendientes" arma un texto con lo pendiente agrupado
 por categoría en el orden del recorrido, con cantidades y notas, pensado

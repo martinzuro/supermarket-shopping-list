@@ -162,6 +162,7 @@ describe("pendingText", () => {
         item("Jamón", null, { quantity: 1000, unit: "g" }),
         item("Huevos", null, { quantity: 12, unit: "unidades" }),
         item("Agua", null, { unit: "L" }),
+        item("Vino", null, { quantity: 2, unit: "damajuana" }),
         item("Yerba", null),
       ],
       categories,
@@ -179,6 +180,8 @@ describe("pendingText", () => {
       "- Huevos ×12",
       // A unit with no quantity says nothing.
       "- Agua",
+      // A unit the add field does not know goes with the note.
+      "- Vino ×2 — _damajuana_",
       "- Yerba",
     ]);
   });
@@ -290,12 +293,54 @@ describe("pendingText pasted back (F-2)", () => {
     );
   });
 
-  it("brings a unit the parser does not know back as one product", () => {
+  it("keeps the count of a unit the add field does not know, and the product", () => {
+    const units = [
+      "sachet",
+      "botella 1L",
+      "pack x6",
+      "paquete 300g",
+      "bidón 5 L",
+    ];
+    const items = units.map((unit, index) =>
+      item(`Producto ${"abcde"[index]}`, null, { quantity: 2, unit }),
+    );
+    const text = pendingText(items, categories, LABELS);
+    // Whoever reads it sees the unit, after the count.
+    expect(text).toContain("- Producto b ×2 — _botella 1L_");
+    expect(readBack(text)).toEqual(
+      items.map((one) => ({
+        name: normalizeName(one.name),
+        quantity: 2,
+        unit: null,
+      })),
+    );
+  });
+
+  it("keeps the product of a count the add field would not take", () => {
     const text = pendingText(
-      [item("Leche", null, { quantity: 2, unit: "sachet" }), item("Pan", null)],
+      [
+        item("Vasos", null, { quantity: 1000, note: "de plástico" }),
+        item("Pan", null),
+      ],
       categories,
       LABELS,
     );
-    expect(splitPastedList(text)).toEqual(["Leche 2 sachet", "Pan"]);
+    expect(text).toContain("- Vasos — _×1000, de plástico_");
+    expect(readBack(text)).toEqual([
+      { name: "vasos", quantity: null, unit: null },
+      { name: "pan", quantity: null, unit: null },
+    ]);
+  });
+
+  it("is a list pasted back even with one product", () => {
+    const text = pendingText(
+      [item("Leche", null, { quantity: 3, note: "descremada" })],
+      categories,
+      LABELS,
+    );
+    expect(pastedList(text)).toEqual({
+      products: ["Leche ×3"],
+      oneLine: false,
+    });
   });
 });

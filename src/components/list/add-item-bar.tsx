@@ -466,11 +466,13 @@ export function AddItemBar() {
   // check made after it), and closing them closes nothing else: the
   // rejection of something sent before them is still to be shown. Against
   // "Lo de siempre" and each other, the newest.
-  const aside = latestNotice([duplicateNotice, checkNotice, copyNotice], 0);
-  const notice =
+  const shownOf = (aside: Notice | null) =>
     aside && (!written || (written.undo !== undefined && written.at < aside.at))
       ? aside
       : written;
+  const notice = shownOf(
+    latestNotice([duplicateNotice, checkNotice, copyNotice], 0),
+  );
 
   function dismiss(at: number) {
     setDismissedAt((current) => Math.max(current, at));
@@ -492,6 +494,16 @@ export function AddItemBar() {
     } else {
       dismiss(shown.at);
     }
+  }
+  // A copy takes the place of the info notice it covers, as a notice of the
+  // bar's own does (close(notice) when it adds): once it closes, that one
+  // does not come back. Once per copy, adjusted during render. A rejection
+  // is never covered: it outranks the copy.
+  const [copyTook, setCopyTook] = useState<string | null>(null);
+  if (copyNotice && notice === copyNotice && copyTook !== copyNotice.key) {
+    setCopyTook(copyNotice.key);
+    const covered = shownOf(latestNotice([duplicateNotice, checkNotice], 0));
+    if (covered) close(covered);
   }
 
   const noticeAt = notice?.at ?? null;

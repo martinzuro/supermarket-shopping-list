@@ -34,10 +34,11 @@ const CHECKBOX = /^\[[\sxX✓✔]?\]\s*/;
 const LEADING_MARKS = /^[^\p{L}\p{N}½¼¾]+/u;
 // WhatsApp's bold, italic and strikethrough ("*Leche*").
 const TRAILING_MARKS = /[*_~]+$/;
-// The note of a product as a sent list writes it (F-3, pendingText): last, in
-// italics after an em dash ("Leche ×3 — _descremada_"). Dropped before the
-// line is split, so its commas split nothing.
-const SENT_NOTE = /\s+—\s+_.+_$/u;
+// The note of a product as a sent list writes it (F-3, pendingText): in
+// italics after an em dash, at the end of the line ("Leche ×3 —
+// _descremada_") or, written by hand, before the next product. Dropped before
+// the line is split, so its commas split nothing.
+const SENT_NOTE = /\s+—\s+_.+?_(?=\s*(?:;|,\s|$))/gu;
 // A comma or semicolon followed by a space separates products; a comma
 // between digits ("1,5 kg") does not. A semicolon always does.
 const SEPARATOR = /\s*;\s*|,\s+/;
@@ -63,6 +64,17 @@ function cleanLine(line: string): string {
   if (text.endsWith(")") && !text.includes("(")) text = text.slice(0, -1);
   return text.trim();
 }
+
+/** The lines of a paste, each without what comes before or after its text. */
+function lines(text: string): string[] {
+  return text
+    .split(/\r\n|\r|\n/)
+    .map((raw) =>
+      cleanLine(raw.trim().replace(WHATSAPP, "").replace(SENT_NOTE, "")),
+    );
+}
+
+const isTitle = (line: string) => line.endsWith(":");
 
 /**
  * Whether the part is an amount and nothing else: the parser reads it as one
@@ -91,7 +103,7 @@ function cut(text: string): string {
  * ("2 kg tomates"): one per line, and several on a line separated by commas
  * or semicolons. WhatsApp's date and author, bullets, numbering, checklist
  * marks and emoji in front go, and so do WhatsApp's bold and italic marks and
- * the note of a sent list (" — _nota_" at the end, F-3); a
+ * the note of a sent list (" — _nota_", F-3); a
  * line that is a title ("Súper:") or has no letters goes too; a part that
  * only says how much joins the product before it, if that one has no amount
  * of its own, and is dropped on its own. Each product once (the first time it
@@ -100,11 +112,8 @@ function cut(text: string): string {
 export function splitPastedList(text: string): string[] {
   const products: string[] = [];
   const seen = new Set<string>();
-  for (const raw of text.split(/\r\n|\r|\n/)) {
-    const line = cleanLine(
-      raw.trim().replace(WHATSAPP, "").replace(SENT_NOTE, ""),
-    );
-    if (line === "" || line.endsWith(":")) continue;
+  for (const line of lines(text)) {
+    if (line === "" || isTitle(line)) continue;
     const parts: string[] = [];
     for (const piece of line.split(SEPARATOR)) {
       const part = cleanLine(piece);
@@ -138,12 +147,16 @@ export function splitPastedList(text: string): string[] {
  * The products of a paste that is a list, or null when it is not and goes
  * into the field as typed: two or more on several lines, or three or more on
  * one line (two parts of one line are often one product, "Aceite de oliva,
- * extra virgen"). `oneLine` says which.
+ * extra virgen"). On several lines, one under a title is a list too
+ * ("Súper:\nLeche", or a sent list with one product, F-3): pasted as typed,
+ * the title would end up in its name. `oneLine` says which.
  */
 export function pastedList(
   text: string,
 ): { products: string[]; oneLine: boolean } | null {
   const products = splitPastedList(text);
   const oneLine = !/[\r\n]/.test(text.trim());
-  return products.length >= (oneLine ? 3 : 2) ? { products, oneLine } : null;
+  const titled = !oneLine && lines(text).some(isTitle);
+  const least = oneLine ? 3 : titled ? 1 : 2;
+  return products.length >= least ? { products, oneLine } : null;
 }

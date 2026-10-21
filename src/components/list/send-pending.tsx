@@ -82,8 +82,6 @@ type SendPendingProps = {
   /** All the items of the list: what is pending is picked here. */
   items: readonly Item[];
   categories: readonly Category[];
-  /** The header shows the button only while something is pending. */
-  visible: boolean;
 };
 
 /**
@@ -91,10 +89,12 @@ type SendPendingProps = {
  * Pendientes: what is still to buy as a message (pendingText), handed to the
  * share sheet of the system, or copied where the browser cannot share (the
  * add bar says so). When not even the copy works, a sheet offers the text,
- * selected, to copy by hand. Stays mounted while nothing is pending, so that
- * sheet is not torn down under the person reading it.
+ * selected, to copy by hand. The button is there only while something is
+ * pending (as the data says: a row just checked, still on its way to the
+ * cart, is not sent); the component stays mounted, so that sheet is not torn
+ * down under the person reading it.
  */
-export function SendPending({ items, categories, visible }: SendPendingProps) {
+export function SendPending({ items, categories }: SendPendingProps) {
   const queryClient = useQueryClient();
   const canShare = useCanShare();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -105,6 +105,9 @@ export function SendPending({ items, categories, visible }: SendPendingProps) {
   // Kept apart from `open`, so the text stays while the sheet slides away.
   const [manualText, setManualText] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  const visible = items.some(
+    (item) => !item.checked && item.deleted_at == null,
+  );
 
   async function send() {
     if (sending.current) return;
@@ -148,6 +151,7 @@ export function SendPending({ items, categories, visible }: SendPendingProps) {
       <Sheet open={manualOpen} onOpenChange={setManualOpen}>
         <SheetContent
           side="bottom"
+          className="pb-safe"
           onOpenAutoFocus={(event) => {
             // The panel, not its close button: the text is what matters, and
             // it is already selected.
@@ -156,16 +160,18 @@ export function SendPending({ items, categories, visible }: SendPendingProps) {
             selectText(textRef.current);
           }}
           onCloseAutoFocus={(event) => {
-            // No trigger for Radix to go back to: the button that sent it.
+            // No trigger for Radix to go back to: the button that sent it,
+            // while it is there (something is still pending).
+            if (!buttonRef.current) return;
             event.preventDefault();
-            buttonRef.current?.focus({ preventScroll: true });
+            buttonRef.current.focus({ preventScroll: true });
           }}
         >
           <SheetHeader>
             <SheetTitle>{t.manual.title}</SheetTitle>
             <SheetDescription>{t.manual.description}</SheetDescription>
           </SheetHeader>
-          <SheetBody className="pb-safe pb-6">
+          <SheetBody className="pb-6">
             {/* A quoted message: a rule at its side, as it reads in a chat. */}
             <p
               ref={textRef}

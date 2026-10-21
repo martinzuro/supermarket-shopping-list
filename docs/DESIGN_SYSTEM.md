@@ -443,9 +443,10 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   cierra sin agregar queda en el campo, como un pegado común; una de varias
   líneas se descarta. Lo que no es lista se pega como siempre. Un segundo
   toque en "Agregar" mientras la hoja sale no agrega dos veces (también en
-  "Lo de siempre"). La nota que escribe "Mandar lo que falta" (" — _nota_" al
-  final de la línea) se descarta: su mensaje pegado vuelve con los mismos
-  productos (ver "Mandar lo que falta", abajo).
+  "Lo de siempre"). La nota que escribe "Mandar lo que falta" (" — _nota_")
+  se descarta, y varias líneas con un título y un solo producto también son
+  una lista: su mensaje pegado vuelve con los mismos productos (ver "Mandar lo
+  que falta", abajo).
 - **Ya está en la lista** (`docs/improvements.md`, A-2). Un producto pendiente
   (mismo nombre normalizado; lo del carro no cuenta) no se agrega dos veces.
   En las sugerencias, lo pendiente que coincide va primero, pegado al campo,
@@ -496,7 +497,8 @@ F-3), armado con piezas existentes, sin componente nuevo en `ui`.
   `icon-touch`, icono de lucide con trazo 1.5. Con Web Share es el avión de
   papel (`Send`, "Mandar lo que falta") y abre la hoja de compartir del
   sistema con el texto; sin Web Share es `Copy` ("Copiar lo que falta") y
-  copia. El nombre dice lo que hace. Sin nada pendiente no está; el de
+  copia. El nombre dice lo que hace. Sin nada pendiente no está (lo dicen los
+  datos: una fila recién marcada que todavía se ve no cuenta); el de
   "Recorrido" no se mueve. Cerrar la hoja del sistema no avisa nada; otro
   fallo al compartir copia, y un segundo toque mientras la hoja del sistema
   está arriba no hace nada.
@@ -504,8 +506,9 @@ F-3), armado con piezas existentes, sin componente nuevo en `ui`.
   la lista: `Banner` info "Copiamos lo que falta" con "Pegalo en el chat que
   quieras." y cierre, 8 s, fuera del orden de los avisos de escrituras (como
   "ya está en la lista" y "al carro": un rechazo le gana). Lo lee la región
-  `add-announcement`. La lista se lo pasa a la barra por un aviso guardado
-  por `QueryClient` (`useLastCopy`), sin props; una copia de antes de que la
+  `add-announcement`. Toma el lugar del aviso info que tapa, que no vuelve al
+  cerrarlo. La lista se lo pasa a la barra por un aviso guardado por
+  `QueryClient` (`useLastCopy`), sin props; una copia de antes de que la
   barra se montara no se avisa.
 - **Copiar a mano.** Si tampoco se puede copiar, una `Sheet` desde abajo, "Lo
   que falta", con la explicación y el texto como un mensaje citado: regla de
@@ -517,8 +520,9 @@ F-3), armado con piezas existentes, sin componente nuevo en `ui`.
   categoría, en el orden del recorrido, el nombre en negrita de WhatsApp
   terminado en ":" ("*Frutas y verduras:*") y un producto por línea con la
   viñeta de lista de WhatsApp: "- Tomates 2 kg", "- Leche ×3 — _descremada_"
-  (la cuenta tras "×", la nota al final en cursiva tras una raya). Un solo
-  grupo va sin título de categoría. Pegado en el campo vuelve con los mismos
+  (la cuenta tras "×", la nota al final en cursiva tras una raya, y con ella
+  lo que el campo de agregar no leería: una unidad que no conoce, una cuenta
+  de más de 999). Un solo grupo va sin título de categoría. Pegado en el campo vuelve con los mismos
   productos y cantidades (F-2).
 - Lo común con la hoja de compartir (`useCanShare`, `shareOrCopy`,
   `selectText`) está en `src/components/share/web-share.ts`.

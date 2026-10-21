@@ -493,7 +493,6 @@ export function ListView() {
               <SendPending
                 items={items.data ?? []}
                 categories={categories.data ?? []}
-                visible={pending.length > 0}
               />
               {/* The order of the groups is edited here: Pendientes hides the
                   empty categories, so the route sheet lists them all. */}
