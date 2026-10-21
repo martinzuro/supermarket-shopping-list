@@ -15,7 +15,7 @@ import {
   newItem,
   type Item,
 } from "./items";
-import { shouldRetryMutation } from "./errors";
+import { isAccessRejection, RequestError, shouldRetryMutation } from "./errors";
 import {
   makeRpc,
   makeTable,
@@ -1001,21 +1001,37 @@ describe("useRestoreCart", () => {
       deleted_at: AT,
       trip_id: TRIP,
     });
-    // Archived otherwise, in an older trip: it stays archived.
+    // In that trip, though the cache holds another archive time for it (a
+    // write of its own landed after): it is the trip that tells.
+    const bread = serverRow({
+      id: "bread",
+      name: "Pan",
+      ...checked,
+      deleted_at: "2026-10-21T18:00:05.000Z",
+      trip_id: TRIP,
+    });
+    // Archived at that same instant, but otherwise (deleted, or another
+    // emptying): it stays archived.
     const old = serverRow({
       id: "old",
       name: "Yerba",
       ...checked,
-      deleted_at: "2026-10-14T18:00:00.000Z",
+      deleted_at: AT,
       trip_id: "trip-0",
     });
-    const { result, queryClient } = await renderItems([milk, old]);
+    const gone = serverRow({
+      id: "gone",
+      name: "Arroz",
+      ...checked,
+      deleted_at: AT,
+    });
+    const { result, queryClient } = await renderItems([milk, bread, old, gone]);
     rpc.mockReturnValue(new Promise(() => {}));
 
     act(() =>
       result.current.restoreCart.mutate({
-        ids: ["milk", "old"],
-        rows: [milk, old],
+        ids: ["milk", "bread", "old", "gone"],
+        rows: [milk, bread, old, gone],
         deletedAt: AT,
         tripId: TRIP,
       }),
@@ -1027,8 +1043,43 @@ describe("useRestoreCart", () => {
         trip_id: null,
       }),
     );
-    expect(cached(queryClient)).toHaveLength(2);
+    expect(cached(queryClient)).toHaveLength(4);
+    expect(cached(queryClient).find((item) => item.id === "bread")).toEqual({
+      ...bread,
+      deleted_at: null,
+      trip_id: null,
+    });
     expect(cached(queryClient).find((item) => item.id === "old")).toEqual(old);
+    expect(cached(queryClient).find((item) => item.id === "gone")).toEqual(
+      gone,
+    );
+  });
+
+  it("takes the trip out of the history read before, at once", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const { result, queryClient } = await renderItems([]);
+    const trips = queryKeys.trips(USER, LIST);
+    const other = { id: "trip-0", emptied_at: AT, items: [] };
+    queryClient.setQueryData(trips, {
+      trips: [{ id: TRIP, emptied_at: AT, items: [milk] }, other],
+      more: false,
+    });
+    rpc.mockReturnValue(new Promise(() => {}));
+
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk"],
+        rows: [milk],
+        deletedAt: AT,
+        tripId: TRIP,
+      }),
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryData(trips)).toEqual({
+        trips: [other],
+        more: false,
+      }),
+    );
   });
 
   it("finds them by their trip, however the server spelled the instant", async () => {
@@ -1192,6 +1243,16 @@ describe("useRestoreCart", () => {
       expect(result.current.restoreCart.isSuccess).toBe(true),
     );
     expect(queryClient.getQueryState(trips)?.isInvalidated).toBe(true);
+  });
+});
+
+describe("an emptying of a list the user is no longer in", () => {
+  it("reads the lists again: empty_cart says the user is out", () => {
+    expect(
+      isAccessRejection(
+        new RequestError({ message: "list_not_found", code: "P0001" }, 400),
+      ),
+    ).toBe(true);
   });
 });
 

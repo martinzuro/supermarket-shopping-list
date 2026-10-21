@@ -12,9 +12,16 @@ type Result = { data: unknown; error: unknown; status?: number };
 const read = vi.fn<(filters: [string, unknown][]) => Promise<Result>>();
 const write = vi.fn<(row: unknown) => Promise<Result>>();
 const trips = makeTable({ read, write });
+/** The builders handed out, to see how each read was made. */
+let built: Record<string, ReturnType<typeof vi.fn>>[] = [];
 const from = vi.fn((table: string) => {
   void table;
-  return trips.builder();
+  const builder = trips.builder() as unknown as Record<
+    string,
+    ReturnType<typeof vi.fn>
+  >;
+  built.push(builder);
+  return builder;
 });
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -39,6 +46,7 @@ function later(result: Result, ms = 100) {
 beforeEach(() => {
   read.mockReset();
   from.mockClear();
+  built = [];
 });
 
 describe("useTrips", () => {
@@ -58,6 +66,13 @@ describe("useTrips", () => {
       // Undone emptyings are not trips.
       ["deleted_at", null],
     ]);
+    // The rows by the trip's key, and only trips that still have some.
+    expect(built[0].select).toHaveBeenCalledWith(
+      "id, emptied_at, items!items_trip_id_fkey!inner(*)",
+    );
+    expect(built[0].order).toHaveBeenCalledWith("emptied_at", {
+      ascending: false,
+    });
   });
 
   it(`shows the last ${TRIP_LIMIT}, and says when there are older ones`, async () => {
@@ -69,6 +84,8 @@ describe("useTrips", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // One more than shown: that one says there are older ones.
+    expect(built[0].limit).toHaveBeenCalledWith(TRIP_LIMIT + 1);
     expect(result.current.data?.trips).toEqual(rows.slice(0, TRIP_LIMIT));
     expect(result.current.data?.more).toBe(true);
   });
@@ -96,10 +113,13 @@ describe("useTrips", () => {
     expect(read).toHaveBeenCalledTimes(2);
   });
 
-  it("waits for a user and a list", () => {
-    renderHook(() => useTrips(USER, null), {
+  it("waits for a user and a list", async () => {
+    read.mockImplementation(() => later({ data: [], error: null }));
+    const { result } = renderHook(() => useTrips(USER, null), {
       wrapper: makeWrapper(makeTestQueryClient()),
     });
-    expect(read).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(from).not.toHaveBeenCalled();
   });
 });

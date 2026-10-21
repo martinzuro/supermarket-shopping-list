@@ -241,7 +241,8 @@ Después, `npm run db:reset` y `npm run db:types`.
 - El momento "Buena compra" tiene "Deshacer" mientras se ve (sin
   temporizador: es la pantalla de confirmación). `useRestoreCart` pone
   `deleted_at` en null solo en las filas archivadas con la hora de esa
-  vaciada, en una escritura, y las vuelve a mostrar al instante desde una copia
+  vaciada (desde F-4, las de su compra, con la RPC `restore_trip`), en una
+  escritura, y las vuelve a mostrar al instante desde una copia
   que la lista guarda al vaciar (la relectura posterior ya las sacó de la
   caché). Va en la cola de la lista: si el pedido de vaciar todavía no había
   salido, ya no encuentra nada que archivar.
@@ -650,6 +651,16 @@ portapapeles.
   no cambia nada. Un trigger (`items_guard_trip_id`) rechaza `trip_id` a las
   peticiones de la API: solo lo cambian esas dos funciones, así nadie agrega
   una fila a una compra, ni la saca, a mano.
+- **Una compra es de quien vació.** Solo un reintento de esa misma vaciada
+  (el mismo usuario y la misma hora) le suma filas, y solo quien vació la
+  deshace (el "Deshacer" está en su momento, no en el de otro). La fila de la
+  compra queda bloqueada hasta el final de `empty_cart`, así un reintento
+  tardío y un "Deshacer" desde otro dispositivo van uno después del otro, y
+  las filas se bloquean en orden de id, como en `move_category`: dos
+  vaciadas a la vez no se traban. Una fila de una compra está archivada (el
+  check `items_trip_id_archived`): vuelve a la lista solo con `restore_trip`.
+  Si quien vacía ya no está en la lista, `empty_cart` dice `list_not_found`
+  y la app relee las listas (`isAccessRejection`), como con `move_category`.
 - **Permisos.** Los miembros leen las compras de sus listas (policy por
   membresía); nadie las inserta, edita ni borra (sin grants), así que una
   compra no se puede mover a otra lista. Quien sale de la lista deja de
@@ -663,7 +674,10 @@ portapapeles.
   (`TRIP_LIMIT`, unos cinco meses de compra semanal) y, si hay más, lo dice.
 - **Realtime.** `trips` no entra en la publicación: el historial se lee cada
   vez que se abre (`staleTime` 0), y vaciar y deshacer lo marcan para leerlo
-  de nuevo. Las filas siguen llegando por Realtime, ahora con su `trip_id`.
+  de nuevo; un "Deshacer" además saca la compra al instante de lo leído
+  antes. Las filas siguen llegando por Realtime, ahora con su `trip_id`. Se
+  lee con un inner join: una compra cuyas filas se borraron del todo (un
+  miembro puede) no aparece.
 - **Dónde.** En el menú, una sección "Compras anteriores" entre "Cuenta" y
   "Productos guardados", y no en el carro. El historial sirve para planear la
   compra siguiente, que es cuando el carro está vacío; el menú ya tiene lo
@@ -697,13 +711,25 @@ portapapeles.
   `trips-history.test.tsx`, `add-item-bar-catalog.test.tsx`,
   `e2e/trips-db.spec.ts` y `e2e/f4-history.spec.ts`. Los e2e que vacían el
   carro (`list`, `phase-2a` y `a4-undo`) esperan ahora la RPC.
+- Revisado por Sonnet (Fable sin cupo): la migración contra la base local y
+  el cliente por separado. Se corrigieron un reintento tardío que podía
+  archivar de nuevo en una compra recién deshecha, que cualquier miembro
+  podía sumar filas a la compra de otro o deshacerla, una fila de una compra
+  que podía volver a la lista sin salir de ella, una compra sin filas en el
+  historial, el orden de los bloqueos, `list_not_found` en
+  `isAccessRejection`, la compra deshecha que se veía un momento en el
+  historial y tests que no podían fallar o que dependían del año.
 - Antes de desplegar, la migración tiene que estar en staging (`npx supabase
   db push`): sin ella, vaciar el carro falla (la RPC no existe) y lo vaciado
   vuelve a la lista con el aviso de error.
 - Queda abierto: "Agregar de nuevo" no trae las notas ("descremada"); el
   historial de una lista anónima no viaja con el carry-over a una cuenta; dos
   compras del mismo minuto se llaman igual (las distinguen la cuenta y el
-  total); una compra no se puede borrar del historial. Visto de paso, ya
+  total); una compra no se puede borrar del historial; la fila cuenta filas y
+  el repaso, productos (dos filas con el mismo nombre son "2 productos" en la
+  fila y uno en el repaso); un segundo toque lento (después de los 320 ms en
+  que el menú se va) sobre una compra cae en el velo de la hoja que se abre y
+  la cierra, y vuelve el menú. Visto de paso, ya
   pasaba antes de F-4: al agregar un producto frecuente, su píldora aparece
   un instante en la fila de frecuentes antes de que llegue la fila, y con la
   página al final la barra sube y baja la página bajo el dedo.

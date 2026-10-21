@@ -78,7 +78,7 @@ function restoreTrip(who: Pick<Person, "client">, tripId: string) {
 function history(client: Client, listId: string) {
   return client
     .from("trips")
-    .select("id, emptied_at, items!items_trip_id_fkey(id, name, trip_id)")
+    .select("id, emptied_at, items!items_trip_id_fkey!inner(id, name, trip_id)")
     .eq("list_id", listId)
     .is("deleted_at", null)
     .order("emptied_at", { ascending: false });
@@ -195,7 +195,13 @@ test.describe("emptying the cart makes a trip (F-4)", () => {
     const milk = await add(ana, { name: "Leche", checked: true });
     const bread = await add(ana, { name: "Pan", checked: true, position: 1 });
     const tripId = newId();
-    const emptied = await emptyCart(ana, tripId, [milk.id, bread.id], at());
+    const emptiedAt = at();
+    const emptied = await emptyCart(
+      ana,
+      tripId,
+      [milk.id, bread.id],
+      emptiedAt,
+    );
     expect(emptied.error).toBeNull();
 
     const restored = await restoreTrip(ana, tripId);
@@ -216,8 +222,9 @@ test.describe("emptying the cart makes a trip (F-4)", () => {
     expect(retry.error).toBeNull();
     expect(retry.data).toEqual([]);
 
-    // Nor does a late retry of the emptying archive them again.
-    const late = await emptyCart(ana, tripId, [milk.id, bread.id], at());
+    // Nor does a late retry of the emptying (the same call) archive them
+    // again.
+    const late = await emptyCart(ana, tripId, [milk.id, bread.id], emptiedAt);
     expect(late.error).toBeNull();
     expect(late.data).toEqual([]);
     expect((await rowOf(milk.id)).deleted_at).toBeNull();
@@ -279,9 +286,10 @@ test.describe("who reads and writes trips", () => {
     const ana = await person();
     const milk = await add(ana, { name: "Leche", checked: true });
     const tripId = newId();
-    const emptied = await emptyCart(ana, tripId, [milk.id], at());
+    const emptiedAt = at();
+    const emptied = await emptyCart(ana, tripId, [milk.id], emptiedAt);
     if (emptied.error) throw emptied.error;
-    return { ana, milk, tripId };
+    return { ana, milk, tripId, emptiedAt };
   }
 
   test("a member reads the list's trips with their rows", async () => {
@@ -366,8 +374,58 @@ test.describe("who reads and writes trips", () => {
     expect(emptied.error?.code).toBe("42501");
   });
 
-  test("a trip cannot be moved to another list, nor written by hand", async () => {
+  test("a trip is its emptier's: nobody else adds to it or undoes it", async () => {
     const { ana, milk, tripId } = await anaWithTrip();
+    const bob = await anonymousUser();
+    await addMember(ana.listId, bob.id);
+    const bobs = { ...bob, listId: ana.listId };
+    const bread = await add(ana, { name: "Pan", checked: true });
+
+    // Bob empties into Ana's trip: not a retry of hers.
+    const appended = await emptyCart(bobs, tripId, [bread.id], at());
+    expect(appended.error?.message).toBe("invalid_trip");
+    // Nor is Ana's own call with another time: another emptying.
+    const later = await emptyCart(ana, tripId, [bread.id], at());
+    expect(later.error?.message).toBe("invalid_trip");
+    expect(await rowOf(bread.id)).toMatchObject({
+      deleted_at: null,
+      trip_id: null,
+    });
+
+    // Bob's undo of Ana's emptying changes nothing.
+    const undone = await restoreTrip(bob, tripId);
+    expect(undone.error).toBeNull();
+    expect(undone.data).toEqual([]);
+    expect((await rowOf(milk.id)).trip_id).toBe(tripId);
+    expect((await tripsOf(ana.listId))[0].deleted_at).toBeNull();
+  });
+
+  test("a row of a trip stays archived: it comes back only with restore_trip", async () => {
+    const { ana, milk, tripId } = await anaWithTrip();
+
+    const back = await ana.client
+      .from("items")
+      .update({ deleted_at: null })
+      .eq("id", milk.id);
+    expect(back.error?.code).toBe("23514");
+    expect(await rowOf(milk.id)).toMatchObject({ trip_id: tripId });
+    expect((await rowOf(milk.id)).deleted_at).not.toBeNull();
+  });
+
+  test("a trip whose rows were deleted for good leaves the history", async () => {
+    const { ana, milk } = await anaWithTrip();
+    expect((await history(ana.client, ana.listId)).data).toHaveLength(1);
+
+    const { error } = await ana.client.from("items").delete().eq("id", milk.id);
+    if (error) throw error;
+
+    const read = await history(ana.client, ana.listId);
+    expect(read.error).toBeNull();
+    expect(read.data).toEqual([]);
+  });
+
+  test("a trip cannot be moved to another list, nor written by hand", async () => {
+    const { ana, milk, tripId, emptiedAt } = await anaWithTrip();
     const otherList = await newList(ana.client);
 
     const moved = await ana.client
@@ -408,10 +466,11 @@ test.describe("who reads and writes trips", () => {
     expect((await rowOf(milk.id)).trip_id).toBe(tripId);
     expect((await rowOf(bread.id)).trip_id).toBeNull();
 
-    // Nor by emptying another list into this trip's id.
+    // Nor by emptying another list into this trip's id, even as its own
+    // retry would (same caller, same time).
     const other = { ...ana, listId: otherList };
     const elsewhere = await add(other, { name: "Arroz", checked: true });
-    const reused = await emptyCart(other, tripId, [elsewhere.id], at());
+    const reused = await emptyCart(other, tripId, [elsewhere.id], emptiedAt);
     expect(reused.error?.message).toBe("invalid_trip");
     expect((await rowOf(elsewhere.id)).deleted_at).toBeNull();
   });

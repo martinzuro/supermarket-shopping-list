@@ -327,7 +327,8 @@ trips
   unique (list_id, id)
   -- una vaciada del carro, para el historial "Compras anteriores"
   -- (docs/improvements.md, F-4); de solo lectura para los miembros, la
-  -- crea empty_cart y la borra (lógico) restore_trip, el "Deshacer"
+  -- crea empty_cart y la borra (lógico) restore_trip, el "Deshacer", solo
+  -- de quien vació; una fila con trip_id está archivada (check)
 
 catalog
   list_id fk, name_normalized text, display_name text,

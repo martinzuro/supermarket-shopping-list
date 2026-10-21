@@ -18,6 +18,7 @@ import type { Tables } from "@/lib/supabase/database.types";
 import { DUPLICATE_KEY, RequestError, unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
 import { isOwnVersion, readAgain, rememberOwn } from "./reconcile";
+import type { TripHistory } from "./trips";
 
 export type Item = Tables<"items">;
 
@@ -897,6 +898,16 @@ export function useRestoreCart(userId: string, listId: string) {
       ),
     onMutate: async ({ ids, rows, tripId }) => {
       await queryClient.cancelQueries({ queryKey: key });
+      // Out of the history read before, at once: opening it before the read
+      // that follows the undo comes back must not show (or offer) the trip.
+      queryClient.setQueryData<TripHistory>(
+        queryKeys.trips(userId, listId),
+        (history) =>
+          history && {
+            ...history,
+            trips: history.trips.filter((trip) => trip.id !== tripId),
+          },
+      );
       setItems(queryClient, key, (items) => {
         // By the trip, not by the archive time, which the emptying's answer
         // spells as the server does ("+00:00", not the client's "Z").

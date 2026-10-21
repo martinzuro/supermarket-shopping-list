@@ -7,7 +7,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AddItemBar } from "@/components/list/add-item-bar";
-import { formatMoney } from "@/lib/domain";
+import { formatMoney, formatTripDate } from "@/lib/domain";
+import { TRIP_LIMIT } from "@/lib/queries";
 import { queryKeys } from "@/lib/queries/keys";
 import {
   makeTable,
@@ -183,6 +184,12 @@ const OLDER = {
   items: [bought("trip-older", "Arroz")],
 };
 
+/**
+ * The day of a trip as the history names it, today (domain tests cover the
+ * wording): with the year, once these 2026 trips are last year's.
+ */
+const day = (instant: string) => formatTripDate(instant, new Date());
+
 let onList: ReturnType<typeof row>[] = [];
 const pending = () => onList;
 
@@ -261,14 +268,14 @@ describe("Compras anteriores", () => {
     const section = screen.getByRole("region", { name: t.title });
     const rows = within(section).getAllByRole("button");
     // Two on the 20th: their time tells them apart.
-    const last = t.at("Martes 20 de octubre", "18:40");
-    const morning = t.at("Martes 20 de octubre", "09:15");
+    const last = t.at(day(LAST.emptied_at), "18:40");
+    const morning = t.at(day(LAST.emptied_at), "09:15");
     expect(rows.map((one) => one.getAttribute("aria-label"))).toEqual([
       // Leche 3 × 45, Tomates 2 kg × 90; Pan without price. Yerba is counted
       // at what it cost then, even forgotten by the catalog.
       t.label(last, t.count(4), [formatMoney(515, "UYU")]),
       t.label(morning, t.count(1), [formatMoney(12, "USD")]),
-      t.label("Miércoles 14 de octubre", t.count(1), []),
+      t.label(day(OLDER.emptied_at), t.count(1), []),
     ]);
     for (const one of rows) {
       expect(one).toHaveAttribute("aria-haspopup", "dialog");
@@ -277,6 +284,43 @@ describe("Compras anteriores", () => {
     // The amount as formatMoney spells it (a non-breaking space after "$").
     expect(rows[0].textContent).toContain(
       `${t.count(4)} · ${formatMoney(515, "UYU")}`,
+    );
+  });
+
+  it("says when it could not read them, and reads them again", async () => {
+    renderMenu();
+    readTrips.mockImplementation(async () => ({
+      data: null,
+      error: { message: "upstream timeout", code: "" },
+      status: 503,
+    }));
+    fireEvent.click(menuButton());
+    const section = await screen.findByRole("region", { name: t.title });
+    await waitFor(() => expect(section).toHaveTextContent(t.errors.load));
+
+    readTrips.mockImplementation(async () => ({ data: [LAST], error: null }));
+    fireEvent.click(
+      within(section).getByRole("button", { name: t.errors.retry }),
+    );
+    await waitFor(() => expect(tripRows()).toHaveLength(1));
+  });
+
+  it(`says so when there are more than the last ${TRIP_LIMIT}`, async () => {
+    const many = Array.from({ length: TRIP_LIMIT }, (_, n) => ({
+      ...OLDER,
+      id: `trip-${n}`,
+      emptied_at: local(9, 1 + n, 19),
+    }));
+    renderMenu(many);
+    readTrips.mockImplementation(async () => ({
+      data: [...many, OLDER],
+      error: null,
+    }));
+    await openMenu();
+
+    expect(tripRows()).toHaveLength(TRIP_LIMIT);
+    expect(screen.getByRole("region", { name: t.title })).toHaveTextContent(
+      t.more(TRIP_LIMIT),
     );
   });
 
@@ -298,7 +342,7 @@ describe("Compras anteriores", () => {
 
     fireEvent.click(tripRows()[0]);
 
-    const sheet = await reviewOpens(t.at("Martes 20 de octubre", "18:40"));
+    const sheet = await reviewOpens(t.at(day(LAST.emptied_at), "18:40"));
     dialogs.stop();
     expect(dialogs.most()).toBe(1);
     expect(menu()).toBeNull();
@@ -329,7 +373,7 @@ describe("Compras anteriores", () => {
     renderMenu();
     await openMenu();
     fireEvent.click(tripRows()[0]);
-    const sheet = await reviewOpens(t.at("Martes 20 de octubre", "18:40"));
+    const sheet = await reviewOpens(t.at(day(LAST.emptied_at), "18:40"));
 
     fireEvent.click(within(sheet).getByRole("checkbox", { name: "Pan" }));
     const add = within(sheet).getByRole("button", {
@@ -358,7 +402,7 @@ describe("Compras anteriores", () => {
       }),
     ]);
     await waitFor(() =>
-      expect(review(t.at("Martes 20 de octubre", "18:40"))).toBeNull(),
+      expect(review(t.at(day(LAST.emptied_at), "18:40"))).toBeNull(),
     );
     await waitFor(() =>
       expect(banner()).toHaveTextContent(texts.addItem.usuals.added(2)),
@@ -394,7 +438,7 @@ describe("Compras anteriores", () => {
 
     await openMenu();
     fireEvent.click(tripRows()[0]);
-    const sheet = await reviewOpens(t.at("Martes 20 de octubre", "18:40"));
+    const sheet = await reviewOpens(t.at(day(LAST.emptied_at), "18:40"));
     fireEvent.click(
       within(sheet).getByRole("button", { name: texts.addItem.review.add(3) }),
     );
@@ -417,7 +461,7 @@ describe("Compras anteriores", () => {
     renderMenu();
     await openMenu();
     fireEvent.click(tripRows()[1]);
-    const name = t.at("Martes 20 de octubre", "09:15");
+    const name = t.at(day(LAST.emptied_at), "09:15");
     const sheet = await reviewOpens(name);
 
     fireEvent.keyDown(sheet, { key: "Escape" });

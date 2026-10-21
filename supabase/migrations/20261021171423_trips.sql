@@ -10,14 +10,20 @@
 --   * empty_cart archives the rows still in the cart and records the trip in
 --     one transaction; restore_trip, the undo of the emptying (A-4), brings
 --     the rows back and soft-deletes the trip. Both are idempotent: a retry
---     after a lost answer finds the work done.
+--     after a lost answer finds the work done. A trip is its emptier's: only
+--     a retry of that same emptying (same caller, same time) adds to it, and
+--     only its emptier undoes it.
 --   * SECURITY DEFINER, so trips stay read-only for members, as the catalog
 --     is: the history can only be what emptying the cart made. Each function
 --     checks the caller's membership first and touches only that list's rows.
 --   * items.trip_id points to a trip of the same list (a composite foreign
 --     key, as items.category_id), and only these two functions change it: a
 --     trigger refuses it to requests from the API, so nobody adds a row to a
---     trip, or takes one out of it, by hand.
+--     trip, or takes one out of it, by hand. A row in a trip is archived (a
+--     check): it comes back to the list only with restore_trip, which takes
+--     it out of the trip at once.
+--   * The history leaves out a trip with no rows (a member can still delete
+--     archived rows for good): the client reads trips with an inner join.
 --   * A merge (private.copy_list_into) copies the live rows only, as before:
 --     the history stays with the list it was made in. Joining someone's list
 --     does not show them what one bought before, and a list kept by a
@@ -67,6 +73,13 @@ alter table public.items
 comment on column public.items.trip_id is
   'The emptying of the cart that archived this row (F-4). Written only by empty_cart and restore_trip.';
 
+-- A row in a trip went through the checkout: it is archived. Bringing it
+-- back to the list is restore_trip's, which takes it out of the trip in the
+-- same update.
+alter table public.items
+  add constraint items_trip_id_archived
+  check (trip_id is null or deleted_at is not null);
+
 create index items_trip_id_idx
 on public.items (trip_id)
 where trip_id is not null;
@@ -113,9 +126,17 @@ for each row execute function private.guard_trip_id();
 --     cart before it ran leaves nothing in the history.
 --   * A retry after a lost answer finds the trip with its rows, archives
 --     nothing more (they are not live any longer) and returns the same rows.
---     A trip already undone (restore_trip) archives nothing.
+--     It is told from another call by the trip itself: the same caller and
+--     the same emptied_at. Any other use of an existing trip id (another
+--     list's trip, another member's, another emptying's) touches nothing.
+--   * A trip already undone (restore_trip) archives nothing. The trip row is
+--     locked until the end, so a retry and an undo running at once (two
+--     devices) go one after the other: the retry either archives before the
+--     undo, which then brings everything back, or finds the trip undone.
 --   * Two members emptying at once: the second waits on the rows' locks and,
---     reading them again, finds them archived. Each row goes to one trip.
+--     reading them again, finds them archived. Each row goes to one trip. The
+--     rows are locked in id order, as move_category does with categories, so
+--     two emptyings never wait on each other's locks.
 --
 -- The caller's membership row is locked, as in merge_list: a removal waits
 -- for the emptying.
@@ -165,19 +186,31 @@ begin
 
   select t.* into trip
   from public.trips t
-  where t.id = target_trip_id;
+  where t.id = target_trip_id
+    and t.list_id = target_list_id
+  for no key update;
 
-  if trip.list_id is distinct from target_list_id then
-    -- Another list's trip: the client never reuses an id, so this is not one
-    -- of its retries. Nothing is touched.
+  if not found
+    or trip.emptied_by is distinct from caller
+    or trip.emptied_at <> empty_cart.emptied_at
+  then
+    -- Not this emptying's trip: the client never reuses an id, so this is
+    -- not one of its retries. Nothing is touched.
     raise exception 'invalid_trip'
-      using errcode = '22023', detail = 'The trip belongs to another list.';
+      using errcode = '22023', detail = 'The trip belongs to another emptying.';
   end if;
 
   if trip.deleted_at is not null then
     -- Undone already: nothing to archive again.
     return;
   end if;
+
+  perform 1
+  from public.items i
+  where i.list_id = target_list_id
+    and i.id = any (item_ids)
+  order by i.id
+  for no key update;
 
   update public.items i
   set deleted_at = empty_cart.emptied_at,
@@ -214,12 +247,13 @@ $$;
 -- Undoes an emptying (A-4's "Deshacer"): the rows the trip took go back to
 -- the cart, live and still checked, out of the trip, and the trip is
 -- soft-deleted, so the history never shows an emptying that was undone.
--- Returns the rows that came back.
+-- Returns the rows that came back. Only who emptied the cart undoes it: the
+-- undo is in their moment of the emptied cart, and nobody else's.
 --
---   * A trip that does not exist, or that is not of a live list of the
---     caller, changes nothing and returns nothing. The first is the undo of
---     an emptying that never reached the server (undone before it left the
---     list's queue); nothing tells the two apart.
+--   * A trip that does not exist, that someone else emptied, or that is not
+--     of a live list of the caller, changes nothing and returns nothing. The
+--     first is the undo of an emptying that never reached the server (undone
+--     before it left the list's queue); nothing tells them apart.
 --   * A retry after a lost answer finds the rows back and the trip deleted:
 --     nothing changes and nothing is returned.
 create function public.restore_trip(target_trip_id uuid)
@@ -239,7 +273,8 @@ begin
 
   select t.list_id into trip_list_id
   from public.trips t
-  where t.id = target_trip_id;
+  where t.id = target_trip_id
+    and t.emptied_by = caller;
 
   perform 1
   from public.list_members m

@@ -33,8 +33,9 @@ async function fetchTrips(listId: string): Promise<TripHistory> {
     await createClient()
       .from("trips")
       // The rows by the trip's foreign key, not the list's: both tables
-      // point to lists.
-      .select("id, emptied_at, items!items_trip_id_fkey(*)")
+      // point to lists. Inner: a trip whose rows were all deleted for good
+      // (members may) is not in the history.
+      .select("id, emptied_at, items!items_trip_id_fkey!inner(*)")
       .eq("list_id", listId)
       .is("deleted_at", null)
       .order("emptied_at", { ascending: false })

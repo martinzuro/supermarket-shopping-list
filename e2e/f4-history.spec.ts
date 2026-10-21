@@ -351,6 +351,10 @@ test.describe("F-4, the other member's history", () => {
         ["Pan", "Pan"],
       ]);
       await checkAll(a, ["Leche", "Pan"]);
+      // Setup: B sees them in its cart, then sees them go with the emptying.
+      for (const name of ["Leche", "Pan"]) {
+        await expect(row(cart(b), name)).toBeVisible({ timeout: SETUP_MS });
+      }
       const trip = await emptyCart(a);
       for (const name of ["Leche", "Pan"]) {
         await expect(row(cart(b), name)).toHaveCount(0, { timeout: SETUP_MS });

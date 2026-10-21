@@ -1018,8 +1018,8 @@ export function AddItemBar() {
   function addSeveral(created: NewItem[]) {
     if (created.length === 0) return;
     if (notice) close(notice);
-    // Shown once the sheet is gone (afterReviewClose); never if the server
-    // rejects it first.
+    // Shown once the sheet is gone (afterReviewClose). If the server rejects
+    // the add, its notice outranks this one (see showAdded).
     reviewAdded.current = addMany(created);
   }
 

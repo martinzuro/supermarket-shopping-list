@@ -809,9 +809,12 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
   otro. Con capturas a 375px en claro y oscuro. `e2e/trips-db.spec.ts`
   prueba contra la base las RPC `empty_cart` y `restore_trip` (la compra y
   sus filas, el reintento, sin compra fantasma, borrar no crea compras, dos
-  vaciadas a la vez, la fusión no trae el historial) y los permisos: un
-  miembro lee, alguien de afuera, quien salió y `anon` no, y nadie escribe
-  una compra ni `items.trip_id` a mano ni mueve una compra a otra lista.
+  vaciadas a la vez, la fusión no trae el historial, una compra sin filas
+  fuera del historial) y los permisos: un miembro lee, alguien de afuera,
+  quien salió y `anon` no; una compra es de quien vació (nadie más le suma
+  filas ni la deshace); una fila de una compra no vuelve a la lista sin
+  `restore_trip`; y nadie escribe una compra ni `items.trip_id` a mano ni
+  mueve una compra a otra lista.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.
