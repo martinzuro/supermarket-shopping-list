@@ -755,7 +755,8 @@ una semana.
 - Revisión semanal de errores y costes.
 - Dependabot o Renovate mensual.
 - Backlog en GitHub Issues. Candidatos: offline (reescritura de la capa de
-  datos), múltiples listas, añadir por voz, importar texto pegado,
+  datos), múltiples listas, añadir por voz, importar texto pegado (hecho
+  como F-2 de improvements.md),
   notificaciones push, recetas, despensa.
 
 ### Mejoras y arreglos (sin fase asignada)
@@ -775,7 +776,8 @@ siempre" y cantidad recordada en el catálogo, migración
 `catalog_last_quantity`, ya aplicada en staging), A-4 (deshacer al marcar y
 al vaciar el carro, guarda del doble toque en la lista) y M-5 ("Productos
 guardados" en el menú para olvidar lo que el catálogo recuerda, migración
-`catalog_forget`) están hechas, a pedido del usuario, antes de empezar la
+`catalog_forget`) y F-2 (pegar una lista en el campo, con repaso antes de
+agregarla) están hechas, a pedido del usuario, antes de empezar la
 Fase 4; el detalle de lo decidido está en sus entradas.
 
 ---

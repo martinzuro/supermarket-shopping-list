@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -25,13 +26,17 @@ import {
 import { useBarHeight } from "@/components/list/use-bar-height";
 import { useDoubleTap } from "@/components/list/use-double-tap";
 import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
-import { UsualsSheet, type UsualProduct } from "@/components/list/usuals-sheet";
+import {
+  ReviewSheet,
+  type ReviewProduct,
+} from "@/components/list/review-sheet";
 import { Collapse } from "@/components/motion";
 import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  PASTE_LIMIT,
   SUGGESTION_LIMIT,
   addedQuantity,
   categoryKind,
@@ -40,11 +45,13 @@ import {
   formatQuantity,
   frequentsOf,
   inRouteOrder,
+  normalizeName,
   parseItemInput,
   pendingMatchesFor,
   rememberedAmount,
   rememberedPrice,
   suggestCategory,
+  pastedList,
   suggestionsFor,
   unitForQuantity,
   usualsOf,
@@ -55,6 +62,7 @@ import {
   categoryMutationKeys,
   itemMutationKeys,
   newItem,
+  type NewItem,
   queryKeys,
   useAddItem,
   useAddItems,
@@ -89,6 +97,22 @@ const NOTICE_MS = 8000;
 export const MAX_NAME_LENGTH = 200;
 
 type Amount = Pick<ParsedItemInput, "quantity" | "unit">;
+
+/**
+ * What the review sheet shows: "Lo de siempre" (A-3), or a list pasted in the
+ * field (F-2), each product as it would be typed. A paste of one line (a list
+ * with commas) keeps where it went, so closing the sheet without adding
+ * leaves the text in the field, as a plain paste would.
+ */
+type Review =
+  | { kind: "usuals" }
+  | {
+      kind: "paste";
+      pasted: { key: string; parsed: ParsedItemInput }[];
+      /** More than PASTE_LIMIT were pasted: only the first ones are here. */
+      cut: boolean;
+      fallback: { text: string; start: number; end: number } | null;
+    };
 
 /**
  * Lo que "Deshacer" deshace: lo que "Lo de siempre" acaba de agregar, o el
@@ -368,7 +392,7 @@ export function AddItemBar() {
   const [away, setAway] = useState(false);
 
   const [addFailure, setAddFailure] = useState<Notice | null>(null);
-  const [usualsNotice, setUsualsNotice] = useState<Notice | null>(null);
+  const [addedNotice, setAddedNotice] = useState<Notice | null>(null);
   const [duplicateNotice, setDuplicateNotice] = useState<Notice | null>(null);
   const writeFailures = useWriteFailures(userId ?? "", listId ?? "");
   const routeFailures = useRouteFailures(userId ?? "", listId ?? "");
@@ -412,7 +436,7 @@ export function AddItemBar() {
   // Los rechazos van después: si empatan con el aviso de lo agregado, gana
   // el rechazo.
   const written = latestNotice(
-    [usualsNotice, addFailure, ...writeFailures, ...routeFailures],
+    [addedNotice, addFailure, ...writeFailures, ...routeFailures],
     dismissedAt,
   );
   // Two notices stand outside the order of the queue's writes: "ya está en
@@ -515,19 +539,26 @@ export function AddItemBar() {
   );
   // Con uno solo no hay nada que agregar "de una vez".
   const usualsCount = usuals.length >= 2 ? usuals.length : 0;
-  // La hoja de repaso los muestra en el orden del recorrido, cada uno con la
-  // cantidad con que vuelve.
-  const [usualsOpen, setUsualsOpen] = useState(false);
+  // The review sheet, of the usuals or of a paste.
+  const [review, setReview] = useState<Review | null>(null);
+  // The review on screen, kept for when its sheet is gone (the state is
+  // cleared as it starts to close).
+  const shownReview = useRef<Review | null>(null);
   // Whether the focus goes back to the field when the review closes: only if
   // it was there (or on the pill, from a keyboard) when it opened. A touch on
   // the pill leaves the focus where it was, and a closed phone keyboard must
   // not pop up after adding.
-  const usualsRefocus = useRef(false);
+  const reviewRefocus = useRef(false);
   // The notice of what the review added waits for the sheet to be gone:
   // while it closes, Radix hides the rest of the page from screen readers,
   // and the status region would change unheard.
-  const usualsAdded = useRef<Notice | null>(null);
-  const usualProducts = useMemo<UsualProduct[]>(
+  const reviewAdded = useRef<Notice | null>(null);
+  // The review was answered ("Agregar"): a second tap on the sheet while it
+  // leaves (it stays on screen for its exit) is not a second add, and a
+  // one-line paste is not put back in the field.
+  const reviewAnswered = useRef(false);
+  // "Lo de siempre" in route order, each with the quantity it comes back with.
+  const usualProducts = useMemo<ReviewProduct[]>(
     () =>
       inRouteOrder(usuals, categories.data ?? []).map((entry) => {
         const amount = rememberedAmount(entry);
@@ -539,6 +570,29 @@ export function AddItemBar() {
         };
       }),
     [usuals, categories.data],
+  );
+
+  // A paste, as pasted, each with the category it would land in; what is
+  // already pending is shown as such and not added again (A-2).
+  const pastedProducts = useMemo<ReviewProduct[]>(
+    () =>
+      review?.kind !== "paste"
+        ? []
+        : review.pasted.map(({ key, parsed }) => ({
+            key,
+            name: parsed.name,
+            category: kindOf(
+              categories.data,
+              suggestCategory(
+                parsed.name,
+                catalog.data ?? [],
+                categories.data ?? [],
+              ),
+            ),
+            amount: formatQuantity(parsed.quantity, parsed.unit),
+            inList: findPending(parsed.name, pendingItems) !== undefined,
+          })),
+    [review, categories.data, catalog.data, pendingItems],
   );
 
   // La mejor opción queda pegada al campo: arriba, las demás.
@@ -735,70 +789,171 @@ export function AddItemBar() {
     addNamed(entry.display_name, rememberedAmount(entry), "");
   }
 
+  /** Opens the review sheet, remembering whether the focus comes back. */
+  function openReview(next: Review, trigger: Element | null) {
+    const active = document.activeElement;
+    reviewRefocus.current =
+      active === inputRef.current || (trigger !== null && active === trigger);
+    shownReview.current = next;
+    reviewAnswered.current = false;
+    setReview(next);
+  }
+
   /** "Lo de siempre": abre el repaso de lo habitual que no está pendiente. */
   function openUsuals(event: MouseEvent<HTMLButtonElement>) {
     if (isDoubleTap(event) || !ready || usualsCount === 0) return;
-    const active = document.activeElement;
-    usualsRefocus.current =
-      active === inputRef.current || active === event.currentTarget;
-    setUsualsOpen(true);
-  }
-
-  /** La hoja ya se fue: el foco vuelve si estaba en la barra, y el aviso sale. */
-  function afterUsualsClose(event: Event) {
-    // The pill that opened it may be gone (what it offered is pending now):
-    // never back to it.
-    event.preventDefault();
-    if (usualsRefocus.current) {
-      inputRef.current?.focus({ preventScroll: true });
-    }
-    const added = usualsAdded.current;
-    usualsAdded.current = null;
-    if (added) setUsualsNotice(added);
+    openReview({ kind: "usuals" }, event.currentTarget);
   }
 
   /**
-   * Lo tildado en el repaso, en una escritura: cada producto con la cantidad
-   * con que vuelve, su categoría y su precio en esa base. Lo que entretanto
-   * pasó a estar pendiente (lo agregó otro miembro) ya no está entre los
-   * habituales y no se agrega dos veces.
+   * Una lista pegada en el campo (F-2): varias líneas, o una con comas, se
+   * repasan antes de agregarlas. Un solo producto se pega como siempre.
    */
-  function addUsuals(keys: readonly string[]) {
-    setUsualsOpen(false);
-    // In the sheet's order, the route's.
+  function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
+    if (!ready) return;
+    const text = event.clipboardData.getData("text");
+    const list = pastedList(text);
+    if (!list) return;
+    event.preventDefault();
+    const { products, oneLine } = list;
+    const field = event.currentTarget;
+    openReview(
+      {
+        kind: "paste",
+        pasted: products.slice(0, PASTE_LIMIT).map((product) => {
+          const parsed = parseItemInput(product);
+          return { key: normalizeName(parsed.name), parsed };
+        }),
+        cut: products.length > PASTE_LIMIT,
+        fallback: oneLine
+          ? {
+              text,
+              start: field.selectionStart ?? field.value.length,
+              end: field.selectionEnd ?? field.value.length,
+            }
+          : null,
+      },
+      null,
+    );
+  }
+
+  /**
+   * La hoja ya se fue: el foco vuelve si estaba en la barra, y el aviso sale.
+   * Una lista de una línea que se cerró sin agregar queda en el campo.
+   */
+  function afterReviewClose(event: Event) {
+    // The pill that opened it may be gone (what it offered is pending now):
+    // never back to it.
+    event.preventDefault();
+    const closed = shownReview.current;
+    shownReview.current = null;
+    if (reviewRefocus.current) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+    const added = reviewAdded.current;
+    reviewAdded.current = null;
+    if (added) {
+      setAddedNotice(added);
+    } else if (
+      closed?.kind === "paste" &&
+      closed.fallback &&
+      !reviewAnswered.current
+    ) {
+      const field = inputRef.current;
+      if (!field) return;
+      const { start, end } = closed.fallback;
+      // As a plain paste: no more than the field takes.
+      const room = MAX_NAME_LENGTH - (field.value.length - (end - start));
+      const text = closed.fallback.text.slice(0, Math.max(0, room));
+      setFieldText(field.value.slice(0, start) + text + field.value.slice(end));
+      field.setSelectionRange(start + text.length, start + text.length);
+    }
+  }
+
+  /** Lo tildado en el repaso, según de dónde venga. */
+  function addReviewed(keys: readonly string[]) {
+    if (reviewAnswered.current) return;
+    reviewAnswered.current = true;
+    const current = review;
+    setReview(null);
+    if (!ready || !current) return;
+    addSeveral(
+      current.kind === "usuals" ? usualItems(keys) : pastedItems(current, keys),
+    );
+  }
+
+  /**
+   * Lo de siempre tildado, en el orden de la hoja (el del recorrido): cada
+   * producto con la cantidad con que vuelve, su categoría y su precio en esa
+   * base. Lo que entretanto pasó a estar pendiente (lo agregó otro miembro)
+   * ya no está entre los habituales y no se agrega dos veces.
+   */
+  function usualItems(keys: readonly string[]): NewItem[] {
     const byKey = new Map(
       usuals.map((entry) => [entry.name_normalized, entry]),
     );
-    const picked = keys.flatMap((key) => byKey.get(key) ?? []);
-    if (!ready || picked.length === 0) return;
-    if (notice) close(notice);
-    const created = picked.map((entry) => {
-      const amount = rememberedAmount(entry);
-      return newItem(entry.display_name, {
-        ...amount,
-        categoryId: suggestCategory(
-          entry.display_name,
-          catalog.data ?? [],
-          categories.data ?? [],
-        ),
-        price: rememberedPrice(
-          entry.display_name,
-          catalog.data ?? [],
-          amount.unit,
-        ),
+    return keys
+      .flatMap((key) => byKey.get(key) ?? [])
+      .map((entry) => {
+        const amount = rememberedAmount(entry);
+        return newItem(entry.display_name, {
+          ...amount,
+          categoryId: suggestCategory(
+            entry.display_name,
+            catalog.data ?? [],
+            categories.data ?? [],
+          ),
+          price: rememberedPrice(
+            entry.display_name,
+            catalog.data ?? [],
+            amount.unit,
+          ),
+        });
       });
-    });
+  }
+
+  /**
+   * Lo pegado y tildado, en el orden en que se pegó, como si se hubiera
+   * escrito cada uno: su cantidad, la categoría y el precio del catálogo.
+   * Nunca lo que ya está pendiente (A-2).
+   */
+  function pastedItems(
+    current: Extract<Review, { kind: "paste" }>,
+    keys: readonly string[],
+  ): NewItem[] {
+    const chosen = new Set(keys);
+    return current.pasted
+      .filter(({ key }) => chosen.has(key))
+      .filter(({ parsed }) => !findPending(parsed.name, pendingItems))
+      .map(({ parsed }) =>
+        newItem(parsed.name, {
+          quantity: parsed.quantity,
+          unit: parsed.unit,
+          categoryId: suggestCategory(
+            parsed.name,
+            catalog.data ?? [],
+            categories.data ?? [],
+          ),
+          price: rememberedPrice(parsed.name, catalog.data ?? [], parsed.unit),
+        }),
+      );
+  }
+
+  /** Several at once, in one write, with "Deshacer" once the sheet is gone. */
+  function addSeveral(created: NewItem[]) {
+    if (created.length === 0) return;
+    if (notice) close(notice);
     const variables = addItems(created);
     // Antes de escribir: si el servidor rechaza, su aviso (con la hora de
     // envío) es posterior a este y lo reemplaza.
     const at = Date.now();
-    const key = `usuals:${variables.ids[0]}`;
+    const key = `several:${variables.ids[0]}`;
     addMany.mutateAsync(variables).catch(() => {
-      if (usualsAdded.current?.key === key) usualsAdded.current = null;
-      setUsualsNotice((current) => (current?.key === key ? null : current));
+      if (reviewAdded.current?.key === key) reviewAdded.current = null;
+      setAddedNotice((current) => (current?.key === key ? null : current));
     });
-    // Shown once the sheet is gone (afterUsualsClose).
-    usualsAdded.current = {
+    // Shown once the sheet is gone (afterReviewClose).
+    reviewAdded.current = {
       key,
       at,
       title: texts.addItem.usuals.added(created.length),
@@ -1033,6 +1188,7 @@ export function AddItemBar() {
             doubleTap.reset();
           }}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onFocus={() => setAway(false)}
           onBlur={() => setAway(true)}
         />
@@ -1046,12 +1202,34 @@ export function AddItemBar() {
           <Plus aria-hidden strokeWidth={2} />
         </Button>
       </form>
-      <UsualsSheet
-        open={usualsOpen}
-        onOpenChange={setUsualsOpen}
-        products={usualProducts}
-        onAdd={addUsuals}
-        onCloseAutoFocus={afterUsualsClose}
+      <ReviewSheet
+        open={review !== null}
+        onOpenChange={(open) => {
+          if (!open) setReview(null);
+        }}
+        title={
+          review?.kind === "paste"
+            ? texts.addItem.paste.title
+            : texts.addItem.usuals.title
+        }
+        description={
+          review?.kind === "paste"
+            ? texts.addItem.paste.description
+            : texts.addItem.usuals.description
+        }
+        listLabel={
+          review?.kind === "paste"
+            ? texts.addItem.paste.listLabel
+            : texts.addItem.usuals.listLabel
+        }
+        note={
+          review?.kind === "paste" && review.cut
+            ? texts.addItem.paste.limit(PASTE_LIMIT)
+            : undefined
+        }
+        products={review?.kind === "paste" ? pastedProducts : usualProducts}
+        onAdd={addReviewed}
+        onCloseAutoFocus={afterReviewClose}
       />
     </div>
   );

@@ -203,7 +203,7 @@ const usualsButton = (count: number) =>
 const usualsSheet = () =>
   screen.queryByRole("dialog", { name: texts.addItem.usuals.title });
 const usualsAdd = (count: number) =>
-  screen.queryByRole("button", { name: texts.addItem.usuals.add(count) });
+  screen.queryByRole("button", { name: texts.addItem.review.add(count) });
 
 /** "Lo de siempre": open the review and add everything, as it comes ticked. */
 async function addAllUsuals(count: number) {
@@ -710,7 +710,7 @@ describe("Lo de siempre", () => {
       fireEvent.click(row);
     }
     const none = within(sheet).getByRole("button", {
-      name: texts.addItem.usuals.none,
+      name: texts.addItem.review.none,
     });
     expect(none).toBeDisabled();
     fireEvent.click(
@@ -1220,5 +1220,133 @@ describe("the last product checked (A-4)", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(infoBanner()).toBeNull();
+  });
+});
+
+describe("a pasted list (F-2)", () => {
+  const p = texts.addItem.paste;
+  const r = texts.addItem.review;
+  const pasteSheet = () => screen.queryByRole("dialog", { name: p.title });
+  const paste = (field: HTMLInputElement, text: string) =>
+    fireEvent.paste(field, { clipboardData: { getData: () => text } });
+
+  it("opens a review of what was pasted before adding anything", async () => {
+    const { field } = await renderBar({ pending: ["Pan"] });
+
+    // Not a plain paste: the field keeps what it had.
+    expect(paste(field, "- 2 kg tomates\n- Leche x3\n- Pan\n- Lechuga")).toBe(
+      false,
+    );
+
+    const sheet = await waitFor(() => pasteSheet()!);
+    const rows = within(sheet).getAllByRole("checkbox");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "tomates 2 kg",
+      "Leche 3",
+      "Lechuga",
+    ]);
+    for (const row of rows) expect(row).toHaveAttribute("aria-checked", "true");
+    // Pan is already pending: shown, nothing to tick (A-2).
+    expect(within(sheet).getByText(r.inList)).toBeInTheDocument();
+    expect(field.value).toBe("");
+    expect(items.insert).not.toHaveBeenCalled();
+  });
+
+  it("adds what stays ticked in one write, as if each had been typed", async () => {
+    await renderBar({ pending: ["Pan"] });
+    const field = screen.getByRole<HTMLInputElement>("combobox", {
+      name: texts.addItem.label,
+    });
+    paste(field, "2 kg tomates\nLeche x3\nPan\nLechuga");
+    const sheet = await waitFor(() => pasteSheet()!);
+
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: "Lechuga" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: r.add(2) }));
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    const inserted = items.insert.mock.calls[0][0] as Record<string, unknown>[];
+    expect(inserted).toEqual([
+      expect.objectContaining({
+        name: "tomates",
+        quantity: 2,
+        unit: "kg",
+        category_id: VEGETABLES,
+        // Remembered per kilo, and it came per kilo.
+        estimated_price: 90,
+      }),
+      expect.objectContaining({
+        name: "Leche",
+        quantity: 3,
+        category_id: DAIRY,
+        estimated_price: 45,
+      }),
+    ]);
+    await waitFor(() => expect(pasteSheet()).toBeNull());
+    await waitFor(() =>
+      expect(banner()).toHaveTextContent(texts.addItem.usuals.added(2)),
+    );
+  });
+
+  it("leaves a one-line list in the field when closed without adding", async () => {
+    const { field } = await renderBar();
+    type(field, "Comprar: ");
+
+    paste(field, "leche, pan, yerba");
+    const sheet = await waitFor(() => pasteSheet()!);
+    expect(within(sheet).getAllByRole("checkbox")).toHaveLength(3);
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: texts.sheet.close }),
+    );
+
+    await waitFor(() => expect(pasteSheet()).toBeNull());
+    expect(field.value).toBe("Comprar: leche, pan, yerba");
+    expect(items.insert).not.toHaveBeenCalled();
+  });
+
+  it("drops a multi-line paste closed without adding", async () => {
+    const { field } = await renderBar();
+
+    paste(field, "leche\npan");
+    const sheet = await waitFor(() => pasteSheet()!);
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: texts.sheet.close }),
+    );
+
+    await waitFor(() => expect(pasteSheet()).toBeNull());
+    expect(field.value).toBe("");
+  });
+
+  it("lets a single product be pasted as always, commas and all", async () => {
+    const { field } = await renderBar();
+
+    expect(paste(field, "Dulce de leche")).toBe(true);
+    expect(paste(field, "Aceite de oliva, extra virgen")).toBe(true);
+    expect(pasteSheet()).toBeNull();
+  });
+
+  it("adds once when Agregar is tapped twice while the sheet leaves", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar();
+    paste(field, "leche\npan");
+    const sheet = await waitFor(() => pasteSheet()!);
+    const add = within(sheet).getByRole("button", { name: r.add(2) });
+
+    fireEvent.click(add);
+    fireEvent.click(add);
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(pasteSheet()).toBeNull());
+    expect(items.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes at most the limit, and says so", async () => {
+    const { field } = await renderBar({ catalog: [] });
+    const many = Array.from({ length: 60 }, (_, n) => `Cosa ${n + 1}a`);
+
+    paste(field, many.join("\n"));
+    const sheet = await waitFor(() => pasteSheet()!);
+
+    expect(within(sheet).getAllByRole("checkbox")).toHaveLength(50);
+    expect(within(sheet).getByText(p.limit(50))).toBeInTheDocument();
   });
 });

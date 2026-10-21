@@ -50,3 +50,4 @@ export {
   usualsOf,
 } from "./catalog";
 export { addedQuantity, findPending, pendingMatchesFor } from "./duplicates";
+export { PASTE_LIMIT, pastedList, splitPastedList } from "./paste";

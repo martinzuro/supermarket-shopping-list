@@ -115,7 +115,10 @@ for (const scheme of SCHEMES) {
         expect(Math.round(box?.height ?? 0)).toBeGreaterThanOrEqual(44);
       }
       await expect(
-        review.getByRole("button", { name: u.add(4), exact: true }),
+        review.getByRole("button", {
+          name: texts.addItem.review.add(4),
+          exact: true,
+        }),
       ).toBeInViewport();
       await captureViewport(page, testInfo, `a3-review-${scheme}`);
 
@@ -125,7 +128,9 @@ for (const scheme of SCHEMES) {
         review.getByRole("checkbox", { name: /^Leche/ }),
       ).toHaveAttribute("aria-checked", "false");
       expect(posts).toEqual([]);
-      await review.getByRole("button", { name: u.add(3), exact: true }).tap();
+      await review
+        .getByRole("button", { name: texts.addItem.review.add(3), exact: true })
+        .tap();
 
       await expect(review).toHaveCount(0);
       await expect(row(pending(page), "Tomates")).toContainText("2 kg");

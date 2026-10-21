@@ -50,7 +50,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | M-7 | Quién agregó cada producto                          | Migración             | Después        |
 | M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
 | F-1 | Modo compra                                         | Nada                  | Con la beta    |
-| F-2 | Pegar una lista                                     | Nada                  | Con la beta    |
+| F-2 | Pegar una lista                                     | Nada                  | Hecho          |
 | F-3 | Mandar lo que falta como texto                      | Nada                  | Fase 4         |
 | F-4 | Historial de compras                                | Migración             | Después        |
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
@@ -159,7 +159,8 @@ pendiente que coincide por nombre normalizado (mayúsculas, tildes).
 **Estado: hecho el 2026-10-20**, a pedido del usuario después de A-2 (rama
 `feat/a3-usuals-review`). Lo decidido al implementarlo:
 
-- La píldora abre una hoja de repaso (`usuals-sheet.tsx`): lo habitual que no
+- La píldora abre una hoja de repaso (`usuals-sheet.tsx`, desde F-2
+  `review-sheet.tsx`): lo habitual que no
   está pendiente, en el orden del recorrido, todo tildado y con la cantidad con
   que vuelve. "Agregar N productos" suma lo tildado en una escritura, en ese
   orden, con el "Deshacer" de siempre. Cerrar no agrega nada.
@@ -183,7 +184,7 @@ pendiente que coincide por nombre normalizado (mayúsculas, tildes).
   vuelve el precio por kilo (`rememberedPrice` en esa base). Las sugerencias
   mientras se escribe siguen con lo escrito.
 - Código: `rememberedAmount` en `catalog.ts`, `inRouteOrder` en
-  `categories.ts`, la hoja en `usuals-sheet.tsx` y la barra en
+  `categories.ts`, la hoja en `usuals-sheet.tsx` (hoy `review-sheet.tsx`) y la barra en
   `add-item-bar.tsx`. Pruebas en `catalog.test.ts`, `categories.test.ts`,
   `add-item-bar-catalog.test.tsx`, `e2e/catalog-db.spec.ts` y
   `e2e/a3-usuals.spec.ts`.
@@ -473,7 +474,40 @@ diseño según `DESIGN_DIRECTION.md`.
 
 ### F-2. Pegar una lista
 
-Ya está en la fase futura del roadmap ("Importar ítems desde texto pegado").
+**Estado: hecho el 2026-10-21**, a pedido del usuario después de M-5 (rama
+`feat/f2-paste-list`). Lo decidido al implementarlo:
+
+- Un pegado en el campo de agregar es una lista (`pastedList` en
+  `src/lib/domain/paste.ts`) cuando trae dos productos o más en varias
+  líneas, o tres o más en una (dos partes de una línea suelen ser un solo
+  producto: "Aceite de oliva, extra virgen"). Uno por línea, y en una línea
+  separados por coma o punto y coma seguidos de espacio (la coma decimal de
+  "1,5 kg" no separa). Se quitan la fecha y el autor de los mensajes copiados
+  de WhatsApp, viñetas, numeración ("1.", "2)", "3 -", "1️⃣"), casillas
+  ("[ ]", "- [x]"), emoji al principio y las marcas de negrita, cursiva y
+  tachado de WhatsApp; las líneas que terminan en ":" (títulos) y las que no
+  tienen letras quedan fuera. Una parte que solo dice cuánto ("2 kg", "500g",
+  "x3") va con el producto anterior si este no dice cuánto ("Tomates, 2 kg");
+  sola, o después de uno que ya tiene cantidad, se descarta. "2 manzanas" es
+  un producto. Cada producto una vez, por nombre normalizado (con cantidades
+  distintas queda el primero), cortado a 200 caracteres sin partir un emoji.
+  Lo que no es lista se pega como siempre.
+- La vista previa es la hoja de repaso de "Lo de siempre", generalizada
+  (`review-sheet.tsx`): todo tildado, cada producto con su cantidad y la
+  categoría que le tocaría. Editable en el sentido de tildar y destildar; el
+  texto de cada uno se corrige después, en su fila. Lo que ya está pendiente
+  se muestra sin círculo con "Ya está en la lista" y no se agrega (A-2); sumar
+  se hace desde la fila, no desde el pegado.
+- Hasta 50 por pegado (una escritura); si vinieron más, la hoja lo dice.
+- Una lista de una línea cerrada sin agregar queda en el campo, donde se
+  pegó y hasta lo que el campo admite, como un pegado común; una de varias
+  líneas se descarta. Si se tocó "Agregar", no vuelve al campo.
+- Un segundo toque en "Agregar" mientras la hoja se va (sigue en pantalla
+  durante su salida) no agrega dos veces; vale también para "Lo de siempre".
+- Pruebas en `paste.test.ts`, `add-item-bar-catalog.test.tsx` y
+  `e2e/f2-paste.spec.ts`.
+
+Estaba en la fase futura del roadmap ("Importar ítems desde texto pegado").
 
 **Propuesta.** Si al campo de agregar llega un pegado de varias líneas,
 ofrecer "Agregar N productos" con una vista previa editable antes de
@@ -557,5 +591,5 @@ Pendiente de decisión del usuario.
   (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6. F-3 coincide con
   la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
-  M-8, F-1 y F-2.
+  M-8, F-1 y F-2 (hecha el 2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4, F-5 y F-6.

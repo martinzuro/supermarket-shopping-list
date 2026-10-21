@@ -90,7 +90,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         await usualsButton(a, 4).tap();
         const tap = a
           .getByRole("dialog", { name: t.addItem.usuals.title })
-          .getByRole("button", { name: t.addItem.usuals.add(4), exact: true });
+          .getByRole("button", { name: t.addItem.review.add(4), exact: true });
         await tap.hover();
         await step(
           "1 A adds Lo de siempre",
