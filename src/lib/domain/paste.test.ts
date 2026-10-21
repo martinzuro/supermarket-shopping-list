@@ -115,6 +115,14 @@ describe("splitPastedList", () => {
     ]);
   });
 
+  it("drops the note of a sent list, commas and all (F-3)", () => {
+    expect(
+      splitPastedList(
+        "- Leche ×3 — _descremada, la de caja_\n- Pan — _de molde_\nTé — verde",
+      ),
+    ).toEqual(["Leche ×3", "Pan", "Té — verde"]);
+  });
+
   it("drops the date and author of messages copied from WhatsApp", () => {
     expect(
       splitPastedList(

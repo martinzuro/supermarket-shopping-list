@@ -443,7 +443,9 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   cierra sin agregar queda en el campo, como un pegado común; una de varias
   líneas se descarta. Lo que no es lista se pega como siempre. Un segundo
   toque en "Agregar" mientras la hoja sale no agrega dos veces (también en
-  "Lo de siempre").
+  "Lo de siempre"). La nota que escribe "Mandar lo que falta" (" — _nota_" al
+  final de la línea) se descarta: su mensaje pegado vuelve con los mismos
+  productos (ver "Mandar lo que falta", abajo).
 - **Ya está en la lista** (`docs/improvements.md`, A-2). Un producto pendiente
   (mismo nombre normalizado; lo del carro no cuenta) no se agrega dos veces.
   En las sugerencias, lo pendiente que coincide va primero, pegado al campo,
@@ -483,6 +485,43 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   teclado de iOS (`visualViewport`, `use-keyboard-inset.ts`). Si la página
   estaba al final cuando la barra crece, un `window.scrollTo` la desplaza lo
   mismo: las últimas filas no quedan debajo, con el teclado abierto o cerrado.
+
+### Mandar lo que falta
+
+`SendPending` (`src/components/list/send-pending.tsx`, `docs/improvements.md`
+F-3), armado con piezas existentes, sin componente nuevo en `ui`.
+
+- **Botón.** En la cabecera de Pendientes, a la izquierda de "Ordenar el
+  recorrido" y pegado a él (los dos de 44px, los iconos a 24px): `ghost`,
+  `icon-touch`, icono de lucide con trazo 1.5. Con Web Share es el avión de
+  papel (`Send`, "Mandar lo que falta") y abre la hoja de compartir del
+  sistema con el texto; sin Web Share es `Copy` ("Copiar lo que falta") y
+  copia. El nombre dice lo que hace. Sin nada pendiente no está; el de
+  "Recorrido" no se mueve. Cerrar la hoja del sistema no avisa nada; otro
+  fallo al compartir copia, y un segundo toque mientras la hoja del sistema
+  está arriba no hace nada.
+- **Aviso de copiado.** Lo da la barra de abajo, donde salen las noticias de
+  la lista: `Banner` info "Copiamos lo que falta" con "Pegalo en el chat que
+  quieras." y cierre, 8 s, fuera del orden de los avisos de escrituras (como
+  "ya está en la lista" y "al carro": un rechazo le gana). Lo lee la región
+  `add-announcement`. La lista se lo pasa a la barra por un aviso guardado
+  por `QueryClient` (`useLastCopy`), sin props; una copia de antes de que la
+  barra se montara no se avisa.
+- **Copiar a mano.** Si tampoco se puede copiar, una `Sheet` desde abajo, "Lo
+  que falta", con la explicación y el texto como un mensaje citado: regla de
+  2px `rule-strong` a la izquierda, `whitespace-pre-wrap`, ya seleccionado y
+  con `select-all` (un toque lo vuelve a seleccionar entero). El foco va a la
+  hoja, no a su cierre; al cerrarla vuelve al botón.
+- **El texto** (`pendingText`, `src/lib/domain/pending-text.ts`), pensado para
+  WhatsApp y legible en cualquier chat, sin precios: "Lo que falta:", y por
+  categoría, en el orden del recorrido, el nombre en negrita de WhatsApp
+  terminado en ":" ("*Frutas y verduras:*") y un producto por línea con la
+  viñeta de lista de WhatsApp: "- Tomates 2 kg", "- Leche ×3 — _descremada_"
+  (la cuenta tras "×", la nota al final en cursiva tras una raya). Un solo
+  grupo va sin título de categoría. Pegado en el campo vuelve con los mismos
+  productos y cantidades (F-2).
+- Lo común con la hoja de compartir (`useCanShare`, `shareOrCopy`,
+  `selectText`) está en `src/components/share/web-share.ts`.
 
 ### Miembros, avisos y "traer lo de otra lista"
 
@@ -703,6 +742,14 @@ catálogo de la lista recuerda de cada producto agregado alguna vez.
   y su precio, un doble toque en "Agregar" agrega una vez, y una lista de una
   línea cerrada sin agregar queda en el campo.
   Con capturas a 375px en claro y oscuro.
+- `e2e/f3-share-text.spec.ts`: "Mandar lo que falta" con Web Share simulada
+  (`addInitScript`): la hoja del sistema recibe el texto exacto (recorrido,
+  "Otros" al final, cantidades, la nota, sin el carro), cerrarla no avisa, el
+  texto pegado en el campo marca todo como "Ya está en la lista" y sin nada
+  pendiente el botón no está. Sin Web Share: copia (el portapapeles tiene el
+  texto), la barra avisa y se cierra, y con el portapapeles rechazado la hoja
+  muestra el texto seleccionado y al cerrarla el foco vuelve al botón. Con
+  capturas a 375px en claro y oscuro.
 - `e2e/m5-forget.spec.ts`: "Productos guardados" en el menú (orden, cuántas
   veces, la búsqueda), olvidar un producto mal escrito con dos toques (un
   solo DELETE) y que deje de sugerirse, también tras recargar. Con capturas

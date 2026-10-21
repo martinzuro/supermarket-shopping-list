@@ -34,6 +34,10 @@ const CHECKBOX = /^\[[\sxX✓✔]?\]\s*/;
 const LEADING_MARKS = /^[^\p{L}\p{N}½¼¾]+/u;
 // WhatsApp's bold, italic and strikethrough ("*Leche*").
 const TRAILING_MARKS = /[*_~]+$/;
+// The note of a product as a sent list writes it (F-3, pendingText): last, in
+// italics after an em dash ("Leche ×3 — _descremada_"). Dropped before the
+// line is split, so its commas split nothing.
+const SENT_NOTE = /\s+—\s+_.+_$/u;
 // A comma or semicolon followed by a space separates products; a comma
 // between digits ("1,5 kg") does not. A semicolon always does.
 const SEPARATOR = /\s*;\s*|,\s+/;
@@ -86,7 +90,8 @@ function cut(text: string): string {
  * The products a pasted text names, as each would be typed in the add field
  * ("2 kg tomates"): one per line, and several on a line separated by commas
  * or semicolons. WhatsApp's date and author, bullets, numbering, checklist
- * marks and emoji in front go, and so do WhatsApp's bold and italic marks; a
+ * marks and emoji in front go, and so do WhatsApp's bold and italic marks and
+ * the note of a sent list (" — _nota_" at the end, F-3); a
  * line that is a title ("Súper:") or has no letters goes too; a part that
  * only says how much joins the product before it, if that one has no amount
  * of its own, and is dropped on its own. Each product once (the first time it
@@ -96,7 +101,9 @@ export function splitPastedList(text: string): string[] {
   const products: string[] = [];
   const seen = new Set<string>();
   for (const raw of text.split(/\r\n|\r|\n/)) {
-    const line = cleanLine(raw.trim().replace(WHATSAPP, ""));
+    const line = cleanLine(
+      raw.trim().replace(WHATSAPP, "").replace(SENT_NOTE, ""),
+    );
     if (line === "" || line.endsWith(":")) continue;
     const parts: string[] = [];
     for (const piece of line.split(SEPARATOR)) {

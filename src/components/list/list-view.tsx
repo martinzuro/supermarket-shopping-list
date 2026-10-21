@@ -17,6 +17,7 @@ import { EstimateLine } from "@/components/list/estimate-line";
 import { MembershipNotices } from "@/components/list/membership-notice";
 import { ListSection } from "@/components/list/list-section";
 import { RouteSheet } from "@/components/list/route-sheet";
+import { SendPending } from "@/components/list/send-pending";
 import { useDoubleTap } from "@/components/list/use-double-tap";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import { FullBagIllustration } from "@/components/illustrations";
@@ -484,20 +485,32 @@ export function ListView() {
         grouped
         footer={<EstimateLine estimate={estimateOf(pending)} />}
         action={
-          // The order of the groups is edited here: Pendientes hides the
-          // empty categories, so the route sheet lists them all.
-          ready && !groupsLoading && categories.data ? (
-            <Button
-              ref={routeButton}
-              type="button"
-              variant="ghost"
-              size="icon-touch"
-              aria-label={texts.route.open}
-              aria-haspopup="dialog"
-              onClick={() => setRouteOpen(true)}
-            >
-              <ArrowUpDown aria-hidden strokeWidth={1.5} />
-            </Button>
+          ready && !groupsLoading ? (
+            // Side by side, their 44px touching: the icons sit 24px apart.
+            <div className="flex items-center">
+              {/* What is pending, as a message (F-3). First, so the route
+                  button keeps its place when there is nothing to send. */}
+              <SendPending
+                items={items.data ?? []}
+                categories={categories.data ?? []}
+                visible={pending.length > 0}
+              />
+              {/* The order of the groups is edited here: Pendientes hides the
+                  empty categories, so the route sheet lists them all. */}
+              {categories.data ? (
+                <Button
+                  ref={routeButton}
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  aria-label={texts.route.open}
+                  aria-haspopup="dialog"
+                  onClick={() => setRouteOpen(true)}
+                >
+                  <ArrowUpDown aria-hidden strokeWidth={1.5} />
+                </Button>
+              ) : null}
+            </div>
           ) : undefined
         }
       >
