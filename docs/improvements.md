@@ -52,7 +52,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | F-1 | Modo compra                                         | Nada                  | Con la beta    |
 | F-2 | Pegar una lista                                     | Nada                  | Hecho          |
 | F-3 | Mandar lo que falta como texto                      | Nada                  | Hecho          |
-| F-4 | Historial de compras                                | Migración             | Después        |
+| F-4 | Historial de compras                                | Migración             | Hecho          |
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
 | F-6 | Presupuesto por compra                              | Migración             | Después        |
 
@@ -624,7 +624,91 @@ portapapeles.
 
 ### F-4. Historial de compras
 
-**Qué existe.** Vaciar el carro archiva todas las filas con un mismo
+**Estado: hecho el 2026-10-21**, a pedido del usuario después de F-3 (rama
+`feat/f4-trip-history`). Lo decidido al implementarlo:
+
+- **Modelo.** Una tabla `trips` (`id` generado en el cliente, `list_id`,
+  `emptied_at`, `emptied_by`, `created_at`, `updated_at`, `deleted_at`) e
+  `items.trip_id`, con una clave foránea compuesta `(list_id, trip_id)` como
+  la de `items.category_id`: una fila solo puede apuntar a una compra de su
+  lista (migración `20261021171423_trips.sql`). Vaciar el carro crea la
+  compra y marca sus filas; borrar un ítem, aunque esté en el carro, nunca la
+  crea. Si al correr no queda nada que archivar (se desmarcó todo, o el
+  "Deshacer" llegó antes), no se guarda ninguna compra.
+- **RPC, no escrituras del cliente.** `empty_cart` archiva las filas y guarda
+  la compra en una transacción, y `restore_trip` (el "Deshacer" de A-4)
+  devuelve las filas al carro sin `trip_id` y borra la compra (borrado
+  lógico): el historial nunca muestra una vaciada deshecha. Dos escrituras
+  del cliente en la cola de la lista (crear la compra, marcar las filas) eran
+  dos viajes y, si fallaba la segunda, dejaban una compra sin filas. Son
+  `SECURITY DEFINER` con `search_path` vacío, así `trips` queda de solo
+  lectura para los miembros, como el catálogo: el historial solo puede ser lo
+  que hicieron las vaciadas. Cada una comprueba primero la membresía
+  (bloqueando la fila de membresía, como `merge_list`) y toca solo filas de
+  esa lista. Son idempotentes: el reintento de una respuesta perdida
+  encuentra la compra con sus filas y las devuelve, y un "Deshacer" repetido
+  no cambia nada. Un trigger (`items_guard_trip_id`) rechaza `trip_id` a las
+  peticiones de la API: solo lo cambian esas dos funciones, así nadie agrega
+  una fila a una compra, ni la saca, a mano.
+- **Permisos.** Los miembros leen las compras de sus listas (policy por
+  membresía); nadie las inserta, edita ni borra (sin grants), así que una
+  compra no se puede mover a otra lista. Quien sale de la lista deja de
+  verlas; `anon` no tiene nada. Pruebas en `e2e/trips-db.spec.ts`.
+- **Fusión.** `private.copy_list_into` sigue copiando solo lo vivo: el
+  historial se queda en la lista donde se hizo. Unirse a la lista de otro
+  hogar no le muestra a nadie lo que uno compró antes.
+- **Datos viejos.** Sin relleno: no hay usuarios reales y una vaciada vieja
+  no se distingue de un borrado. El historial empieza con la migración.
+- **Cuánto.** Se guarda todo; la vista lee las últimas 20 compras
+  (`TRIP_LIMIT`, unos cinco meses de compra semanal) y, si hay más, lo dice.
+- **Realtime.** `trips` no entra en la publicación: el historial se lee cada
+  vez que se abre (`staleTime` 0), y vaciar y deshacer lo marcan para leerlo
+  de nuevo. Las filas siguen llegando por Realtime, ahora con su `trip_id`.
+- **Dónde.** En el menú, una sección "Compras anteriores" entre "Cuenta" y
+  "Productos guardados", y no en el carro. El historial sirve para planear la
+  compra siguiente, que es cuando el carro está vacío; el menú ya tiene lo
+  que la lista recuerda (M-5) y está siempre a mano sin sumarle nada a la
+  pantalla de todos los días. El momento "Buena compra" ya tiene dos
+  acciones.
+- **Vista.** Una fila por compra, la más nueva primero: el día ("Martes 20 de
+  octubre"; con el año solo si no es el actual, y con la hora si otra compra
+  cayó el mismo día), cuántos productos y el estimado por moneda, en mono, con
+  los precios que tenían (`tripEstimate`). Tocarla abre la hoja de repaso de
+  A-3 y F-2 (`ReviewSheet`): los productos en el orden del recorrido según la
+  categoría que tendrían hoy, todo tildado, cada uno con su cantidad, y lo
+  pendiente como "Ya está en la lista", que no se agrega. "Agregar N
+  productos" los suma en una escritura con la categoría y el precio del
+  catálogo, como cualquier alta (un producto olvidado en M-5 vuelve sin
+  ellos), y la barra avisa "Agregaste N productos" con "Deshacer".
+- **Sin dos modales.** El menú se cierra primero y la hoja de la compra se
+  abre cuando el menú ya se fue (su `onCloseAutoFocus`). Al agregar, el foco
+  vuelve al botón del menú; al cerrar sin agregar, el menú vuelve con el foco
+  en esa compra, para mirar otra.
+- **Alta de varios compartida.** El alta de varios con su aviso salió de
+  `AddItemBar` a `src/components/list/add-several.ts` (`useAddSeveral`,
+  `showAdded`, `useAddedNotice`), con el patrón del aviso de copiado de F-3
+  (un store por `QueryClient`): la barra lo muestra venga de su propia hoja o
+  de la del menú. Como el de copiado, toma el lugar del aviso info que tapa,
+  que no vuelve al cerrarlo.
+- Código: la migración `trips`, `useEmptyCart` y `useRestoreCart` en
+  `items.ts`, `src/lib/queries/trips.ts`, `src/lib/domain/trips.ts`,
+  `add-several.ts`, `trips-section.tsx`, `trip-review.tsx` y `app-menu.tsx`.
+  Pruebas en `trips.test.ts`, `trips.test.tsx`, `items.test.tsx`,
+  `trips-history.test.tsx`, `add-item-bar-catalog.test.tsx`,
+  `e2e/trips-db.spec.ts` y `e2e/f4-history.spec.ts`. Los e2e que vacían el
+  carro (`list`, `phase-2a` y `a4-undo`) esperan ahora la RPC.
+- Antes de desplegar, la migración tiene que estar en staging (`npx supabase
+  db push`): sin ella, vaciar el carro falla (la RPC no existe) y lo vaciado
+  vuelve a la lista con el aviso de error.
+- Queda abierto: "Agregar de nuevo" no trae las notas ("descremada"); el
+  historial de una lista anónima no viaja con el carry-over a una cuenta; dos
+  compras del mismo minuto se llaman igual (las distinguen la cuenta y el
+  total); una compra no se puede borrar del historial. Visto de paso, ya
+  pasaba antes de F-4: al agregar un producto frecuente, su píldora aparece
+  un instante en la fila de frecuentes antes de que llegue la fila, y con la
+  página al final la barra sube y baja la página bajo el dedo.
+
+**Qué existe** (antes de F-4). Vaciar el carro archiva todas las filas con un mismo
 `deleted_at` (`useEmptyCart`). Pero borrar un ítem que estaba en el carro
 también deja una fila marcada con `deleted_at`, y no se distingue de una
 compra de un solo producto.
@@ -677,4 +761,5 @@ Pendiente de decisión del usuario.
   2026-10-21) cubre "exportar lista como texto" de la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2 (hecha el 2026-10-21).
-- **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4, F-5 y F-6.
+- **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
+  2026-10-21), F-5 y F-6.

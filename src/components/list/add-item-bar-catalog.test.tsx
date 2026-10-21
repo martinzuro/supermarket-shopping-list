@@ -809,6 +809,23 @@ describe("Lo de siempre", () => {
   });
 });
 
+describe("the notice of an add of several", () => {
+  it("is old news after the bar mounts again", async () => {
+    const { queryClient, view } = await renderBar({ pending: ["Pan"] });
+    await addAllUsuals(3);
+    await waitFor(() =>
+      expect(banner()).toHaveTextContent(texts.addItem.usuals.added(3)),
+    );
+
+    // Back from another page: the same cache, a new bar.
+    view.unmount();
+    render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(banner()).toBeNull();
+  });
+});
+
 describe("notices of the writes of several", () => {
   it.each([
     [

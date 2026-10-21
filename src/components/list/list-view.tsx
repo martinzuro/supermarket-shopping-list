@@ -37,6 +37,7 @@ import {
   formatQuantity,
   lineTotal,
   groupByCategory,
+  newId,
   splitByChecked,
   type ItemGroup,
 } from "@/lib/domain";
@@ -53,11 +54,15 @@ import {
   useRemoveItem,
   useRestoreCart,
   useToggleItem,
+  type EmptyCart,
   type Item,
 } from "@/lib/queries";
 import { texts } from "@/lib/texts";
 
 type Place = "pending" | "cart";
+
+/** An emptying of the cart: when, and the trip it makes for the history. */
+type Emptying = Pick<EmptyCart, "deletedAt" | "tripId">;
 
 /** Id of the group of items that have no category (the list has no "Otros"). */
 const NO_CATEGORY = "none";
@@ -175,10 +180,10 @@ export function ListView() {
   const categories = useCategories(userId, listId);
   const emptyCart = useEmptyCart(userId ?? "", listId ?? "");
   const restoreCart = useRestoreCart(userId ?? "", listId ?? "");
-  // The archive time of the emptying whose moment is on screen. Plain state
-  // on purpose: the moment shows once per emptying, so after a dismiss or a
-  // reload there is nothing to remember.
-  const [emptied, setEmptied] = useState<string | null>(null);
+  // The emptying whose moment is on screen: its archive time and its trip
+  // (F-4). Plain state on purpose: the moment shows once per emptying, so
+  // after a dismiss or a reload there is nothing to remember.
+  const [emptied, setEmptied] = useState<Emptying | null>(null);
   // What that emptying took, as it was: "Deshacer" brings it back (A-4).
   const [emptiedRows, setEmptiedRows] = useState<readonly Item[]>([]);
   // Whether the cart has been seen empty during this moment. The optimistic
@@ -301,12 +306,12 @@ export function ListView() {
     const rows = cart.filter((item) => item.checked);
     const ids = rows.map((item) => item.id);
     if (ids.length === 0) return;
-    const deletedAt = new Date().toISOString();
-    setEmptied(deletedAt);
+    const emptying = { deletedAt: new Date().toISOString(), tripId: newId() };
+    setEmptied(emptying);
     setEmptiedRows(rows);
     setCartCleared(false);
     // A rejection brings the rows back, and that ends the moment (above).
-    emptyCart.mutate({ ids, deletedAt });
+    emptyCart.mutate({ ids, ...emptying });
   }
 
   function dismissMoment() {
@@ -318,15 +323,15 @@ export function ListView() {
   // rejected emptying does): the focus goes to "Vaciar el carro".
   function undoEmptying() {
     if (emptied === null) return;
-    const deletedAt = emptied;
+    const emptying = emptied;
     const rows = emptiedRows;
     restoreCart.mutate(
-      { ids: rows.map((item) => item.id), rows, deletedAt },
+      { ids: rows.map((item) => item.id), rows, ...emptying },
       {
         // A rejection hides the rows again: the moment comes back, with its
         // Deshacer to try again (the bar says it did not work).
         onError: () => {
-          setEmptied(deletedAt);
+          setEmptied(emptying);
           setEmptiedRows(rows);
           setCartCleared(false);
         },

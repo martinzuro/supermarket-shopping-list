@@ -52,3 +52,10 @@ export {
 export { addedQuantity, findPending, pendingMatchesFor } from "./duplicates";
 export { PASTE_LIMIT, pastedList, splitPastedList } from "./paste";
 export { pendingText } from "./pending-text";
+export {
+  formatTripDate,
+  formatTripTime,
+  sameDay,
+  tripAgain,
+  tripEstimate,
+} from "./trips";

@@ -163,6 +163,7 @@ function serverRow(partial: Partial<Item> & Pick<Item, "id" | "name">): Item {
     created_at: at(0),
     updated_at: at(1),
     deleted_at: null,
+    trip_id: null,
     ...partial,
   };
 }
@@ -1263,11 +1264,15 @@ describe("a change to an item with writes of the user's own pending", () => {
     });
     const { result, channel, queryClient } = await renderList([milk]);
     const archive = deferred<Result>();
-    updateItems.mockReturnValue(archive.promise);
+    callRpc.mockReturnValue(archive.promise);
     const AT = "2026-10-19T18:00:00.000Z";
 
     act(() =>
-      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+      result.current.emptyCart.mutate({
+        ids: ["milk"],
+        deletedAt: AT,
+        tripId: "trip",
+      }),
     );
     await waitFor(() => expect(cached(queryClient)[0].deleted_at).toBe(AT));
     channel.emit(

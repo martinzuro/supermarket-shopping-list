@@ -76,13 +76,36 @@ async function addAll(page: Page, names: string[]) {
   }
 }
 
-/** Waits for the list's writes to be answered (the check, the emptying...). */
+/** Waits for the list's writes to be answered (a check, an uncheck...). */
 function itemWriteAnswered(page: Page) {
   return page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/rest/v1/items" &&
       response.request().method() === "PATCH",
   );
+}
+
+/**
+ * Waits for the emptying, or its undo, to be answered: RPCs since F-4
+ * (empty_cart records the trip, restore_trip takes it out of the history).
+ */
+function rpcAnswered(page: Page, name: "empty_cart" | "restore_trip") {
+  return page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/rest/v1/rpc/${name}` &&
+      response.request().method() === "POST",
+  );
+}
+
+/** Every call of the page to the RPC, with its body. */
+function recordRpc(page: Page, name: string) {
+  const calls: unknown[] = [];
+  page.on("request", (request: Request) => {
+    if (new URL(request.url()).pathname === `/rest/v1/rpc/${name}`) {
+      calls.push(request.postDataJSON());
+    }
+  });
+  return calls;
 }
 
 for (const scheme of SCHEMES) {
@@ -149,9 +172,12 @@ for (const scheme of SCHEMES) {
         expect((await answered).ok()).toBe(true);
       }
 
-      const emptied = itemWriteAnswered(page);
+      const emptied = rpcAnswered(page, "empty_cart");
       await emptyAction(page).tap();
       await expect(moment(page)).toBeVisible();
+      const trip = (
+        (await emptied).request().postDataJSON() as { target_trip_id: string }
+      ).target_trip_id;
       expect((await emptied).ok()).toBe(true);
       const undo = moment(page).getByRole("button", {
         name: m.undo,
@@ -161,7 +187,8 @@ for (const scheme of SCHEMES) {
       await captureViewport(page, testInfo, `a4-moment-${scheme}`);
 
       const writes = recordItemWrites(page);
-      const restored = itemWriteAnswered(page);
+      const undos = recordRpc(page, "restore_trip");
+      const restored = rpcAnswered(page, "restore_trip");
       await undo.tap();
       // Back in the cart at once, and the moment gives way to it.
       await expect(row(cart(page), "Leche")).toBeVisible();
@@ -169,7 +196,9 @@ for (const scheme of SCHEMES) {
       await expect(moment(page)).toHaveCount(0);
       await expect(emptyAction(page)).toBeFocused();
       expect((await restored).ok()).toBe(true);
-      expect(writes).toEqual([{ method: "PATCH", body: { deleted_at: null } }]);
+      // One request, for that emptying's trip.
+      expect(undos).toEqual([{ target_trip_id: trip }]);
+      expect(writes).toEqual([]);
 
       // And on the server: a reload shows the same cart.
       await page.reload();
@@ -197,18 +226,12 @@ test.describe("A-4, a rejected Deshacer of the emptying", () => {
     const checked = itemWriteAnswered(page);
     await checkbox(page, "Leche").tap();
     expect((await checked).ok()).toBe(true);
-    const emptied = itemWriteAnswered(page);
+    const emptied = rpcAnswered(page, "empty_cart");
     await emptyAction(page).tap();
     expect((await emptied).ok()).toBe(true);
 
     // The server refuses to bring them back.
-    await page.route(/\/rest\/v1\/items(\?|$)/, async (route) => {
-      const body = route.request().postDataJSON() as {
-        deleted_at?: unknown;
-      } | null;
-      if (route.request().method() !== "PATCH" || body?.deleted_at !== null) {
-        return route.continue();
-      }
+    await page.route("**/rest/v1/rpc/restore_trip", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await route.fulfill({
         status: 403,
@@ -269,7 +292,7 @@ test.describe("A-4, the other member sees the cart come back", () => {
         await expect(row(cart(b), name)).toBeVisible({ timeout: SETUP_MS });
       }
 
-      const emptied = itemWriteAnswered(a);
+      const emptied = rpcAnswered(a, "empty_cart");
       await emptyAction(a).tap();
       expect((await emptied).ok()).toBe(true);
       for (const name of ["Leche", "Pan"]) {

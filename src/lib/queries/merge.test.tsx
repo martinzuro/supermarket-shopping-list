@@ -86,6 +86,7 @@ function row(
     created_at: "2026-10-19T00:00:00.000Z",
     updated_at: "2026-10-19T00:00:00.000Z",
     deleted_at: null,
+    trip_id: null,
     ...partial,
   };
 }

@@ -600,11 +600,45 @@ F-3), armado con piezas existentes, sin componente nuevo en `ui`.
   los botones para reintentar. Una lista propia vacía se fusiona sin
   preguntar.
 
+### Compras anteriores (menú)
+
+`TripsSection` (`src/components/menu/trips-section.tsx`,
+`docs/improvements.md` F-4) va en la hoja del menú entre "Cuenta" y
+"Productos guardados", separada por reglas: cada vez que se vació el carro,
+la más nueva primero. Se arma con piezas existentes, sin componente nuevo en
+`ui`.
+
+- Título `text-heading` ("Compras anteriores") y una línea de explicación en
+  tinta secundaria. Sin compras, una línea que dice que la próxima va a
+  quedar ahí; si hay más de 20, una línea en `text-label` lo dice.
+- **Fila.** Toda la fila es un botón (`aria-haspopup="dialog"`) de 56px como
+  mínimo, entre reglas de 1px como las de los otros listados del menú: arriba
+  el día en `text-row` ("Martes 20 de octubre"; con el año si no es este, y
+  con la hora, "Martes 20 de octubre, 18:40", si otra compra cayó el mismo
+  día), debajo en `text-label` tinta 2 cuántos productos y, separado por " ·
+  ", el estimado por moneda en mono (`tripEstimate`, con los precios que
+  tenían), y a la derecha un `ChevronRight` de lucide en tinta 2. Hover y
+  pressed con `--paper-hover` y `--paper-pressed`, en una banda sin radio que
+  sobresale 8px de las reglas a cada lado; el chevron se corre 2px al pasar el puntero (solo
+  `transform`, `motion-safe`). Su nombre accesible es lo que se ve dicho de
+  corrido ("Martes 20 de octubre, 3 productos, $ 315").
+- **Agregar de nuevo.** Tocar una compra cierra el menú y, cuando ya se fue,
+  abre la hoja de repaso (`TripReview`, `src/components/menu/trip-review.tsx`,
+  la misma `ReviewSheet` de "Lo de siempre" y de una lista pegada): el día
+  como título, los productos en el orden del recorrido según la categoría que
+  tendrían hoy, todo tildado y cada uno con su cantidad en mono, y lo
+  pendiente sin círculo con "Ya está en la lista". Nunca dos hojas modales a
+  la vez. "Agregar N productos" los suma en una escritura y la barra avisa
+  "Agregaste N productos" con "Deshacer" (el alta de varios compartida,
+  `add-several.ts`), cuando la hoja ya se fue. El foco vuelve al botón del
+  menú; si la hoja se cierra sin agregar, el menú vuelve con el foco en esa
+  compra.
+
 ### Productos guardados (menú)
 
 `ProductsSection` (`src/components/menu/products-section.tsx`, M-5) va en
-la hoja del menú debajo de "Cuenta", separada por una regla: lo que el
-catálogo de la lista recuerda de cada producto agregado alguna vez.
+la hoja del menú debajo de "Compras anteriores", separada por una regla: lo
+que el catálogo de la lista recuerda de cada producto agregado alguna vez.
 
 - Título `text-heading` ("Productos guardados"), una línea de explicación en
   tinta secundaria y un campo "Buscar producto" (`Field` + `Input`,
@@ -765,6 +799,19 @@ catálogo de la lista recuerda de cada producto agregado alguna vez.
   Deshacer del momento de carro vaciado (lo vaciado vuelve, también tras
   recargar; rechazado, el momento vuelve), y entre dos miembros que lo que vuelve le llega al otro en menos
   de 1 s. Con capturas a 375px en claro y oscuro.
+- `e2e/f4-history.spec.ts`: dos vaciadas son dos compras en "Compras
+  anteriores" (la más nueva primero, con la cuenta, el estimado y la hora),
+  el menú se cierra antes de que se abra la compra (nunca dos hojas), su
+  repaso en el orden del recorrido con lo pendiente afuera, agregar de nuevo
+  una parte en una sola petición con su cantidad y su precio por kilo, y el
+  aviso con "Deshacer"; un vaciado deshecho no deja compra (tampoco tras
+  recargar), y con dos miembros la compra de uno está en el historial del
+  otro. Con capturas a 375px en claro y oscuro. `e2e/trips-db.spec.ts`
+  prueba contra la base las RPC `empty_cart` y `restore_trip` (la compra y
+  sus filas, el reintento, sin compra fantasma, borrar no crea compras, dos
+  vaciadas a la vez, la fusión no trae el historial) y los permisos: un
+  miembro lee, alguien de afuera, quien salió y `anon` no, y nadie escribe
+  una compra ni `items.trip_id` a mano ni mueve una compra a otra lista.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.

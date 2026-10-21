@@ -82,13 +82,12 @@ function emptyAction(page: Page) {
   });
 }
 
-/** La respuesta al PATCH del vaciado (el único que lleva `id=in.(…)`). */
+/** La respuesta al vaciado: la RPC que archiva y guarda la compra (F-4). */
 function emptyCartWrite(page: Page) {
   return page.waitForResponse(
     (response) =>
-      response.request().method() === "PATCH" &&
-      response.url().includes("/rest/v1/items") &&
-      decodeURIComponent(response.url()).includes("id=in."),
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/rest/v1/rpc/empty_cart",
   );
 }
 

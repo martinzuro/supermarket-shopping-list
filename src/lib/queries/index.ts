@@ -67,6 +67,7 @@ export {
   type EmptyCart,
   type RestoreCart,
 } from "./items";
+export { useTrips, TRIP_LIMIT, type Trip, type TripHistory } from "./trips";
 export {
   useCategories,
   useCatalog,

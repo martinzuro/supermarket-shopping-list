@@ -114,6 +114,7 @@ function optimisticItem(
     created_at: now,
     updated_at: now,
     deleted_at: null,
+    trip_id: null,
   };
 }
 
@@ -488,7 +489,7 @@ export function useUndoAdd(userId: string, listId: string) {
         .filter((item) => item.deleted_at === deletedAt && !item.checked)
         .map((item) => item.id);
       if (ours.length === 0) return [];
-      return archiveItems(ours, deletedAt, false);
+      return archivePending(ours, deletedAt);
     },
     onMutate: async ({ ids, deletedAt }) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -731,18 +732,20 @@ export type EmptyCart = {
   ids: readonly string[];
   /** One archive time for the whole emptying, kept across retries. */
   deletedAt: string;
+  /**
+   * The trip the emptying makes (docs/improvements.md, F-4), generated here
+   * like every id: a retry after a lost answer finds it made.
+   */
+  tripId: string;
 };
 
 /**
- * Archives the rows that are, on the server, still live and in the cart
- * (`checked` true: emptying the cart) or still pending (false: undoing an
- * add). A row whose check was rejected meanwhile, or that someone checked or
- * unchecked, stays on the list.
+ * Archives the rows that are, on the server, still live and pending: undoing
+ * an add. A row someone checked meanwhile stays on the list, in the cart.
  */
-async function archiveItems(
+async function archivePending(
   ids: readonly string[],
   deletedAt: string,
-  checked: boolean,
 ): Promise<Item[]> {
   return unwrap(
     await createClient()
@@ -750,20 +753,36 @@ async function archiveItems(
       .update({ deleted_at: deletedAt })
       .in("id", [...ids])
       .is("deleted_at", null)
-      .eq("checked", checked)
+      .eq("checked", false)
       .select()
       .abortSignal(writeSignal()),
   );
 }
 
 /**
+ * The history shows a trip once it is made and no longer once it is undone.
+ * It is not in the Realtime publication: it is read when it is opened.
+ */
+function readTripsAgain(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+) {
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.trips(userId, listId),
+  });
+}
+
+/**
  * Empties the cart at the end of the shopping: the checked items are
- * archived (deleted_at, plan 3.2), all with one timestamp and one request.
- * Only the ids the user saw in the cart, and only while still checked: not a
- * row checked meanwhile by someone else, nor one whose check was rejected or
+ * archived (deleted_at, plan 3.2), all with one timestamp, and recorded as a
+ * trip for the history (docs/improvements.md, F-4), in one request: the RPC
+ * empty_cart (migration trips), which does both in one transaction. Only the
+ * ids the user saw in the cart, and only while still checked: not a row
+ * checked meanwhile by someone else, nor one whose check was rejected or
  * undone (it stays hidden until the refetch of settle brings it back as
- * pending). A rejection brings back the rows still marked with this
- * emptying's timestamp.
+ * pending). Nothing left to archive, no request and no trip. A rejection
+ * brings back the rows still marked with this emptying's timestamp.
  */
 export function useEmptyCart(userId: string, listId: string) {
   const queryClient = useQueryClient();
@@ -772,23 +791,33 @@ export function useEmptyCart(userId: string, listId: string) {
   return useMutation({
     mutationKey: itemMutationKeys.emptyCart(userId, listId),
     scope: listScope(listId),
-    mutationFn: async ({ ids, deletedAt }: EmptyCart) => {
+    mutationFn: async ({ ids, deletedAt, tripId }: EmptyCart) => {
       // Only rows still marked by this emptying: one whose insert was
-      // rejected meanwhile is gone, and that is not an error.
+      // rejected meanwhile is gone, and that is not an error. With none (it
+      // was undone before it left the queue) there is nothing to send.
       const items = queryClient.getQueryData<Item[]>(key) ?? [];
       const ours = items
         .filter((item) => ids.includes(item.id))
         .filter((item) => item.deleted_at === deletedAt && item.checked)
         .map((item) => item.id);
       if (ours.length === 0) return [];
-      return archiveItems(ours, deletedAt, true);
+      return unwrap(
+        await createClient()
+          .rpc("empty_cart", {
+            target_list_id: listId,
+            target_trip_id: tripId,
+            item_ids: ours,
+            emptied_at: deletedAt,
+          })
+          .abortSignal(writeSignal()),
+      );
     },
-    onMutate: async ({ ids, deletedAt }) => {
+    onMutate: async ({ ids, deletedAt, tripId }) => {
       await queryClient.cancelQueries({ queryKey: key });
       setItems(queryClient, key, (items) =>
         items.map((item) =>
           ids.includes(item.id) && item.deleted_at === null
-            ? { ...item, deleted_at: deletedAt }
+            ? { ...item, deleted_at: deletedAt, trip_id: tripId }
             : item,
         ),
       );
@@ -797,7 +826,7 @@ export function useEmptyCart(userId: string, listId: string) {
       setItems(queryClient, key, (items) =>
         items.map((item) =>
           ids.includes(item.id) && item.deleted_at === deletedAt
-            ? { ...item, deleted_at: null }
+            ? { ...item, deleted_at: null, trip_id: null }
             : item,
         ),
       );
@@ -810,7 +839,10 @@ export function useEmptyCart(userId: string, listId: string) {
         }
       }
     },
-    onSettled: () => settle(queryClient, key),
+    onSettled: () => {
+      readTripsAgain(queryClient, userId, listId);
+      return settle(queryClient, key);
+    },
   });
 }
 
@@ -822,8 +854,10 @@ export type RestoreCart = {
    * have dropped them from the cache, and they come back at once.
    */
   rows: readonly Item[];
-  /** The emptying's archive time: only what it archived comes back. */
+  /** The emptying's archive time, back on its rows if the undo is rejected. */
   deletedAt: string;
+  /** The emptying's trip: only what it took comes back, and it is undone. */
+  tripId: string;
 };
 
 /** Puts rows into the list in their place in the server's order. */
@@ -838,12 +872,15 @@ function insertInOrder(items: Item[], rows: readonly Item[]): Item[] {
 
 /**
  * Undoes an emptying of the cart (docs/improvements.md, A-4): the rows it
- * archived come back to the cart, still checked, in one request. Only rows
- * still archived with that emptying's time: if the emptying was rejected
- * (its rows are already back) or someone archived a row otherwise, nothing
- * else changes. It runs after the emptying in the list's queue. A rejection
- * hides the rows again, marked with the emptying's time until the refetch.
- * The catalog does not move: its trigger ignores an archive change.
+ * archived come back to the cart, still checked, in one request, and its
+ * trip leaves the history (the RPC restore_trip, migration trips, which
+ * soft-deletes it: no ghost trip). Only rows of that trip: if the emptying
+ * was rejected (its rows are already back) or someone archived a row
+ * otherwise, nothing else changes. It runs after the emptying in the list's
+ * queue; if the emptying had not left yet, there is no trip and the server
+ * changes nothing. A rejection hides the rows again, marked with the
+ * emptying's time and trip until the refetch. The catalog does not move: its
+ * trigger ignores an archive change.
  */
 export function useRestoreCart(userId: string, listId: string) {
   const queryClient = useQueryClient();
@@ -852,26 +889,20 @@ export function useRestoreCart(userId: string, listId: string) {
   return useMutation({
     mutationKey: itemMutationKeys.restoreCart(userId, listId),
     scope: listScope(listId),
-    mutationFn: async ({ ids, deletedAt }: RestoreCart) =>
+    mutationFn: async ({ tripId }: RestoreCart) =>
       unwrap(
         await createClient()
-          .from("items")
-          .update({ deleted_at: null })
-          .in("id", [...ids])
-          .eq("deleted_at", deletedAt)
-          .select()
+          .rpc("restore_trip", { target_trip_id: tripId })
           .abortSignal(writeSignal()),
       ),
-    onMutate: async ({ ids, rows, deletedAt }) => {
+    onMutate: async ({ ids, rows, tripId }) => {
       await queryClient.cancelQueries({ queryKey: key });
       setItems(queryClient, key, (items) => {
-        // The same instant, however written: after the emptying's answer
-        // the cache holds the server's "+00:00", not the client's "Z".
+        // By the trip, not by the archive time, which the emptying's answer
+        // spells as the server does ("+00:00", not the client's "Z").
         const back = items.map((item) =>
-          ids.includes(item.id) &&
-          item.deleted_at !== null &&
-          compareTimestamps(item.deleted_at, deletedAt) === 0
-            ? { ...item, deleted_at: null }
+          ids.includes(item.id) && item.trip_id === tripId
+            ? { ...item, deleted_at: null, trip_id: null }
             : item,
         );
         const missing = rows
@@ -879,15 +910,15 @@ export function useRestoreCart(userId: string, listId: string) {
             (row) =>
               ids.includes(row.id) && !items.some((item) => item.id === row.id),
           )
-          .map((row) => ({ ...row, deleted_at: null }));
+          .map((row) => ({ ...row, deleted_at: null, trip_id: null }));
         return insertInOrder(back, missing);
       });
     },
-    onError: (_error, { ids, deletedAt }) => {
+    onError: (_error, { ids, deletedAt, tripId }) => {
       setItems(queryClient, key, (items) =>
         items.map((item) =>
           ids.includes(item.id) && item.deleted_at === null && item.checked
-            ? { ...item, deleted_at: deletedAt }
+            ? { ...item, deleted_at: deletedAt, trip_id: tripId }
             : item,
         ),
       );
@@ -900,7 +931,10 @@ export function useRestoreCart(userId: string, listId: string) {
         }
       }
     },
-    onSettled: () => settle(queryClient, key),
+    onSettled: () => {
+      readTripsAgain(queryClient, userId, listId);
+      return settle(queryClient, key);
+    },
   });
 }
 

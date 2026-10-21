@@ -16,7 +16,12 @@ import {
   type Item,
 } from "./items";
 import { shouldRetryMutation } from "./errors";
-import { makeTable, makeTestQueryClient, makeWrapper } from "./test-utils";
+import {
+  makeRpc,
+  makeTable,
+  makeTestQueryClient,
+  makeWrapper,
+} from "./test-utils";
 
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
@@ -28,9 +33,13 @@ const write = vi.fn<(row: unknown) => Promise<Result>>();
 const update =
   vi.fn<(changes: unknown, filters: [string, unknown][]) => Promise<Result>>();
 const items = makeTable({ read, write, update });
+const rpc = vi.fn<(name: string, args: unknown) => Promise<Result>>();
 
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ from: () => items.builder() }),
+  createClient: () => ({
+    from: () => items.builder(),
+    rpc: makeRpc((name, args) => rpc(name, args)),
+  }),
 }));
 
 const rejection = {
@@ -55,6 +64,7 @@ function serverRow(partial: Partial<Item> & Pick<Item, "id" | "name">): Item {
     created_at: "2026-10-17T00:00:00.000Z",
     updated_at: "2026-10-17T00:00:00.000Z",
     deleted_at: null,
+    trip_id: null,
     ...partial,
   };
 }
@@ -101,6 +111,7 @@ beforeEach(() => {
   read.mockReset();
   write.mockReset();
   update.mockReset();
+  rpc.mockReset();
   items.insert.mockClear();
   items.update.mockClear();
 });
@@ -720,9 +731,19 @@ describe("writes queued behind an insert", () => {
 
 describe("useEmptyCart", () => {
   const AT = "2026-10-19T18:00:00.000Z";
+  const TRIP = "trip-1";
   const checked = { checked: true, checked_at: "2026-10-19T17:00:00.000Z" };
+  const emptyCall = (itemIds: string[]) => [
+    "empty_cart",
+    {
+      target_list_id: LIST,
+      target_trip_id: TRIP,
+      item_ids: itemIds,
+      emptied_at: AT,
+    },
+  ];
 
-  it("archives the cart at once with one timestamp and one request", async () => {
+  it("archives the cart into a trip at once, with one timestamp and one request", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", ...checked });
     const bread = serverRow({
       id: "bread",
@@ -733,34 +754,38 @@ describe("useEmptyCart", () => {
     const rice = serverRow({ id: "rice", name: "Arroz", position: 2 });
     const { result, queryClient } = await renderItems([milk, bread, rice]);
     const pending = deferred<Result>();
-    update.mockReturnValue(pending.promise);
+    rpc.mockReturnValue(pending.promise);
 
     act(() =>
       result.current.emptyCart.mutate({
         ids: ["milk", "bread"],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
+    // Out of the cart, and in the trip, before the server answers.
     await waitFor(() =>
       expect(
         cached(queryClient).filter((item) => item.deleted_at === null),
       ).toEqual([rice]),
     );
+    expect(
+      cached(queryClient)
+        .filter((item) => item.deleted_at === AT)
+        .map((item) => item.trip_id),
+    ).toEqual([TRIP, TRIP]);
     await waitFor(() =>
-      expect(items.update).toHaveBeenCalledWith({ deleted_at: AT }, [
-        ["id", ["milk", "bread"]],
-        ["deleted_at", null],
-        ["checked", true],
-      ]),
+      expect(rpc).toHaveBeenCalledWith(...emptyCall(["milk", "bread"])),
     );
-    expect(update).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
 
     read.mockResolvedValue({ data: [rice], error: null });
     await act(async () =>
       pending.resolve({
         data: [
-          { ...milk, deleted_at: AT },
-          { ...bread, deleted_at: AT },
+          { ...milk, deleted_at: AT, trip_id: TRIP },
+          { ...bread, deleted_at: AT, trip_id: TRIP },
         ],
         error: null,
       }),
@@ -768,25 +793,31 @@ describe("useEmptyCart", () => {
     await waitFor(() => expect(cached(queryClient)).toEqual([rice]));
   });
 
-  it("brings the cart back when the server rejects", async () => {
+  it("brings the cart back, out of the trip, when the server rejects", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", ...checked });
     const { result, queryClient } = await renderItems([milk]);
-    update.mockResolvedValue(rejection);
+    rpc.mockReturnValue(later(rejection));
+    // The refetch after it does not answer: the cache shows the rollback
+    // (and the mutation, waiting for that refetch, does not settle).
+    read.mockReturnValue(new Promise(() => {}));
 
     act(() =>
-      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+      result.current.emptyCart.mutate({
+        ids: ["milk"],
+        deletedAt: AT,
+        tripId: TRIP,
+      }),
     );
-    await waitFor(() => expect(result.current.emptyCart.isError).toBe(true));
-    expect(cached(queryClient)).toEqual([milk]);
+    await waitFor(() => expect(cached(queryClient)[0].trip_id).toBe(TRIP));
+    await waitFor(() => expect(cached(queryClient)).toEqual([milk]));
   });
 
   it("does not bring back a row a toggle answered while the emptying waited", async () => {
     const milk = serverRow({ id: "milk", name: "Leche" });
     const { result, queryClient } = await renderItems([milk]);
     const toggle = deferred<Result>();
-    update
-      .mockReturnValueOnce(toggle.promise)
-      .mockReturnValueOnce(new Promise(() => {}));
+    update.mockReturnValueOnce(toggle.promise);
+    rpc.mockReturnValue(new Promise(() => {}));
 
     act(() =>
       result.current.toggle.mutate({
@@ -796,7 +827,11 @@ describe("useEmptyCart", () => {
       }),
     );
     act(() =>
-      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+      result.current.emptyCart.mutate({
+        ids: ["milk"],
+        deletedAt: AT,
+        tripId: TRIP,
+      }),
     );
     await waitFor(() => expect(cached(queryClient)[0].deleted_at).toBe(AT));
 
@@ -804,8 +839,11 @@ describe("useEmptyCart", () => {
     await act(async () =>
       toggle.resolve({ data: { ...milk, ...checked }, error: null }),
     );
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
-    expect(cached(queryClient)[0].deleted_at).toBe(AT);
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    expect(cached(queryClient)[0]).toMatchObject({
+      deleted_at: AT,
+      trip_id: TRIP,
+    });
   });
 
   it("does not archive a row whose check was rejected while the emptying waited", async () => {
@@ -813,9 +851,8 @@ describe("useEmptyCart", () => {
     const bread = serverRow({ id: "bread", name: "Pan", position: 1 });
     const { result, queryClient } = await renderItems([milk, bread]);
     const toggle = deferred<Result>();
-    update
-      .mockReturnValueOnce(toggle.promise)
-      .mockReturnValueOnce(new Promise(() => {}));
+    update.mockReturnValueOnce(toggle.promise);
+    rpc.mockReturnValue(new Promise(() => {}));
 
     act(() =>
       result.current.toggle.mutate({ id: "bread", name: "Pan", checked: true }),
@@ -824,20 +861,14 @@ describe("useEmptyCart", () => {
       result.current.emptyCart.mutate({
         ids: ["milk", "bread"],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
     await act(async () => toggle.resolve(rejection));
 
     // Only Leche goes; Pan is pending again, hidden until the refetch.
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
-    expect(update.mock.calls[1]).toEqual([
-      { deleted_at: AT },
-      [
-        ["id", ["milk"]],
-        ["deleted_at", null],
-        ["checked", true],
-      ],
-    ]);
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    expect(rpc.mock.calls[0]).toEqual(emptyCall(["milk"]));
     expect(
       cached(queryClient).find((item) => item.id === "bread"),
     ).toMatchObject({
@@ -850,7 +881,7 @@ describe("useEmptyCart", () => {
     const { result } = await renderItems([milk]);
     const insert = deferred<Result>();
     write.mockReturnValue(insert.promise);
-    update.mockReturnValue(new Promise(() => {}));
+    rpc.mockReturnValue(new Promise(() => {}));
 
     const eggs = newItem("Huevos");
     act(() => result.current.add.mutate(eggs));
@@ -858,17 +889,39 @@ describe("useEmptyCart", () => {
       result.current.emptyCart.mutate({
         ids: ["milk", eggs.id],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
     await act(async () => insert.resolve(rejection));
 
     await waitFor(() =>
-      expect(items.update).toHaveBeenCalledWith({ deleted_at: AT }, [
-        ["id", ["milk"]],
-        ["deleted_at", null],
-        ["checked", true],
-      ]),
+      expect(rpc).toHaveBeenCalledWith(...emptyCall(["milk"])),
     );
+  });
+
+  it("marks the history to be read again once the trip is made", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const { result, queryClient } = await renderItems([milk]);
+    const trips = queryKeys.trips(USER, LIST);
+    queryClient.setQueryData(trips, { trips: [], more: false });
+    rpc.mockReturnValue(
+      later({
+        data: [{ ...milk, deleted_at: AT, trip_id: TRIP }],
+        error: null,
+      }),
+    );
+    read.mockResolvedValue({ data: [], error: null });
+
+    act(() =>
+      result.current.emptyCart.mutate({
+        ids: ["milk"],
+        deletedAt: AT,
+        tripId: TRIP,
+      }),
+    );
+    expect(queryClient.getQueryState(trips)?.isInvalidated).toBe(false);
+    await waitFor(() => expect(result.current.emptyCart.isSuccess).toBe(true));
+    expect(queryClient.getQueryState(trips)?.isInvalidated).toBe(true);
   });
 });
 
@@ -886,7 +939,9 @@ function later(result: Result, ms = 150) {
 
 describe("useRestoreCart", () => {
   const AT = "2026-10-21T18:00:00.000Z";
+  const TRIP = "trip-1";
   const checked = { checked: true, checked_at: "2026-10-21T17:00:00.000Z" };
+  const restoreCall = ["restore_trip", { target_trip_id: TRIP }];
 
   it("brings the emptied rows back to the cart at once, in one request", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", ...checked });
@@ -900,19 +955,18 @@ describe("useRestoreCart", () => {
     // After the emptying and its refetch: only Arroz is in the cache.
     const { result, queryClient } = await renderItems([rice]);
     const pending = deferred<Result>();
-    update.mockReturnValue(pending.promise);
+    rpc.mockReturnValue(pending.promise);
 
     act(() =>
       result.current.restoreCart.mutate({
         ids: ["milk", "bread"],
-        rows: [
-          { ...milk, deleted_at: AT },
-          { ...bread, deleted_at: AT },
-        ],
+        rows: [milk, bread],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
-    // Back in their place, checked, before the server answers.
+    // Back in their place, checked and out of the trip, before the server
+    // answers.
     await waitFor(() =>
       expect(cached(queryClient).map((item) => item.id)).toEqual([
         "milk",
@@ -921,15 +975,14 @@ describe("useRestoreCart", () => {
       ]),
     );
     expect(cached(queryClient).filter((item) => item.checked)).toHaveLength(2);
-    expect(cached(queryClient).every((item) => item.deleted_at === null)).toBe(
-      true,
-    );
-    await waitFor(() =>
-      expect(items.update).toHaveBeenCalledWith({ deleted_at: null }, [
-        ["id", ["milk", "bread"]],
-        ["deleted_at", AT],
-      ]),
-    );
+    expect(
+      cached(queryClient).every(
+        (item) => item.deleted_at === null && item.trip_id === null,
+      ),
+    ).toBe(true);
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith(...restoreCall));
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
 
     read.mockResolvedValue({ data: [milk, bread, rice], error: null });
     await act(async () =>
@@ -940,41 +993,45 @@ describe("useRestoreCart", () => {
     );
   });
 
-  it("unmarks rows the cache still shows archived by that emptying", async () => {
+  it("unmarks rows the cache still shows in that trip, and only those", async () => {
     const milk = serverRow({
       id: "milk",
       name: "Leche",
       ...checked,
       deleted_at: AT,
+      trip_id: TRIP,
     });
-    // Archived otherwise: it stays archived.
+    // Archived otherwise, in an older trip: it stays archived.
     const old = serverRow({
       id: "old",
       name: "Yerba",
       ...checked,
       deleted_at: "2026-10-14T18:00:00.000Z",
+      trip_id: "trip-0",
     });
     const { result, queryClient } = await renderItems([milk, old]);
-    update.mockReturnValue(new Promise(() => {}));
+    rpc.mockReturnValue(new Promise(() => {}));
 
     act(() =>
       result.current.restoreCart.mutate({
         ids: ["milk", "old"],
         rows: [milk, old],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
     await waitFor(() =>
       expect(cached(queryClient).find((item) => item.id === "milk")).toEqual({
         ...milk,
         deleted_at: null,
+        trip_id: null,
       }),
     );
     expect(cached(queryClient)).toHaveLength(2);
     expect(cached(queryClient).find((item) => item.id === "old")).toEqual(old);
   });
 
-  it("finds them by the instant, as the server writes it back", async () => {
+  it("finds them by their trip, however the server spelled the instant", async () => {
     // The emptying's answer put the server's spelling of the same instant in
     // the cache, before the refetch dropped the rows.
     const milk = serverRow({
@@ -982,73 +1039,88 @@ describe("useRestoreCart", () => {
       name: "Leche",
       ...checked,
       deleted_at: "2026-10-21T18:00:00+00:00",
+      trip_id: TRIP,
     });
     const { result, queryClient } = await renderItems([milk]);
-    update.mockReturnValue(new Promise(() => {}));
+    rpc.mockReturnValue(new Promise(() => {}));
 
     act(() =>
       result.current.restoreCart.mutate({
         ids: ["milk"],
         rows: [milk],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
     await waitFor(() =>
-      expect(cached(queryClient)).toEqual([{ ...milk, deleted_at: null }]),
+      expect(cached(queryClient)).toEqual([
+        { ...milk, deleted_at: null, trip_id: null },
+      ]),
     );
   });
 
-  it("hides them again when the server rejects", async () => {
+  it("hides them again, in their trip, when the server rejects", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", ...checked });
     const { result, queryClient } = await renderItems([]);
-    update.mockResolvedValue(rejection);
+    rpc.mockReturnValue(later(rejection));
+    // The refetch after it does not answer: the cache shows the rollback
+    // (and the mutation, waiting for that refetch, does not settle).
+    read.mockReturnValue(new Promise(() => {}));
 
     act(() =>
       result.current.restoreCart.mutate({
         ids: ["milk"],
-        rows: [{ ...milk, deleted_at: AT }],
+        rows: [milk],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
-    await waitFor(() => expect(result.current.restoreCart.isError).toBe(true));
-    expect(
-      cached(queryClient).filter((item) => item.deleted_at === null),
-    ).toEqual([]);
+    await waitFor(() => expect(ids(queryClient)).toEqual(["milk"]));
+    await waitFor(() =>
+      expect(cached(queryClient)).toEqual([
+        { ...milk, deleted_at: AT, trip_id: TRIP },
+      ]),
+    );
   });
 
   it("waits in the list's queue for an emptying already on its way", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", ...checked });
     const { result } = await renderItems([milk]);
     const emptying = deferred<Result>();
-    update
+    rpc
       .mockReturnValueOnce(emptying.promise)
       .mockReturnValueOnce(new Promise(() => {}));
 
     act(() =>
-      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+      result.current.emptyCart.mutate({
+        ids: ["milk"],
+        deletedAt: AT,
+        tripId: TRIP,
+      }),
     );
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
     act(() =>
       result.current.restoreCart.mutate({
         ids: ["milk"],
         rows: [milk],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
+    // Queued: nothing goes out until the emptying is answered.
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(rpc).toHaveBeenCalledTimes(1);
     await act(async () =>
-      emptying.resolve({ data: [{ ...milk, deleted_at: AT }], error: null }),
+      emptying.resolve({
+        data: [{ ...milk, deleted_at: AT, trip_id: TRIP }],
+        error: null,
+      }),
     );
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
-    expect(items.update.mock.calls[1]).toEqual([
-      { deleted_at: null },
-      [
-        ["id", ["milk"]],
-        ["deleted_at", AT],
-      ],
-    ]);
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(2));
+    expect(rpc.mock.calls[1]).toEqual(restoreCall);
   });
 
-  it("leaves an emptying that had not left yet with nothing to archive", async () => {
+  it("leaves an emptying that had not left yet with nothing to archive, and no trip", async () => {
     const milk = serverRow({ id: "milk", name: "Leche", ...checked });
     const bread = serverRow({ id: "bread", name: "Pan", position: 1 });
     const { result, queryClient } = await renderItems([milk, bread]);
@@ -1061,7 +1133,11 @@ describe("useRestoreCart", () => {
     );
     await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
     act(() =>
-      result.current.emptyCart.mutate({ ids: ["milk"], deletedAt: AT }),
+      result.current.emptyCart.mutate({
+        ids: ["milk"],
+        deletedAt: AT,
+        tripId: TRIP,
+      }),
     );
     await waitFor(() =>
       expect(cached(queryClient).find((i) => i.id === "milk")?.deleted_at).toBe(
@@ -1073,27 +1149,49 @@ describe("useRestoreCart", () => {
         ids: ["milk"],
         rows: [milk],
         deletedAt: AT,
+        tripId: TRIP,
       }),
     );
     await waitFor(() =>
-      expect(
-        cached(queryClient).find((i) => i.id === "milk")?.deleted_at,
-      ).toBeNull(),
+      expect(cached(queryClient).find((i) => i.id === "milk")).toMatchObject({
+        deleted_at: null,
+        trip_id: null,
+      }),
     );
 
-    update.mockResolvedValue({ data: [], error: null });
+    rpc.mockResolvedValue({ data: [], error: null });
     await act(async () =>
       toggle.resolve({ data: { ...bread, ...checked }, error: null }),
     );
-    // The emptying finds nothing marked by it and archives nothing; the
-    // restore unarchives nothing either.
+    // The emptying finds nothing marked by it: it sends nothing, so the
+    // server makes no trip. The undo finds none to undo.
     await waitFor(() =>
       expect(result.current.restoreCart.isSuccess).toBe(true),
     );
-    const archives = items.update.mock.calls.filter(
-      ([changes]) => (changes as { deleted_at?: string }).deleted_at === AT,
+    expect(rpc.mock.calls).toEqual([restoreCall]);
+  });
+
+  it("marks the history to be read again once the trip is undone", async () => {
+    const milk = serverRow({ id: "milk", name: "Leche", ...checked });
+    const { result, queryClient } = await renderItems([]);
+    const trips = queryKeys.trips(USER, LIST);
+    queryClient.setQueryData(trips, { trips: [], more: false });
+    rpc.mockReturnValue(later({ data: [milk], error: null }));
+    read.mockResolvedValue({ data: [milk], error: null });
+
+    act(() =>
+      result.current.restoreCart.mutate({
+        ids: ["milk"],
+        rows: [milk],
+        deletedAt: AT,
+        tripId: TRIP,
+      }),
     );
-    expect(archives).toEqual([]);
+    expect(queryClient.getQueryState(trips)?.isInvalidated).toBe(false);
+    await waitFor(() =>
+      expect(result.current.restoreCart.isSuccess).toBe(true),
+    );
+    expect(queryClient.getQueryState(trips)?.isInvalidated).toBe(true);
   });
 });
 
