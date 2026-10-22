@@ -320,7 +320,7 @@ describe("the add field as a combobox", () => {
 
     await waitFor(() =>
       expect(items.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "lec" }),
+        expect.objectContaining({ name: "Lec" }),
       ),
     );
   });
@@ -1079,7 +1079,7 @@ describe("a product that is already pending (A-2)", () => {
 
     await waitFor(() =>
       expect(items.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "leche" }),
+        expect.objectContaining({ name: "Leche" }),
       ),
     );
     expect(infoBanner()).toBeNull();
@@ -1284,7 +1284,7 @@ describe("a pasted list (F-2)", () => {
     const inserted = items.insert.mock.calls[0][0] as Record<string, unknown>[];
     expect(inserted).toEqual([
       expect.objectContaining({
-        name: "tomates",
+        name: "Tomates",
         quantity: 2,
         unit: "kg",
         category_id: VEGETABLES,
@@ -1365,5 +1365,94 @@ describe("a pasted list (F-2)", () => {
 
     expect(within(sheet).getAllByRole("checkbox")).toHaveLength(50);
     expect(within(sheet).getByText(p.limit(50))).toBeInTheDocument();
+  });
+});
+
+describe("names with a capital (M-6)", () => {
+  // A catalog written before M-6, or by someone who typed in lowercase:
+  // every way of adding saves the name with its first letter in capitals.
+  const lowercase = [
+    entry("leche", 5, {
+      last_category_id: DAIRY,
+      last_quantity: 2,
+    }),
+    entry("papel higiénico", 4),
+    entry("pan", 3),
+  ];
+
+  const p = texts.addItem.paste;
+  const r = texts.addItem.review;
+  const pasteSheet = () => screen.queryByRole("dialog", { name: p.title });
+  const insertedNames = () =>
+    ([] as { name: string }[])
+      .concat(items.insert.mock.calls[0][0] as { name: string })
+      .map((row) => row.name);
+
+  it("capitalizes what is typed and leaves the rest as typed", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar({ catalog: lowercase });
+    type(field, "  papel higiénico Suave ");
+    fireEvent.submit(field.form!);
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    expect(insertedNames()).toEqual(["Papel higiénico Suave"]);
+  });
+
+  it("capitalizes a suggestion the catalog remembers in lowercase", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const { field } = await renderBar({ catalog: lowercase });
+    type(field, "pap");
+
+    fireEvent.click(screen.getByRole("option", { name: /^papel higiénico/ }));
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    expect(insertedNames()).toEqual(["Papel higiénico"]);
+  });
+
+  it("capitalizes a frequent the catalog remembers in lowercase", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    await renderBar({ catalog: lowercase });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: texts.addItem.addProduct("papel higiénico"),
+      }),
+    );
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    expect(insertedNames()).toEqual(["Papel higiénico"]);
+  });
+
+  it("capitalizes what Lo de siempre adds", async () => {
+    await renderBar({ catalog: lowercase });
+
+    await addAllUsuals(3);
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    expect(insertedNames().sort()).toEqual(["Leche", "Pan", "Papel higiénico"]);
+  });
+
+  it("capitalizes a pasted list, line by line", async () => {
+    const { field } = await renderBar({ catalog: lowercase });
+    fireEvent.paste(field, {
+      clipboardData: { getData: () => "2 kg tomates\nleche x3\nñoquis" },
+    });
+    const sheet = await waitFor(() => pasteSheet()!);
+
+    fireEvent.click(within(sheet).getByRole("button", { name: r.add(3) }));
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    expect(insertedNames()).toEqual(["Tomates", "Leche", "Ñoquis"]);
+  });
+
+  it("puts back what was typed, as typed, when the server rejects it", async () => {
+    write.mockResolvedValue(rejection);
+    const { field } = await renderBar({ catalog: lowercase });
+    type(field, "papel higiénico");
+    fireEvent.submit(field.form!);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(texts.itemErrors.add("Papel higiénico"));
+    expect(field.value).toBe("papel higiénico");
   });
 });

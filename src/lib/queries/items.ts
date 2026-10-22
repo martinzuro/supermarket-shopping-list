@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import {
   DEFAULT_CURRENCY,
+  capitalizeName,
   compareServerOrder,
   compareTimestamps,
   newId,
@@ -70,6 +71,12 @@ export type NewItem = {
   currency: string;
 };
 
+/**
+ * Every add goes through here (the field, a suggestion, a frequent, "Lo de
+ * siempre", a pasted list, a past trip), so the name's first letter is
+ * capitalized here (M-6): whatever the catalog remembered in lowercase
+ * comes back capitalized, and the catalog follows the name written last.
+ */
 export function newItem(
   name: string,
   details: {
@@ -81,7 +88,7 @@ export function newItem(
 ): NewItem {
   return {
     id: newId(),
-    name: name.trim(),
+    name: capitalizeName(name.trim()),
     quantity: details.quantity ?? null,
     unit: details.unit ?? null,
     category_id: details.categoryId ?? null,

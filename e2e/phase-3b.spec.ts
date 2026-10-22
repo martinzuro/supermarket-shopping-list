@@ -101,13 +101,13 @@ for (const scheme of SCHEMES) {
       await openAndCreateList(page);
 
       // Nothing has a price: no total line, never "$ 0".
-      await add(page, "2 kg de tomates", "tomates");
+      await add(page, "2 kg de tomates", "Tomates");
       await expect(estimate(pending(page))).toHaveCount(0);
-      await expect(lineTotal(page, "tomates")).toHaveCount(0);
+      await expect(lineTotal(page, "Tomates")).toHaveCount(0);
 
       // 2 kg: the field is the price of a kilo, and the line says what two
       // cost, in mono, as it is typed.
-      await openEditor(page, "tomates");
+      await openEditor(page, "Tomates");
       const kilo = priceField(page, e.price.kg);
       await expect(kilo).toHaveAttribute("inputmode", "decimal");
       await expect(kilo).toHaveValue("");
@@ -125,7 +125,7 @@ for (const scheme of SCHEMES) {
       await captureViewport(page, testInfo, `edit-sheet-price-${scheme}`);
       await saveEditor(page);
 
-      await expect(lineTotal(page, "tomates")).toHaveText("$ 179");
+      await expect(lineTotal(page, "Tomates")).toHaveText("$ 179");
       await expect(estimate(pending(page))).toContainText(
         t.list.estimate.label,
       );
@@ -136,17 +136,17 @@ for (const scheme of SCHEMES) {
       ).toHaveCount(0);
 
       // An item without price does not add up, and the line says so.
-      await add(page, "leche");
-      await expect(lineTotal(page, "leche")).toHaveCount(0);
+      await add(page, "leche", "Leche");
+      await expect(lineTotal(page, "Leche")).toHaveCount(0);
       await expect(estimate(pending(page))).toContainText("$ 179");
       await expect(estimate(pending(page))).toContainText(
         t.list.estimate.covered(1, 2),
       );
 
       // A product in dollars makes a second total. No quantity counts as 1.
-      await add(page, "yerba");
-      await price(page, "yerba", e.price.unit, "10", DOLLARS);
-      await expect(lineTotal(page, "yerba")).toHaveText("US$ 10");
+      await add(page, "yerba", "Yerba");
+      await price(page, "Yerba", e.price.unit, "10", DOLLARS);
+      await expect(lineTotal(page, "Yerba")).toHaveText("US$ 10");
       await expect(estimate(pending(page))).toContainText("$ 179 · US$ 10");
       await expect(estimate(pending(page))).toContainText(
         t.list.estimate.covered(2, 3),
@@ -155,7 +155,7 @@ for (const scheme of SCHEMES) {
       await captureViewport(page, testInfo, `list-totals-${scheme}`);
 
       // The price of a litre follows the unit typed in the sheet, live.
-      await openEditor(page, "leche");
+      await openEditor(page, "Leche");
       await expect(priceField(page, e.price.unit)).toBeVisible();
       await editor(page)
         .getByRole("textbox", { name: e.unit, exact: true })
@@ -183,12 +183,12 @@ for (const scheme of SCHEMES) {
       await captureViewport(page, testInfo, `edit-sheet-price-error-${scheme}`);
       await page.keyboard.press("Escape");
       await expect(editor(page)).toBeHidden();
-      await expect(lineTotal(page, "leche")).toHaveCount(0);
+      await expect(lineTotal(page, "Leche")).toHaveCount(0);
 
       // Checking moves the amount from Pendientes to the cart.
-      await checkbox(page, "tomates").click();
-      await expect(row(cart(page), "tomates")).toBeVisible();
-      await expect(lineTotal(page, "tomates", cart(page))).toHaveText("$ 179");
+      await checkbox(page, "Tomates").click();
+      await expect(row(cart(page), "Tomates")).toBeVisible();
+      await expect(lineTotal(page, "Tomates", cart(page))).toHaveText("$ 179");
       await expect(estimate(cart(page))).toContainText("$ 179");
       await expect(
         estimate(cart(page)).locator('[data-slot="estimate-covered"]'),
@@ -203,28 +203,28 @@ for (const scheme of SCHEMES) {
 
       // A cart with nothing priced shows no total: the unchecked item goes
       // to the cart and Pendientes loses its line with its last priced item.
-      await checkbox(page, "yerba").click();
-      await expect(row(cart(page), "yerba")).toBeVisible();
+      await checkbox(page, "Yerba").click();
+      await expect(row(cart(page), "Yerba")).toBeVisible();
       await expect(estimate(cart(page))).toContainText("$ 179 · US$ 10");
       await expect(estimate(pending(page))).toHaveCount(0);
 
       // Both survive a reload, and the catalog gives the last price and
       // currency back to a product that is deleted and added again.
       await reload(page);
-      await expect(lineTotal(page, "yerba", cart(page))).toHaveText("US$ 10");
-      await checkbox(page, "yerba").click();
-      await expect(row(pending(page), "yerba")).toBeVisible();
-      await openEditor(page, "yerba");
+      await expect(lineTotal(page, "Yerba", cart(page))).toHaveText("US$ 10");
+      await checkbox(page, "Yerba").click();
+      await expect(row(pending(page), "Yerba")).toBeVisible();
+      await openEditor(page, "Yerba");
       const remove = removeButton(page);
       await remove.click();
       await expect(remove).toHaveAttribute("data-armed", "true");
       await remove.click();
-      await expect(row(pending(page), "yerba")).toHaveCount(0);
+      await expect(row(pending(page), "Yerba")).toHaveCount(0);
       await expect(estimate(pending(page))).toHaveCount(0);
-      await add(page, "yerba");
-      await expect(lineTotal(page, "yerba")).toHaveText("US$ 10");
+      await add(page, "yerba", "Yerba");
+      await expect(lineTotal(page, "Yerba")).toHaveText("US$ 10");
       await expect(estimate(pending(page))).toContainText("US$ 10");
-      await openEditor(page, "yerba");
+      await openEditor(page, "Yerba");
       await expect(priceField(page, e.price.unit)).toHaveValue("10");
       await expect(currency(page, DOLLARS)).toBeChecked();
       await page.keyboard.press("Escape");
@@ -237,7 +237,7 @@ for (const scheme of SCHEMES) {
       test.setTimeout(60_000);
       await openAndCreateList(page);
       const long =
-        "aceitunas rellenas con morrón importadas de España en frasco grande";
+        "Aceitunas rellenas con morrón importadas de España en frasco grande";
       await add(page, `12 un de ${long}`, long);
       await price(page, long, e.price.unit, "1.234,50", DOLLARS);
       await expect(lineTotal(page, long)).toHaveText("US$ 14.814");
@@ -277,8 +277,8 @@ for (const scheme of SCHEMES) {
     }, testInfo) => {
       test.setTimeout(60_000);
       await openAndCreateList(page);
-      await add(page, "2 kg de tomates", "tomates");
-      await openEditor(page, "tomates");
+      await add(page, "2 kg de tomates", "Tomates");
+      await openEditor(page, "Tomates");
       const sheet = editor(page);
       const footer = sheet.locator('[data-slot="sheet-footer"]');
       const save = sheet.getByRole("button", { name: e.save, exact: true });

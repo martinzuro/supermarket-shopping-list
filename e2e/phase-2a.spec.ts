@@ -208,13 +208,13 @@ type Added = { text: string; name: string; quantity?: string };
 
 const ITEMS: Added[] = [
   { text: "Pan", name: "Pan" },
-  { text: "2 kg de tomates", name: "tomates", quantity: "2 kg" },
+  { text: "2 kg de tomates", name: "Tomates", quantity: "2 kg" },
   { text: "Leche x3", name: "Leche", quantity: "3" },
   { text: "Yerba", name: "Yerba" },
   { text: "Fideos 2 paquetes", name: "Fideos", quantity: "2 paquetes" },
   {
     text: "1,5 L de aceite de girasol",
-    name: "aceite de girasol",
+    name: "Aceite de girasol",
     quantity: "1,5 L",
   },
   { text: "Lechuga", name: "Lechuga" },
@@ -225,11 +225,11 @@ const ITEMS: Added[] = [
 
 const CHECKED = [
   "Pan",
-  "tomates",
+  "Tomates",
   "Leche",
   "Yerba",
   "Fideos",
-  "aceite de girasol",
+  "Aceite de girasol",
 ];
 
 // This needs the local stack: `npm run db:start` locally; the CI E2E job starts it.

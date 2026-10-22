@@ -302,7 +302,7 @@ for (const scheme of SCHEMES) {
       await input.fill("len");
       await expect(options(page)).toHaveCount(1);
       await input.press("Enter");
-      await expect(row(pending(page), "len")).toBeVisible();
+      await expect(row(pending(page), "Len")).toBeVisible();
       await expect(listbox(page)).toHaveCount(0);
 
       // Escape closes the list and leaves the text.
