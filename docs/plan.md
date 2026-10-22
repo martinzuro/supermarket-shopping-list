@@ -84,6 +84,12 @@ actualizaciones optimistas.** [ADR 0003](decisions/0003-online-only.md)
     vuelo de la lista, tanto los ítems como el catálogo (lo cambian los
     triggers). Mientras hay escrituras en vuelo no hay refetch por foco ni
     por reconexión.
+  - La fila optimista llega un momento después de `mutate`: `onMutate`
+    espera a `cancelQueries`, y la caché avisa a sus observadores en un
+    `setTimeout`. Lo que cambia en el mismo gesto (el campo que se vacía) se
+    pinta antes. Lo que no debe verse en ese intervalo se deriva también de
+    las mutaciones pendientes (`useMutationState`), que cambian al enviar:
+    así la barra de añadir no ofrece como frecuente lo que acaba de agregar.
   - Reintentos solo ante status 0 (sin respuesta) o 5xx, con backoff y hasta
     tres veces; un rechazo (4xx) se revierte en el acto. Cada escritura
     tiene un timeout de 10 s, que cuenta como status 0. Si el reintento de

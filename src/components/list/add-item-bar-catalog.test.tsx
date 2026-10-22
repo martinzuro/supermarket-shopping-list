@@ -548,6 +548,41 @@ describe("the frequents row", () => {
     expect(field).toHaveFocus();
   });
 
+  // The field empties at once, but the optimistic row lands a moment later
+  // (useAddItem awaits cancelQueries first) and the server answers later
+  // still. Not pending yet, the product would show in the row for an
+  // instant, and the bar grow and shrink under the finger.
+  it("leaves out what was just typed while its add is on the way", async () => {
+    const answers: (() => void)[] = [];
+    write.mockImplementation(
+      (row) =>
+        new Promise((resolve) => answers.push(() => resolve(saved(row)))),
+    );
+    const { field, queryClient } = await renderBar();
+    const chip = (name: string) =>
+      within(frequents()!).queryByRole("button", {
+        name: texts.addItem.addProduct(name),
+      });
+    expect(chip("Leche")).not.toBeNull();
+
+    type(field, "leche");
+    fireEvent.submit(field.form!);
+    // Right after the add, before anything else runs: no Leche, and one
+    // less in "Lo de siempre".
+    expect(field.value).toBe("");
+    expect(chip("Leche")).toBeNull();
+    expect(chip("Arroz")).not.toBeNull();
+    expect(usualsButton(3)).not.toBeNull();
+
+    // Nor while the insert is in flight, nor once it is saved.
+    await waitFor(() => expect(answers).toHaveLength(1));
+    expect(chip("Leche")).toBeNull();
+    await act(async () => answers[0]());
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    expect(chip("Leche")).toBeNull();
+    expect(usualsButton(3)).not.toBeNull();
+  });
+
   it("brings a product with the quantity it is bought in, and its price in that basis", async () => {
     write.mockReturnValue(new Promise(() => {}));
     await renderBar();
@@ -664,6 +699,31 @@ describe("Lo de siempre", () => {
     ).toHaveTextContent(texts.addItem.usuals.added(3));
     // They are pending now: the button and their chips are gone.
     await waitFor(() => expect(usualsButton(3)).toBeNull());
+  });
+
+  it("leaves what it adds out of the row while the add is on the way", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    await renderBar();
+
+    fireEvent.click(usualsButton(4)!);
+    fireEvent.click(
+      await screen.findByRole("button", { name: texts.addItem.review.add(4) }),
+    );
+    // Right after the tap, before the optimistic rows land, the row offers
+    // only what was not added. (The sheet, on its way out, hides the rest of
+    // the page from screen readers.)
+    const row = screen.getByRole("group", {
+      name: texts.addItem.frequents,
+      hidden: true,
+    });
+    expect(
+      within(row)
+        .getAllByRole("button", { hidden: true })
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual([
+      texts.addItem.addProduct("Atún"),
+      texts.addItem.addProduct("Yerba"),
+    ]);
   });
 
   it("gives the focus back to the field only if it had it", async () => {

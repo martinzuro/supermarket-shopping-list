@@ -296,6 +296,36 @@ function lastCheckAt(
     );
 }
 
+/** This device's adds: of one product, or of several at once. */
+const ADD_KINDS = new Set(["add", "add-many"]);
+
+/**
+ * What this device's adds are sending, while they are on their way: each
+ * product's id and normalized name. Read from the mutation cache, which
+ * changes as the add is sent, in the same render as the field that empties;
+ * the optimistic row lands a moment later (onMutate awaits cancelQueries).
+ */
+function useAddsInFlight(userId: string, listId: string) {
+  return useMutationState({
+    filters: {
+      mutationKey: itemMutationKeys.all(userId, listId),
+      status: "pending",
+      predicate: (mutation) =>
+        ADD_KINDS.has(String(mutation.options.mutationKey?.at(-1))),
+    },
+    select: (mutation) => {
+      const sent =
+        mutation.options.mutationKey?.at(-1) === "add-many"
+          ? (mutation.state.variables as AddItems).items
+          : [mutation.state.variables as NewItem];
+      return sent.map((item) => ({
+        id: item.id,
+        name: normalizeName(item.name),
+      }));
+    },
+  });
+}
+
 /**
  * Movimientos del recorrido que el servidor rechazó. Con la hoja del
  * recorrido abierta el aviso sale ahí; esto cubre cuando ya se cerró (el
@@ -574,10 +604,23 @@ export function AddItemBar() {
         : [],
     [ready, items.data],
   );
-  const pendingNames = useMemo(
-    () => new Set(pendingItems.map((item) => item.name_normalized)),
-    [pendingItems],
-  );
+  // What was just sent counts as pending until its row is in the cache: in
+  // between, a frequent or usual product just added would come back to the
+  // row for an instant, and the bar grow and shrink (with the page at its
+  // end, useBarHeight moves the page under the finger). Once the row is
+  // there, the cache says (checked, it is in the cart). A rejected add drops
+  // its row but stays pending until settle's refetch ends: its name comes
+  // back then, with the notice of the rejection.
+  const addsInFlight = useAddsInFlight(userId ?? "", listId ?? "");
+  const pendingNames = useMemo(() => {
+    const names = new Set(pendingItems.map((item) => item.name_normalized));
+    if (!ready) return names;
+    const cached = new Set((items.data ?? []).map((item) => item.id));
+    for (const sent of addsInFlight.flat()) {
+      if (!cached.has(sent.id)) names.add(sent.name);
+    }
+    return names;
+  }, [ready, items.data, pendingItems, addsInFlight]);
   const parsed = useMemo(() => parseItemInput(query), [query]);
   // Lo pendiente que coincide va primero: es lo que más importa saber antes
   // de agregar algo que ya está. El catálogo completa hasta el límite.
