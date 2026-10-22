@@ -730,10 +730,17 @@ portapapeles.
   el repaso, productos (dos filas con el mismo nombre son "2 productos" en la
   fila y uno en el repaso); un segundo toque lento (después de los 320 ms en
   que el menú se va) sobre una compra cae en el velo de la hoja que se abre y
-  la cierra, y vuelve el menú. Visto de paso, ya
-  pasaba antes de F-4: al agregar un producto frecuente, su píldora aparece
-  un instante en la fila de frecuentes antes de que llegue la fila, y con la
-  página al final la barra sube y baja la página bajo el dedo.
+  la cierra, y vuelve el menú.
+- Visto de paso, ya pasaba antes de F-4, y arreglado aparte (2026-10-22):
+  al agregar un producto frecuente, su píldora aparecía un instante en la
+  fila de frecuentes antes de que llegara la fila (`onMutate` espera a
+  `cancelQueries` antes de escribir la optimista), y con la página al final
+  la barra subía y bajaba la página bajo el dedo. Ahora lo que las altas de
+  este dispositivo están enviando cuenta como pendiente hasta que su fila
+  esté en la caché (`useAddsInFlight` en `add-item-bar.tsx`, que lee las
+  mutaciones `add` y `add-many` pendientes): no vuelve como frecuente, ni a
+  "Lo de siempre", ni a las sugerencias. Pruebas en
+  `add-item-bar-catalog.test.tsx` y `e2e/frequent-in-flight.spec.ts`.
 
 **Qué existe** (antes de F-4). Vaciar el carro archiva todas las filas con un mismo
 `deleted_at` (`useEmptyCart`). Pero borrar un ítem que estaba en el carro
