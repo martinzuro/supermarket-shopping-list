@@ -126,7 +126,7 @@ describe("AddItemBar", () => {
       expect(items.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           list_id: LIST,
-          name: "tomates",
+          name: "Tomates",
           quantity: 2,
           unit: "kg",
         }),

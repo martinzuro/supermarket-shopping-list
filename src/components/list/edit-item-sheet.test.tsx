@@ -130,6 +130,57 @@ describe("EditItemSheet", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  describe("the name's first letter (M-6)", () => {
+    it("is saved in capitals, and only that letter", () => {
+      const { onSave } = renderSheet();
+      change(t.name, "  papel higiénico Suave ");
+      save();
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "milk" }),
+        { name: "Papel higiénico Suave" },
+      );
+    });
+
+    it("leaves a spelling chosen on purpose", () => {
+      const { onSave } = renderSheet();
+      change(t.name, "iPhone");
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.anything(), {
+        name: "iPhone",
+      });
+    });
+
+    it("saves nothing when the capital brings it back to the saved name", () => {
+      const { onSave, onClose } = renderSheet();
+      change(t.name, "leche");
+      save();
+      expect(onSave).not.toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("does not rename a name in lowercase that was not touched", () => {
+      const { onSave } = renderSheet(
+        makeItem({ name: "leche", name_normalized: "leche" }),
+      );
+      change(t.note, "La de cartón");
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.anything(), {
+        note: "La de cartón",
+      });
+    });
+
+    it("capitalizes an old name in lowercase once it is edited", () => {
+      const { onSave } = renderSheet(
+        makeItem({ name: "leche", name_normalized: "leche" }),
+      );
+      change(t.name, "leche descremada");
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.anything(), {
+        name: "Leche descremada",
+      });
+    });
+  });
+
   it("clears quantity, unit and note to null, and stores the canonical unit", () => {
     const { onSave } = renderSheet();
     change(t.quantity, "");

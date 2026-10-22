@@ -134,13 +134,13 @@ for (const scheme of SCHEMES) {
 
       await expect(sheet(page)).toHaveCount(0);
       // 2 kg at $ 90 a kilo; 3 at $ 45.
-      await expect(row(pending(page), "tomates")).toContainText(MONEY(180));
+      await expect(row(pending(page), "Tomates")).toContainText(MONEY(180));
       await expect(row(pending(page), "Leche")).toContainText(MONEY(135));
       await expect(checkbox(page, "Pan")).toHaveCount(1);
       await expect(row(pending(page), "Lechuga")).toHaveCount(0);
       await expect.poll(() => posts.length).toBe(1);
       expect((posts[0] as { name: string }[]).map((one) => one.name)).toEqual([
-        "tomates",
+        "Tomates",
         "Leche",
       ]);
       await expect(
@@ -171,10 +171,10 @@ for (const scheme of SCHEMES) {
       await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
 
       await expect(sheet(page)).toHaveCount(0);
-      await expect(row(pending(page), "arroz")).toBeVisible();
+      await expect(row(pending(page), "Arroz")).toBeVisible();
       await page.waitForTimeout(800);
       expect(posts).toHaveLength(1);
-      await expect(checkbox(page, "arroz")).toHaveCount(1);
+      await expect(checkbox(page, "Arroz")).toHaveCount(1);
     });
 
     test("a one-line list closed without adding stays in the field", async ({

@@ -798,17 +798,18 @@ documento propone un orden (A-1, A-2, A-4 y M-6 antes de la beta). El uso
 sin señal dentro del supermercado no está ahí: sigue como riesgo (sección
 6) y fase futura.
 
-Estado al 2026-10-21: A-2 (aviso de duplicados), A-3 (repaso de "Lo de
+Estado al 2026-10-22: A-2 (aviso de duplicados), A-3 (repaso de "Lo de
 siempre" y cantidad recordada en el catálogo, migración
 `catalog_last_quantity`, ya aplicada en staging), A-4 (deshacer al marcar y
 al vaciar el carro, guarda del doble toque en la lista), M-5 ("Productos
 guardados" en el menú para olvidar lo que el catálogo recuerda, migración
-`catalog_forget`), F-2 (pegar una lista en el campo, con repaso antes de
-agregarla), F-3 (mandar lo que falta como texto, que cubre "exportar lista
-como texto" de la Fase 4) y F-4 (historial de compras en el menú, con
-"Agregar de nuevo"; migración `trips`, ya aplicada en staging el 2026-10-21)
-están hechas, a pedido del usuario, antes de empezar la Fase 4; el detalle
-de lo decidido está en sus entradas.
+`catalog_forget`), M-6 (nombres con la primera letra en mayúscula al agregar
+y al guardar la edición, solo en el cliente), F-2 (pegar una lista en el
+campo, con repaso antes de agregarla), F-3 (mandar lo que falta como texto,
+que cubre "exportar lista como texto" de la Fase 4) y F-4 (historial de
+compras en el menú, con "Agregar de nuevo"; migración `trips`, ya aplicada
+en staging el 2026-10-21) están hechas, a pedido del usuario, antes de
+empezar la Fase 4; el detalle de lo decidido está en sus entradas.
 
 ---
 

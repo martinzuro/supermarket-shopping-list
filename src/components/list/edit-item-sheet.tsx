@@ -22,6 +22,7 @@ import {
 import {
   DEFAULT_CURRENCY,
   canonicalUnit,
+  capitalizeName,
   categoryKind,
   compareRouteOrder,
   fallbackCategory,
@@ -289,8 +290,11 @@ function EditForm({
     }
 
     const changes: Partial<EditableFields> = {};
-    if (name !== initial.name && trimmedName !== item.name) {
-      changes.name = trimmedName;
+    // Capitalized as on adding (M-6). A name the user did not touch is not
+    // rewritten: an old one in lowercase stays until it is edited.
+    const nextName = capitalizeName(trimmedName);
+    if (name !== initial.name && nextName !== item.name) {
+      changes.name = nextName;
     }
     if (
       quantityTouched &&

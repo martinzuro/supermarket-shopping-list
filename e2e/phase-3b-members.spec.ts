@@ -112,7 +112,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         const listB = await openAndCreateList(b);
         await field(a).fill("2 kg de tomates");
         await field(a).press("Enter");
-        await expect(row(pending(a), "tomates")).toBeVisible();
+        await expect(row(pending(a), "Tomates")).toBeVisible();
         // The insert's own event must be over before the channels rejoin, or
         // it reaches the joining page as a change by someone else ("Agregaron").
         await a.waitForTimeout(1500);
@@ -125,8 +125,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         expect(readA).toBe(listA.id);
         expect(readB).toBe(listA.id);
         for (const page of [a, b]) {
-          await expect(row(pending(page), "tomates")).toBeVisible();
-          expect(await totalsOf(page, "tomates")).toEqual({
+          await expect(row(pending(page), "Tomates")).toBeVisible();
+          expect(await totalsOf(page, "Tomates")).toEqual({
             row: "",
             estimate: "",
           });
@@ -150,7 +150,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         const save = () =>
           editor(b).getByRole("button", { name: e.save, exact: true });
         async function openEditorOfB() {
-          await rowName(pending(b), "tomates").click();
+          await rowName(pending(b), "Tomates").click();
           await expect(editor(b)).toBeVisible();
           await b.evaluate(() => document.fonts.ready);
         }
@@ -167,14 +167,14 @@ for (const colorScheme of ["light", "dark"] as const) {
           "1 B sets the price",
           b,
           a,
-          ["tomates"],
+          ["Tomates"],
           [],
-          t.remoteChanges.one.edited("tomates"),
+          t.remoteChanges.one.edited("Tomates"),
           () => save().click(),
-          () => showsTotals(a, "tomates", "$ 179", "$ 179"),
+          () => showsTotals(a, "Tomates", "$ 179", "$ 179"),
         );
         await expect(editor(b)).toBeHidden();
-        expect(await totalsOf(b, "tomates")).toEqual({
+        expect(await totalsOf(b, "Tomates")).toEqual({
           row: "$ 179",
           estimate: "$ 179",
         });
@@ -195,14 +195,14 @@ for (const colorScheme of ["light", "dark"] as const) {
           "2 B sets the currency",
           b,
           a,
-          ["tomates"],
+          ["Tomates"],
           [],
-          t.remoteChanges.one.edited("tomates"),
+          t.remoteChanges.one.edited("Tomates"),
           () => save().click(),
-          () => showsTotals(a, "tomates", "US$ 179", "US$ 179"),
+          () => showsTotals(a, "Tomates", "US$ 179", "US$ 179"),
         );
         await expect(editor(b)).toBeHidden();
-        expect(await totalsOf(b, "tomates")).toEqual({
+        expect(await totalsOf(b, "Tomates")).toEqual({
           row: "US$ 179",
           estimate: "US$ 179",
         });
@@ -213,18 +213,18 @@ for (const colorScheme of ["light", "dark"] as const) {
         // catalog followed B's change through Realtime, so it comes with B's
         // price and currency, with no reload.
         await catalogOfA;
-        await rowName(pending(a), "tomates").click();
+        await rowName(pending(a), "Tomates").click();
         await expect(editor(a)).toBeVisible();
         const remove = removeButton(a);
         await remove.click();
         await expect(remove).toHaveAttribute("data-armed", "true");
         await remove.click();
-        await expect(row(pending(a), "tomates")).toHaveCount(0);
+        await expect(row(pending(a), "Tomates")).toHaveCount(0);
         await field(a).fill("2 kg de tomates");
         await field(a).press("Enter");
-        await expect(row(pending(a), "tomates")).toBeVisible();
+        await expect(row(pending(a), "Tomates")).toBeVisible();
         await expect
-          .poll(() => totalsOf(a, "tomates"), { timeout: 3000 })
+          .poll(() => totalsOf(a, "Tomates"), { timeout: 3000 })
           .toEqual({ row: "US$ 179", estimate: "US$ 179" });
       } finally {
         reportSteps(steps, testInfo, "phase-3b-members");

@@ -116,6 +116,16 @@ beforeEach(() => {
   items.update.mockClear();
 });
 
+describe("newItem", () => {
+  it("capitalizes only the first letter of the name, after trimming it", () => {
+    expect(newItem("  papel higiénico Suave ").name).toBe(
+      "Papel higiénico Suave",
+    );
+    expect(newItem("🍅 tomates").name).toBe("🍅 Tomates");
+    expect(newItem("iPhone").name).toBe("iPhone");
+  });
+});
+
 describe("useAddItem (optimistic mutation pattern)", () => {
   it("shows the item at once, then replaces it with the server row", async () => {
     const { result, queryClient } = await renderItems([]);
@@ -152,6 +162,26 @@ describe("useAddItem (optimistic mutation pattern)", () => {
     await act(async () => pending.resolve({ data: created, error: null }));
     await waitFor(() => expect(result.current.add.isSuccess).toBe(true));
     expect(cached(queryClient)).toEqual([created]);
+  });
+
+  it("shows and sends the name in capitals, with the normalized name as before (M-6)", async () => {
+    const { result } = await renderItems([]);
+    write.mockReturnValue(new Promise(() => {}));
+
+    const input = newItem("papel higiénico");
+    act(() => result.current.add.mutate(input));
+
+    await waitFor(() =>
+      expect(result.current.list.data).toEqual([
+        expect.objectContaining({
+          name: "Papel higiénico",
+          name_normalized: "papel higienico",
+        }),
+      ]),
+    );
+    expect(items.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Papel higiénico" }),
+    );
   });
 
   it("sends and shows the price the catalog remembers, with its currency", async () => {
