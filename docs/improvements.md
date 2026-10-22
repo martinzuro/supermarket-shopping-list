@@ -731,7 +731,7 @@ portapapeles.
   fila y uno en el repaso); un segundo toque lento (después de los 320 ms en
   que el menú se va) sobre una compra cae en el velo de la hoja que se abre y
   la cierra, y vuelve el menú.
-- Visto de paso, ya pasaba antes de F-4, y arreglado aparte (2026-10-22):
+- Visto de paso, ya pasaba antes de F-4, y arreglado aparte (2026-10-22, #52):
   al agregar un producto frecuente, su píldora aparecía un instante en la
   fila de frecuentes antes de que llegara la fila (`onMutate` espera a
   `cancelQueries` antes de escribir la optimista), y con la página al final
