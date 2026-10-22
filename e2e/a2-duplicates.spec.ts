@@ -111,13 +111,13 @@ for (const scheme of SCHEMES) {
     }, testInfo) => {
       test.setTimeout(90_000);
       await openAndCreateList(page);
-      await typeAdd(page, "2 kg tomates", "tomates");
+      await typeAdd(page, "2 kg tomates", "Tomates");
       const writes = recordItemWrites(page);
       const input = field(page);
 
       await input.fill("tom");
       await expect(options(page)).toHaveCount(1);
-      await expect(options(page).first()).toContainText("tomates");
+      await expect(options(page).first()).toContainText("Tomates");
       await expect(options(page).first()).toContainText(d.inList("2 kg"));
       await captureViewport(page, testInfo, `a2-suggestion-${scheme}`);
 
@@ -125,7 +125,7 @@ for (const scheme of SCHEMES) {
       // it is said, and only closes.
       await input.fill("3 tom");
       await options(page).first().tap();
-      await expect(notice(page)).toContainText(d.title("tomates"));
+      await expect(notice(page)).toContainText(d.title("Tomates"));
       await expect(notice(page)).toContainText(d.quantity("2 kg"));
       await expect(
         notice(page).getByRole("button", { name: /^Sumar/ }),
@@ -134,7 +134,7 @@ for (const scheme of SCHEMES) {
         .getByRole("button", { name: texts.itemErrors.dismiss, exact: true })
         .tap();
       await expect(notice(page)).toHaveCount(0);
-      await expect(checkbox(page, "tomates")).toHaveCount(1);
+      await expect(checkbox(page, "Tomates")).toHaveCount(1);
       expect(writes).toEqual([]);
     });
 
@@ -147,7 +147,7 @@ for (const scheme of SCHEMES) {
       await checkbox(page, "Pan").tap();
       await expect(row(cart(page), "Pan")).toBeVisible();
 
-      await typeAdd(page, "pan", "pan");
+      await typeAdd(page, "pan", "Pan");
       await expect(notice(page)).toHaveCount(0);
       await expect(row(cart(page), "Pan")).toBeVisible();
     });

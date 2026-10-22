@@ -1,3 +1,4 @@
+export { capitalizeName } from "./capitalize-name";
 export { newId } from "./ids";
 export { normalizeName } from "./normalize-name";
 export { compareServerOrder, splitByChecked } from "./order";

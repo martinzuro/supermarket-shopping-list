@@ -46,7 +46,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | M-3 | "Buena compra" con resumen                          | Nada                  | Con la beta    |
 | M-4 | Categorías propias: crear, renombrar, borrar        | Migración             | Después        |
 | M-5 | Olvidar una sugerencia del catálogo                 | Migración             | Hecho          |
-| M-6 | Nombres con mayúscula inicial                       | Nada                  | Antes de beta  |
+| M-6 | Nombres con mayúscula inicial                       | Nada                  | Hecho          |
 | M-7 | Quién agregó cada producto                          | Migración             | Después        |
 | M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
 | F-1 | Modo compra                                         | Nada                  | Con la beta    |
@@ -409,13 +409,57 @@ lectura.
 
 ### M-6. Nombres con mayúscula inicial
 
-**Qué pasa.** Los nombres se guardan tal como se escriben: "tomates",
-"papel higienico". La lista mezcla "leche" y "Leche".
+**Estado: hecho el 2026-10-22**, a pedido del usuario después de F-4 (rama
+`feat/m6-capital-names`). Lo decidido al implementarlo:
 
-**Propuesta.** Al agregar y al guardar la edición, poner en mayúscula solo la
-primera letra del nombre, sin tocar el resto. Como el trigger copia el
-último nombre escrito a `display_name`, el catálogo queda igual.
-`name_normalized` no cambia.
+- La función es `capitalizeName` (`src/lib/domain/capitalize-name.ts`):
+  pura, cambia solo la primera letra y no toca el resto ("coca-Cola zero"
+  pasa a "Coca-Cola zero", "tomates Cherry" queda igual). Salta lo que haya
+  antes de esa letra: espacios, emojis y signos ("🍅 tomates" pasa a
+  "🍅 Tomates", "¿leche?" a "¿Leche?"). Una letra con tilde o eñe se trata
+  como cualquier otra.
+- "iPhone" y "eBay" quedan como están: una minúscula seguida de una
+  mayúscula se toma como una grafía elegida, no como una mayúscula olvidada.
+  Es la única excepción a "solo la primera letra", y vale solo para el
+  principio del nombre. Una letra cuya mayúscula no vuelve a ella al pasar a
+  minúscula ("ß" es "SS", "µ" pasa a una mu griega) también queda como está:
+  poner la mayúscula nunca cambia `name_normalized`.
+- Un nombre que empieza con un número queda como está ("7up", "2% leche"):
+  la primera letra que viene después no es el comienzo del nombre.
+- Se aplica en `newItem` (`src/lib/queries/items.ts`), por donde pasan
+  todas las altas (el campo, las sugerencias, los frecuentes, "Lo de
+  siempre", una lista pegada y "Agregar de nuevo" de una compra), y al
+  guardar en la hoja de edición (`edit-item-sheet.tsx`). La hoja compara el
+  nombre ya con la mayúscula: escribir "leche" sobre "Leche" no cambia nada.
+- Un nombre en minúscula que ya estaba y no se toca en la hoja no se
+  reescribe: queda así hasta que se edite. Tampoco cambian los que trae una
+  fusión de listas o un arrastre de pendientes, que se crean en la base.
+- `name_normalized` no cambia (`normalizeName` ignora las mayúsculas) y no
+  hay migración. El catálogo sigue al último nombre escrito: lo que recordaba
+  en minúscula ("yerba mate") pasa a "Yerba mate" la próxima vez que se
+  agrega, porque el trigger de alta copia el nombre al `display_name`. Una
+  edición que solo cambia la mayúscula no lo toca: el trigger de edición
+  mira `name_normalized`, no `name`, así que las sugerencias y los
+  frecuentes siguen en minúscula hasta la próxima alta. Una edición que
+  cambia el nombre de verdad sí crea la entrada nueva, ya con la mayúscula.
+- Las sugerencias, los frecuentes y las hojas de repaso muestran el nombre
+  como lo trae el catálogo o lo pegado; lo que se guarda lleva la mayúscula.
+  Lo escrito vuelve al campo tal cual si el servidor rechaza el alta, y el
+  aviso nombra el producto como se mostró en la lista.
+- Pruebas en `src/lib/domain/capitalize-name.test.ts`,
+  `src/lib/queries/items.test.tsx`, `src/components/list/edit-item-sheet.test.tsx`,
+  `src/components/list/add-item-bar-catalog.test.tsx`,
+  `src/components/menu/trips-history.test.tsx` y `e2e/m6-capitals.spec.ts`.
+  Los e2e y las pruebas que escribían un nombre en minúscula y lo esperaban
+  igual en la lista pasaron a esperarlo con la mayúscula.
+
+**Qué pasaba** (antes de M-6). Los nombres se guardaban tal como se
+escribían: "tomates", "papel higienico". La lista mezclaba "leche" y "Leche".
+
+**Propuesta original** (cumplida). Al agregar y al guardar la edición, poner
+en mayúscula solo la primera letra del nombre, sin tocar el resto. Como el
+trigger copia el último nombre escrito a `display_name`, el catálogo queda
+igual. `name_normalized` no cambia.
 
 **Requiere.** Nada fuera del cliente. Tests en `parse-item-input.test.ts` o
 donde viva la función.
@@ -784,8 +828,9 @@ de F-1.
 Pendiente de decisión del usuario.
 
 - **Antes de la beta** (baratas, definen la primera impresión): A-1, A-2
-  (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6. F-3 (hecha el
-  2026-10-21) cubre "exportar lista como texto" de la Fase 4.
+  (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6 (hecha el
+  2026-10-22). F-3 (hecha el 2026-10-21) cubre "exportar lista como texto"
+  de la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2 (hecha el 2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el

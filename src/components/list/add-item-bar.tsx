@@ -738,7 +738,7 @@ export function AddItemBar() {
       setAddFailure({
         key: `add:${item.id}`,
         at,
-        title: texts.itemErrors.add(name),
+        title: texts.itemErrors.add(item.name),
         body: restored
           ? texts.itemErrors.addRestored
           : texts.itemErrors.addLost,

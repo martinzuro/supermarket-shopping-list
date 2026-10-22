@@ -422,6 +422,33 @@ describe("Compras anteriores", () => {
     expect(items.insert).toHaveBeenCalledTimes(1);
   });
 
+  it("adds again a lowercase name from before M-6 with its first letter in capitals", async () => {
+    const OLD = {
+      id: "trip-old",
+      emptied_at: local(10, 10, 10),
+      items: [
+        bought("trip-old", "papel higiénico"),
+        bought("trip-old", "ñoquis", { position: 1 }),
+      ],
+    };
+    renderMenu([OLD]);
+    await openMenu();
+    fireEvent.click(tripRows()[0]);
+    // Alone on its day: named by the day.
+    const sheet = await reviewOpens(day(OLD.emptied_at));
+
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: texts.addItem.review.add(2) }),
+    );
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    expect(
+      (items.insert.mock.calls[0][0] as { name: string }[]).map(
+        (one) => one.name,
+      ),
+    ).toEqual(["Papel higiénico", "Ñoquis"]);
+  });
+
   it("takes the place of the notice it covers, which does not come back", async () => {
     renderMenu();
     // Leche is pending: typing it again leaves "ya está en la lista".

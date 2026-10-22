@@ -321,8 +321,8 @@ test.describe("list with the local Supabase stack", () => {
     await openList(page);
     const input = field(page);
 
-    await addWithEnter(page, "2 kg de tomates", "tomates");
-    const tomatoes = row(pending(page), "tomates");
+    await addWithEnter(page, "2 kg de tomates", "Tomates");
+    const tomatoes = row(pending(page), "Tomates");
     await expect(tomatoes).toContainText("2 kg");
     await expect(tomatoes.locator("[data-numeric]")).toHaveText("2 kg");
     await expect(count(pending(page))).toHaveText("1");
@@ -354,7 +354,7 @@ test.describe("list with the local Supabase stack", () => {
   test("the items persist after a reload", async ({ page }) => {
     await withoutServiceWorker(page);
     await openList(page);
-    await addWithEnter(page, "2 kg de tomates", "tomates");
+    await addWithEnter(page, "2 kg de tomates", "Tomates");
     await addWithEnter(page, "Leche x3", "Leche");
     const saved = nextWrite(page, "POST", "Pan");
     await addWithEnter(page, "Pan", "Pan");
@@ -367,7 +367,7 @@ test.describe("list with the local Supabase stack", () => {
     await expect(pending(page).locator("li")).toHaveCount(3);
     await expect(count(pending(page))).toHaveText("3");
     await expect(
-      row(pending(page), "tomates").locator("[data-numeric]"),
+      row(pending(page), "Tomates").locator("[data-numeric]"),
     ).toHaveText("2 kg");
     await expect(
       row(pending(page), "Leche").locator("[data-numeric]"),
@@ -383,30 +383,30 @@ test.describe("list with the local Supabase stack", () => {
   }) => {
     await withoutServiceWorker(page);
     await openList(page);
-    await addWithEnter(page, "2 kg de tomates", "tomates");
+    await addWithEnter(page, "2 kg de tomates", "Tomates");
     await addWithEnter(page, "Pan", "Pan");
 
     const checked = nextWrite(page, "PATCH");
-    await checkbox(page, "tomates").click();
-    await expect(row(cart(page), "tomates")).toBeVisible({
+    await checkbox(page, "Tomates").click();
+    await expect(row(cart(page), "Tomates")).toBeVisible({
       timeout: ACTION_MS,
     });
-    await expect(checkbox(page, "tomates")).toHaveAttribute(
+    await expect(checkbox(page, "Tomates")).toHaveAttribute(
       "aria-checked",
       "true",
     );
-    await expect(row(pending(page), "tomates")).toHaveCount(0);
+    await expect(row(pending(page), "Tomates")).toHaveCount(0);
     await expect(count(pending(page))).toHaveText("1");
     await expect(count(cart(page))).toHaveText("1");
     await expect(
-      row(cart(page), "tomates").locator("[data-numeric]"),
+      row(cart(page), "Tomates").locator("[data-numeric]"),
     ).toHaveText("2 kg");
 
     // El servidor lo guardó: sigue en el carro tras recargar.
     await checked;
     await page.reload();
-    await expect(row(cart(page), "tomates")).toBeVisible();
-    await expect(checkbox(page, "tomates")).toHaveAttribute(
+    await expect(row(cart(page), "Tomates")).toBeVisible();
+    await expect(checkbox(page, "Tomates")).toHaveAttribute(
       "aria-checked",
       "true",
     );
@@ -414,15 +414,15 @@ test.describe("list with the local Supabase stack", () => {
     await expect(count(pending(page))).toHaveText("1");
     await expect(count(cart(page))).toHaveText("1");
 
-    await checkbox(page, "tomates").click();
-    await expect(row(pending(page), "tomates")).toBeVisible({
+    await checkbox(page, "Tomates").click();
+    await expect(row(pending(page), "Tomates")).toBeVisible({
       timeout: ACTION_MS,
     });
-    await expect(checkbox(page, "tomates")).toHaveAttribute(
+    await expect(checkbox(page, "Tomates")).toHaveAttribute(
       "aria-checked",
       "false",
     );
-    await expect(row(cart(page), "tomates")).toHaveCount(0);
+    await expect(row(cart(page), "Tomates")).toHaveCount(0);
     await expect(count(pending(page))).toHaveText("2");
     await expect(count(cart(page))).toHaveCount(0);
   });
@@ -443,9 +443,9 @@ test.describe("list with the local Supabase stack", () => {
       await input.press("Enter");
 
       const notice = banner(page);
-      await expect(notice).toContainText(texts.itemErrors.add("tomates"));
+      await expect(notice).toContainText(texts.itemErrors.add("Tomates"));
       await expect(notice).toContainText(texts.itemErrors.addRestored);
-      await expect(row(pending(page), "tomates")).toHaveCount(0);
+      await expect(row(pending(page), "Tomates")).toHaveCount(0);
       await expect(pending(page).locator("li")).toHaveCount(0);
       await expect(
         pending(page).getByText(texts.list.pending.empty),
@@ -528,7 +528,7 @@ test.describe("list with the local Supabase stack", () => {
       page,
     }) => {
       await openList(page);
-      await addAndSync(page, "2 kg de tomates", "tomates");
+      await addAndSync(page, "2 kg de tomates", "Tomates");
 
       let patches = 0;
       page.on("request", (request) => {
@@ -540,7 +540,7 @@ test.describe("list with the local Supabase stack", () => {
         }
       });
 
-      await openEditor(page, "tomates");
+      await openEditor(page, "Tomates");
       const alert = editor(page).getByRole("alert");
 
       await editorField(page, texts.editItem.name).fill("");
@@ -548,7 +548,7 @@ test.describe("list with the local Supabase stack", () => {
       await expect(alert).toHaveText(texts.editItem.errors.name);
       await expect(editor(page)).toBeVisible();
 
-      await editorField(page, texts.editItem.name).fill("tomates");
+      await editorField(page, texts.editItem.name).fill("Tomates");
       await expect(alert).toHaveCount(0);
 
       for (const bad of ["0", "abc"]) {
@@ -559,9 +559,9 @@ test.describe("list with the local Supabase stack", () => {
       }
 
       expect(patches).toBe(0);
-      await expect(rowBehind(pending(page), "tomates")).toBeVisible();
+      await expect(rowBehind(pending(page), "Tomates")).toBeVisible();
       await expect(
-        rowBehind(pending(page), "tomates").locator("[data-numeric]"),
+        rowBehind(pending(page), "Tomates").locator("[data-numeric]"),
       ).toHaveText("2 kg");
     });
 
@@ -617,20 +617,20 @@ test.describe("list with the local Supabase stack", () => {
       page,
     }) => {
       await openList(page);
-      await addAndSync(page, "2 kg de tomates", "tomates");
+      await addAndSync(page, "2 kg de tomates", "Tomates");
       await rejectItems(page, "PATCH");
 
-      await openEditor(page, "tomates");
+      await openEditor(page, "Tomates");
       await editorField(page, texts.editItem.name).fill("tomates perita");
       await save(page);
 
       const notice = banner(page);
-      await expect(notice).toContainText(texts.itemErrors.edit("tomates"));
+      await expect(notice).toContainText(texts.itemErrors.edit("Tomates"));
       await expect(notice).toContainText(texts.itemErrors.editBody);
-      await expect(row(pending(page), "tomates")).toBeVisible();
-      await expect(row(pending(page), "tomates perita")).toHaveCount(0);
+      await expect(row(pending(page), "Tomates")).toBeVisible();
+      await expect(row(pending(page), "Tomates perita")).toHaveCount(0);
       await expect(
-        row(pending(page), "tomates").locator("[data-numeric]"),
+        row(pending(page), "Tomates").locator("[data-numeric]"),
       ).toHaveText("2 kg");
       await expect(editor(page)).toBeHidden();
 
@@ -704,7 +704,7 @@ test.describe("list with the local Supabase stack", () => {
         },
         {
           text: "2 kg de tomates",
-          name: "tomates",
+          name: "Tomates",
           category: "Frutas y verduras",
         },
         { text: "Pan", name: "Pan" },
@@ -725,7 +725,7 @@ test.describe("list with the local Supabase stack", () => {
       await expect(group(page, "Carnes y pescados")).toHaveCount(0);
 
       for (const [title, names] of [
-        ["Frutas y verduras", ["tomates", "Lechuga"]],
+        ["Frutas y verduras", ["Tomates", "Lechuga"]],
         ["Fiambres y lácteos", ["Yogur natural", "Leche"]],
         ["Limpieza", ["Lavandina"]],
         ["Otros", ["Pan"]],
@@ -802,7 +802,7 @@ test.describe("list with the local Supabase stack", () => {
       await input.press("Enter");
 
       const fruits = group(page, "Frutas y verduras");
-      await expect(row(fruits, "lechuga")).toBeVisible({ timeout: ACTION_MS });
+      await expect(row(fruits, "Lechuga")).toBeVisible({ timeout: ACTION_MS });
       await expect(group(page, texts.list.pending.uncategorized)).toHaveCount(
         0,
       );
@@ -810,10 +810,10 @@ test.describe("list with the local Supabase stack", () => {
 
       const posted = (await request).postDataJSON() as PostedItem;
       expect(posted.category_id).toBe(categories.get("Frutas y verduras"));
-      const saved = nextWrite(page, "POST", "lechuga");
+      const saved = nextWrite(page, "POST", "Lechuga");
       release();
       await saved;
-      await expect(row(fruits, "lechuga")).toBeVisible();
+      await expect(row(fruits, "Lechuga")).toBeVisible();
     });
 
     test("emptying the cart archives its rows and shows the moment once", async ({
@@ -955,13 +955,13 @@ test.describe("list with the local Supabase stack", () => {
         page,
       }, testInfo) => {
         await openList(page);
-        await addWithEnter(page, "2 kg de tomates", "tomates");
+        await addWithEnter(page, "2 kg de tomates", "Tomates");
         await addWithEnter(page, "Leche x3", "Leche");
         await addWithEnter(page, "Pan", "Pan");
         await addWithEnter(
           page,
           "1,5 L de aceite de girasol",
-          "aceite de girasol",
+          "Aceite de girasol",
         );
         await checkbox(page, "Pan").click();
         await expect(row(cart(page), "Pan")).toBeVisible({
@@ -985,7 +985,7 @@ test.describe("list with the local Supabase stack", () => {
         await seedList(page, [
           {
             text: "2 kg de tomates",
-            name: "tomates",
+            name: "Tomates",
             category: "Frutas y verduras",
           },
           { text: "Lechuga", name: "Lechuga", category: "Frutas y verduras" },
@@ -1056,20 +1056,20 @@ test.describe("list with the local Supabase stack", () => {
         await addAndSync(
           page,
           "1,5 L de aceite de girasol",
-          "aceite de girasol",
+          "Aceite de girasol",
         );
         await addWithEnter(page, "Pan", "Pan");
 
         // Una nota para que la hoja se vea completa.
-        await openEditor(page, "aceite de girasol");
+        await openEditor(page, "Aceite de girasol");
         await editorField(page, texts.editItem.note).fill("Marca Optimo");
         await save(page);
         await expect(editor(page)).toBeHidden({ timeout: ACTION_MS });
-        await expect(row(pending(page), "aceite de girasol")).toContainText(
+        await expect(row(pending(page), "Aceite de girasol")).toContainText(
           "Marca Optimo",
         );
 
-        await openEditor(page, "aceite de girasol");
+        await openEditor(page, "Aceite de girasol");
         await expect(editorField(page, texts.editItem.quantity)).toHaveValue(
           "1,5",
         );
