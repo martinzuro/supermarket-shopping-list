@@ -393,11 +393,12 @@ enabled = true
 
 # Overrides for the staging project (`npx supabase config diff/push`).
 # Everything else (anonymous sign-ins, OTP length, email templates) is taken
-# from the sections above. Note: on the Supabase free tier with the default
-# email provider, `config push` fails because email templates cannot be
-# changed; until Resend is configured (Phase 4) the remote emails only carry
-# the link, not the 6-digit code, and the rest of the auth settings are
-# applied through the Management API (PATCH /v1/projects/{ref}/config/auth).
+# from the sections above. On the Supabase free tier the email templates can
+# only be changed with a custom SMTP: staging sends through Resend, set up in
+# the dashboard (Authentication > Emails > SMTP Settings) so the API key stays
+# out of the repo. `config push` leaves that SMTP alone because it is not
+# declared here. Until a domain is verified (Phase 4) the sender is
+# `onboarding@resend.dev`, which only delivers to the Resend account's email.
 [remotes.staging]
 project_id = "kgfdcdoizwdtvcwkwxtz"
 
