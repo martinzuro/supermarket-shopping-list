@@ -55,6 +55,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | F-4 | Historial de compras                                | Migración             | Hecho          |
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
 | F-6 | Presupuesto por compra                              | Migración             | Después        |
+| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | Después        |
 
 ---
 
@@ -821,6 +822,80 @@ de F-1.
 **Requiere.** Migración si el tope se comparte entre miembros (columna en
 `lists`); solo local si no.
 
+### F-7. Ritmo por producto en "Lo de siempre"
+
+**Qué pasa.** El catálogo guarda de cada producto solo cuántas veces se
+agregó y la última vez (`times_added`, `last_added_at`), y "Lo de siempre"
+trata a todos igual: 3 o más altas en los últimos 60 días, todo tildado
+(`usualsOf` en `src/lib/domain/catalog.ts`). No distingue el agua de cada
+semana del ketchup de cada tres meses. Para lo semanal funciona; para lo que
+se compra cada varias semanas pasa lo contrario de lo que hace falta:
+mientras dura, aparece tildado cada semana y hay que destildarlo, y cuando
+toca comprarlo ya salió de la ventana de 60 días. Lo trimestral nunca llega
+a tres altas en 60 días, así que no entra. Los frecuentes tampoco miran
+fechas.
+
+**Propuesta.** Deducir el ritmo de cada producto de las compras guardadas
+(F-4: cada vaciado del carro es una compra con fecha y sus filas) y que la
+hoja de "Lo de siempre" separe lo que toca comprar de lo que todavía hay en
+casa. Misma píldora, misma hoja, nada que configurar.
+
+- **Lo que se ve.** La hoja de repaso (`review-sheet.tsx`), solo para "Lo
+  de siempre", en dos partes. Arriba, "Te toca comprar": lo que por su
+  ritmo se acaba antes de la próxima compra, tildado, en orden de recorrido
+  y con su cantidad, como hoy, y una línea secundaria con el ritmo ("Cada
+  compra", "Cada 3 semanas", "Cada 3 meses · última hace 11 semanas").
+  Abajo, plegado en una línea, "Todavía tenés (6)": los habituales que no
+  tocan todavía, destildados, con "hace 2 semanas · cada 3 meses"; se tilda
+  lo que se acabó antes. "Agregar N productos" y "Deshacer" siguen igual.
+  La lista pegada (F-2) y las compras anteriores (F-4) no cambian. El gesto
+  pasa de destildar cada semana lo que todavía hay a mirar y confirmar.
+- **Cómo aprende.** Ritmo del producto: la mediana de los días entre las
+  compras en que estuvo (con dos compras hay un primer valor; con tres o
+  más, uno confiable). Ritmo de la lista: la mediana de los días entre
+  compras del hogar (7 si no hay datos). Toca cuando `última compra +
+  ritmo` cae antes de `hoy + ritmo de la lista`: si no va ahora, se acaba
+  antes de la próxima vez. Para lo de cada semana se cumple siempre y se
+  muestra como "Cada compra" (ritmo ≤ 1,5× el de la lista), sin regla
+  aparte. Sigue siendo de siempre mientras no pasen más de 2× su ritmo
+  desde la última compra, con el piso de 60 días de hoy: lo trimestral no
+  se pierde a los dos meses y lo que se dejó de comprar se va solo. Sin
+  ritmo todavía (menos de dos compras) aplica la regla actual, así nada
+  regresa para un hogar nuevo. Las correcciones enseñan solas: tildar algo
+  en "Todavía tenés" es una compra que acorta su ritmo; destildar algo en
+  "Te toca" lo deja para la próxima.
+- **Descartado.** Un campo "cada cuánto" por producto: preciso, pero son
+  toques por producto que nadie completa, y "Cada compra" se aprende en dos
+  o tres semanas, así que un ajuste manual ganaría poco. Queda como posible
+  añadido en "Productos guardados" del menú si el uso real muestra que el
+  aprendizaje tarda. Niveles fijos (semanal, mensual, ocasional): obligan a
+  clasificar y no saben cuándo toca. Avisos en la lista ("se te está por
+  acabar"): más ruido; el momento de planificar es "Lo de siempre".
+- **Límites.** El historial empieza con la migración de F-4 (2026-10-21).
+  Lo trimestral tarda dos compras en tener ritmo; hasta entonces se escribe
+  como hoy. El valor está en lo semanal, quincenal y mensual, que se aprende
+  en uno o dos meses y es lo que hoy molesta o se olvida. El ritmo es de
+  cada lista, como el historial. Un toque opcional: mostrar el ritmo de
+  cada producto en "Productos guardados" (M-5).
+
+**Criterios de aceptación.** Con historial simulado de un hogar (agua en
+cada compra, detergente cada tres semanas, ketchup cada tres meses), la hoja
+tilda el agua siempre, el detergente la semana que toca y no las dos
+anteriores, y el ketchup a los tres meses sin que haya salido de la hoja.
+Un "Deshacer" de una vaciada no cuenta como compra. Tests de las funciones
+puras del ritmo en `src/lib/domain/` y uno de base de datos de la vista en
+`e2e/`.
+
+**Requiere.** Migración chica, sin columnas nuevas: una vista (por ejemplo
+`catalog_rhythm`) que por lista y producto dé cuántas veces se compró, la
+última fecha y la mediana de intervalos a partir de `trips` e
+`items.trip_id`, con `security_invoker` para que valgan las policies de
+miembros. Al calcularse en lectura, una vaciada deshecha (borrado lógico de
+la compra) deja de contar sola. El cliente la lee junto al catálogo
+(`useCatalog`), el ritmo va en funciones puras de `src/lib/domain/` como
+`usualsOf`, la hoja de repaso gana el grupo plegado y la línea secundaria, y
+los textos van en `texts.ts`.
+
 ---
 
 ## Lo que no se propone
@@ -841,4 +916,4 @@ Pendiente de decisión del usuario.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2 (hecha el 2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
-  2026-10-21), F-5 y F-6.
+  2026-10-21), F-5, F-6 y F-7.
