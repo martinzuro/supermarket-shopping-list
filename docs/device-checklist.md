@@ -24,9 +24,8 @@ Para los puntos de tiempo real hacen falta los dos teléfonos en la misma lista
       Ajustes › Safari › Avanzado › Datos de sitios web; en Android, Chrome ›
       Configuración del sitio › Borrar datos).
 - [ ] Un correo al que tengas acceso para convertir la cuenta (el enlace y el
-      código llegan ahí). En staging, Resend todavía no tiene dominio
-      verificado y solo entrega al correo de su cuenta: ese es el que sirve
-      para la prueba.
+      código llegan ahí). En staging los manda una cuenta de Gmail: si no
+      aparecen, revisá spam.
 
 ## 1. Instalación de la PWA (pendiente de la Fase 1)
 
