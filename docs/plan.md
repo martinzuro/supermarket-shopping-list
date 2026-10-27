@@ -474,8 +474,11 @@ Cuentas, hecho el 2026-10-17:
       `npx supabase migration list --linked`).
 - [ ] **Sentry**: pospuesto por decisión del 2026-10-17 para ahorrar
       tiempo. Se retoma en la Fase 4 junto con la observabilidad.
-- [ ] **Resend** puede esperar a la Fase 4; requiere dominio propio para
-      verificar.
+- [ ] **Resend**: cuenta creada el 2026-10-27. Sin dominio propio solo
+      entrega al correo de esa cuenta, así que mientras tanto el SMTP de
+      Supabase staging es Gmail con contraseña de aplicación (entrega a
+      cualquier dirección). Falta verificar un dominio propio y pasar a
+      Resend (Fase 4).
 
 **Salida:** repo remoto con CI en verde y cuentas creadas.
 
@@ -506,9 +509,10 @@ Editorial está construido y las pantallas existentes lo usan (PR 13 a 20,
 ver `docs/DESIGN_SYSTEM.md`). Pendiente de la Fase 1: instalación probada
 en iOS y Android (dispositivo real), que cubre el punto 1 de
 [device-checklist.md](device-checklist.md), y la revisión cruzada del sistema
-por un modelo distinto al que lo construyó. Limitación
-conocida: en staging los correos solo traen el enlace, no el código,
-hasta configurar Resend (plan gratuito de Supabase).
+por un modelo distinto al que lo construyó. Hasta el 2026-10-27 los correos
+de staging solo traían el enlace, no el código (plan gratuito de Supabase);
+ese día se configuró un SMTP propio (ver la Fase 0) y las plantillas en
+español, con enlace y código, se subieron con `npx supabase config push`.
 
 **Salida:** la app se instala como PWA, crea un usuario anónimo y su
 lista, muestra el layout final vacío y se despliega sola en cada merge.
@@ -751,6 +755,9 @@ Staging ya tiene todas las migraciones: se aplicaron el 2026-10-20 con
   (CSP, HSTS), dependencias auditadas.
 - **Email:** Resend como SMTP de Supabase con dominio verificado (SPF,
   DKIM, DMARC). El SMTP por defecto no sirve para usuarios reales.
+  Mientras tanto, desde el 2026-10-27 staging usa Gmail como SMTP (ver la
+  Fase 0); faltan el dominio verificado, el paso a Resend y el proyecto de
+  producción.
 - **Datos y legal:** página de privacidad simple, borrado de cuenta
   autoservicio, exportar lista como texto. Lo último quedó cubierto el
   2026-10-21 por F-3 de [improvements.md](improvements.md) ("Mandar lo que

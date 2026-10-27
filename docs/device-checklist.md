@@ -23,8 +23,9 @@ Para los puntos de tiempo real hacen falta los dos teléfonos en la misma lista
 - [ ] En los dos, la app abierta desde cero (sin datos del sitio: en iOS,
       Ajustes › Safari › Avanzado › Datos de sitios web; en Android, Chrome ›
       Configuración del sitio › Borrar datos).
-- [ ] Un correo al que tengas acceso para convertir la cuenta (el código llega
-      ahí; en staging, sin Resend, llega solo el enlace).
+- [ ] Un correo al que tengas acceso para convertir la cuenta (el enlace y el
+      código llegan ahí). En staging los manda una cuenta de Gmail: si no
+      aparecen, revisá spam.
 
 ## 1. Instalación de la PWA (pendiente de la Fase 1)
 
