@@ -160,9 +160,10 @@ describe("tripAgain", () => {
       [],
       categories,
     );
+    // Leche goes to its category by the dictionary (A-1); Pan has none here.
     expect(again.map((one) => [one.id, one.quantity])).toEqual([
-      ["a", 2],
       ["Leche", null],
+      ["a", 2],
     ]);
   });
 

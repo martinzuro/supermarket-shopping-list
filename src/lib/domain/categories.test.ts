@@ -106,18 +106,64 @@ describe("suggestCategory", () => {
     { name_normalized: "tomates", last_category_id: "c-veg" },
     { name_normalized: "lavandina", last_category_id: "c-gone" },
     { name_normalized: "yerba", last_category_id: null },
+    { name_normalized: "leche", last_category_id: "c-clean" },
   ];
 
   it("uses the category the catalog remembers, matching the normalized name", () => {
     expect(suggestCategory("  Tomates ", catalog, categories)).toBe("c-veg");
   });
 
+  it("lets the catalog win over the dictionary: a corrected category is kept", () => {
+    expect(suggestCategory("Leche", catalog, categories)).toBe("c-clean");
+  });
+
   it.each([
-    ["a product the catalog does not know", "Pan"],
-    ["a remembered category that no longer exists", "Lavandina"],
-    ["a catalog entry without category", "Yerba"],
+    ["Tomates frescos", "c-veg"],
+    ["Yogur natural", "c-dairy"],
+    ["papel higiénico", null],
+  ])("falls back to the dictionary for %j", (name, expected) => {
+    expect(suggestCategory(name, [], categories)).toBe(expected);
+  });
+
+  it("reaches the list's category of the dictionary's kind", () => {
+    expect(suggestCategory("Lavandina", [], categories)).toBe("c-clean");
+  });
+
+  it("is null when the list has no category of that kind", () => {
+    expect(suggestCategory("Yerba Canarias 1 kg", [], categories)).toBeNull();
+  });
+
+  it("skips a deleted category of the kind", () => {
+    const gone = [{ ...limpieza, deleted_at: NOW }, verduras, otros];
+    expect(suggestCategory("Lavandina", [], gone)).toBeNull();
+  });
+
+  it("takes the first of two categories of the same kind, along the route", () => {
+    const twin = category("c-clean-2", "Limpieza", 1);
+    expect(suggestCategory("Lavandina", [], [limpieza, twin])).toBe(
+      "c-clean-2",
+    );
+  });
+
+  it.each([
+    ["a product nobody knows", "Zapatillas"],
+    ["a name that could be two things", "Crema"],
   ])("is null (shown under Otros) for %s", (_label, name) => {
     expect(suggestCategory(name, catalog, categories)).toBeNull();
+  });
+
+  it("falls back to the dictionary when the remembered category is gone", () => {
+    expect(suggestCategory("Lavandina", catalog, categories)).toBe("c-clean");
+  });
+
+  it("falls back to the dictionary for a catalog entry without category", () => {
+    expect(suggestCategory("Yerba", catalog, categories)).toBeNull();
+    expect(
+      suggestCategory("Yerba", catalog, [
+        ...categories,
+        category("c-grocery", "Almacén", 4),
+      ]),
+    ).toBe("c-grocery");
   });
 });
 

@@ -673,11 +673,12 @@ test.describe("list with the local Supabase stack", () => {
 
     test("a fresh user's items go to the Otros group", async ({ page }) => {
       await openList(page);
-      const posted = await addAndPost(page, "Pan", "Pan");
-      await addWithEnter(page, "Leche x3", "Leche");
+      const posted = await addAndPost(page, "Pilas", "Pilas");
+      await addWithEnter(page, "Velas x3", "Velas");
 
-      // Unknown to the catalog: no category, shown under "Otros", so the
-      // catalog does not learn "Otros" as if it had been chosen.
+      // Unknown to the catalog and the dictionary: no category, shown under
+      // "Otros", so the catalog does not learn "Otros" as if it had been
+      // chosen.
       expect(posted.category_id).toBeNull();
 
       await expect(groupTitles(page)).toHaveText([
@@ -685,10 +686,39 @@ test.describe("list with the local Supabase stack", () => {
       ]);
       await expect(groupCounts(page)).toHaveText(["2"]);
       const otros = group(page, texts.list.pending.uncategorized);
-      await expect(row(otros, "Pan")).toBeVisible();
-      await expect(row(otros, "Leche")).toBeVisible();
+      await expect(row(otros, "Pilas")).toBeVisible();
+      await expect(row(otros, "Velas")).toBeVisible();
       await expect(count(pending(page))).toHaveText("2");
       await expect(pending(page).locator("h2")).toHaveCount(1);
+    });
+
+    test("a fresh user's known products go to their group without a touch (A-1)", async ({
+      page,
+    }) => {
+      await openList(page);
+      const posted = await addAndPost(page, "tomates", "Tomates");
+      await addWithEnter(page, "Yerba Canarias 1 kg", "Yerba Canarias");
+      await addWithEnter(page, "lavandina", "Lavandina");
+      await addWithEnter(page, "papel higiénico", "Papel higiénico");
+      await addWithEnter(page, "Pilas", "Pilas");
+
+      expect(posted.category_id).not.toBeNull();
+      await expect(groupTitles(page)).toHaveText([
+        "Frutas y verduras",
+        "Almacén",
+        "Limpieza",
+        "Higiene",
+        texts.list.pending.uncategorized,
+      ]);
+      for (const [title, name] of [
+        ["Frutas y verduras", "Tomates"],
+        ["Almacén", "Yerba Canarias"],
+        ["Limpieza", "Lavandina"],
+        ["Higiene", "Papel higiénico"],
+        [texts.list.pending.uncategorized, "Pilas"],
+      ] as const) {
+        await expect(row(group(page, title), name)).toBeVisible();
+      }
     });
 
     test("pending items are grouped in route order and groups come and go", async ({
@@ -707,7 +737,7 @@ test.describe("list with the local Supabase stack", () => {
           name: "Tomates",
           category: "Frutas y verduras",
         },
-        { text: "Pan", name: "Pan" },
+        { text: "Pilas", name: "Pilas" },
         { text: "Leche 2 L", name: "Leche", category: "Fiambres y lácteos" },
         { text: "Lechuga", name: "Lechuga", category: "Frutas y verduras" },
       ]);
@@ -728,7 +758,7 @@ test.describe("list with the local Supabase stack", () => {
         ["Frutas y verduras", ["Tomates", "Lechuga"]],
         ["Fiambres y lácteos", ["Yogur natural", "Leche"]],
         ["Limpieza", ["Lavandina"]],
-        ["Otros", ["Pan"]],
+        ["Otros", ["Pilas"]],
       ] as const) {
         for (const name of names) {
           await expect(row(group(page, title), name)).toBeVisible();
@@ -997,7 +1027,7 @@ test.describe("list with the local Supabase stack", () => {
           { text: "Leche 2 L", name: "Leche", category: "Fiambres y lácteos" },
           { text: "Lavandina", name: "Lavandina", category: "Limpieza" },
           { text: "Pan de campo", name: "Pan de campo", category: "Panadería" },
-          { text: "Fideos 2 paquetes", name: "Fideos" },
+          { text: "Pilas 2 paquetes", name: "Pilas" },
         ]);
         await checkAndSync(page, "Lechuga");
         await expect(groupTitles(page)).toHaveText([
