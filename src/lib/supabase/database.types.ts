@@ -225,6 +225,9 @@ isOneToOne: false
               "inviter_email": string,"list_id": string,"status": string
             }[]
                            },
+"keep_alive":
+{ Args: Record<PropertyKey, never>; Returns: boolean
+                           },
 "list_member_emails":
 { Args: { "target_list_id": string }; Returns: {
               "email": string,"joined_at": string,"role": string,"user_id": string
