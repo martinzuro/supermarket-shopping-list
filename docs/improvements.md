@@ -64,7 +64,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 ### A-1. Los productos nuevos caen en "Otros"
 
 **Estado: hecho el 2026-11-03**, a pedido del usuario (rama
-`fix/a1-seed-categories`, PR PR_NUMBER). Lo decidido al implementarlo:
+`fix/a1-seed-categories`, PR 57). Lo decidido al implementarlo:
 
 - El diccionario es `src/lib/domain/seed-categories.ts`: unos 400 productos
   por tipo de categoría, escritos en singular o plural y sin importar tildes
