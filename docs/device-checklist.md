@@ -18,7 +18,8 @@ Para los puntos de tiempo real hacen falta los dos teléfonos en la misma lista
       aplicaron ese día); sin ellas no funcionan el tiempo real fino (2b),
       compartir (2c), el recorrido (3a) ni el precio recordado con su unidad
       (3d).
-- [ ] iPhone con iOS al día, Safari. Modelo y versión: ______
+- [x] iPhone con iOS al día, Safari. Modelo y versión: iPhone 17 Pro Max,
+      iOS ______
 - [ ] Android con Chrome al día. Modelo y versión: ______
 - [ ] En los dos, la app abierta desde cero (sin datos del sitio: en iOS,
       Ajustes › Safari › Avanzado › Datos de sitios web; en Android, Chrome ›
@@ -59,8 +60,10 @@ Los dos:
 - [ ] "2 kg de tomates" y "Leche x3" entran con su cantidad y unidad.
 - [ ] Agregar cinco productos seguidos: el teclado no se cierra entre uno y
       otro, y el campo queda vacío cada vez.
-- [ ] Las últimas filas de la lista siempre se ven por encima de la barra de
-      añadir, con el teclado abierto y cerrado.
+- [ ] La barra de añadir no tapa el final de la lista: con una lista más larga
+      que la pantalla (unos 15 productos), al bajar hasta el final el último
+      producto se ve entero por encima de la barra. Lo mismo con el teclado
+      abierto, cuando la barra sube encima del teclado.
 
 ## 3. Autocompletado, frecuentes y "lo de siempre"
 
@@ -70,9 +73,15 @@ Los dos:
 - [ ] "2 kg tom" + tocar "Tomates" agrega 2 kg de tomates.
 - [ ] Con el campo vacío, la fila "Frecuentes" se desplaza con el dedo y un
       toque agrega; lo agregado sale de la fila.
-- [ ] "Lo de siempre" agrega varios de una vez, sin repetir lo que ya estaba
-      pendiente, y la barra dice "Agregaste N productos"; "Deshacer" (8
-      segundos) los saca. Un doble toque no los agrega dos veces.
+- [ ] "Lo de siempre" es el primer botón de la fila de frecuentes y aparece
+      cuando al menos dos productos se agregaron tres veces o más en los
+      últimos 60 días y no están pendientes. Una lista nueva no lo tiene: para
+      prepararlo, agregar "Leche" y "Pan", marcarlos y vaciar el carro, tres
+      veces (un producto pendiente no se puede agregar de nuevo). Tocarlo abre
+      la hoja "Lo de siempre", todo tildado y con la última cantidad;
+      "Agregar N productos" los suma sin repetir lo que ya estaba pendiente,
+      la barra dice "Agregaste N productos" y "Deshacer" (8 segundos) los
+      saca. Un doble toque no los agrega dos veces.
 - [ ] En una lista recién creada (sin historial) no aparece la fila de
       frecuentes.
 
@@ -149,14 +158,15 @@ teléfono que hizo el cambio):
 
 | Punto | iPhone | Android | Notas |
 | ----- | ------ | ------- | ----- |
-| 1. PWA | | | |
-| 2. Añadir | | | |
-| 3. Autocompletado | | | |
-| 4. Categorías | | | |
-| 5. Precio | | | |
-| 6. Notas | | | |
+| 1. PWA | OK | | |
+| 2. Añadir | OK | | |
+| 3. Autocompletado | OK | | |
+| 4. Categorías | OK | | |
+| 5. Precio | OK | | |
+| 6. Notas | OK | | |
 | 7. Tiempo real | | | |
 | 8. Compartir | | | |
 | 9. Accesibilidad | | | |
 
-Fecha y quién lo hizo: ______
+Fecha y quién lo hizo: iPhone, puntos 1 a 6, Martin Zuro, informado el
+2026-11-03. Pendientes: 7 a 9 en iPhone y todo en Android.
