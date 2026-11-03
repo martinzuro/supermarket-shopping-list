@@ -55,7 +55,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | F-4 | Historial de compras                                | Migración             | Hecho          |
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
 | F-6 | Presupuesto por compra                              | Migración             | Después        |
-| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | Después        |
+| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | En curso       |
 
 ---
 
@@ -852,6 +852,29 @@ de F-1.
 `lists`); solo local si no.
 
 ### F-7. Ritmo por producto en "Lo de siempre"
+
+**Estado: en curso desde el 2026-11-03**, a pedido del usuario, en dos PRs:
+primero la base y las funciones puras (rama `feat/f7-product-rhythm`),
+después la hoja. Lo decidido en el primero:
+
+- La migración `20261103130138_catalog_rhythm.sql` crea dos vistas con
+  `security_invoker`, de solo lectura para `authenticated`:
+  `catalog_rhythm` (por lista y producto: `times_bought`, `last_bought_at`
+  y `interval_days`, la mediana en días de los huecos entre las compras en
+  que estuvo, nula con una sola) y `list_rhythm` (por lista: `trips_count`
+  e `interval_days`, la mediana entre sus compras). Un producto cuenta una
+  vez por compra; una vaciada deshecha o una fila borrada del todo dejan de
+  contar solas. No hay columnas nuevas ni relleno.
+- Las reglas viven en `src/lib/domain/rhythm.ts`: `listIntervalDays` (7
+  sin datos), `hasRhythm` (hacen falta dos compras), `rhythmKind` ("cada
+  compra" hasta 1,5× el hueco de la lista), `isDue` (se acaba antes de la
+  próxima compra, un hueco de la lista más adelante), `isStillUsual` (2×
+  su hueco, con el piso de 60 días) y `periodOf` (días hasta dos semanas,
+  semanas hasta seis, meses desde ahí). Pruebas en `rhythm.test.ts` y
+  `e2e/f7-rhythm-db.spec.ts`.
+- Queda para el segundo PR: leer las vistas junto al catálogo, releerlas al
+  vaciar y deshacer, partir la hoja en "Te toca comprar" y "Todavía tenés",
+  los textos y la muestra en `/design`.
 
 **Qué pasa.** El catálogo guarda de cada producto solo cuántas veces se
 agregó y la última vez (`times_added`, `last_added_at`), y "Lo de siempre"
