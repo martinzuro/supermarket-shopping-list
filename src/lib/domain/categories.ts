@@ -1,6 +1,7 @@
 import type { CategoryId } from "@/lib/design/tokens";
 import type { Tables } from "@/lib/supabase/database.types";
 import { normalizeName } from "./normalize-name";
+import { seedKind } from "./seed-categories";
 import { compareTimestamps } from "./timestamps";
 
 type Item = Tables<"items">;
@@ -46,10 +47,12 @@ export function fallbackCategory<C extends Category>(
 }
 
 /**
- * Category for a new item: the one the catalog remembers for that product,
- * if it still exists, or null, which the list shows under "Otros". Not the
- * Otros id itself: the catalog trigger would then remember "Otros" as if it
- * had been chosen, and a later remembered category could be overwritten.
+ * Category for a new item: the one the catalog remembers for that product, if
+ * it still exists (what the user chose always wins), else the one that the
+ * seed dictionary gives for its kind (A-1), else null, which the list shows
+ * under "Otros". Never the Otros id itself: the catalog trigger would then
+ * remember "Otros" as if it had been chosen, and a later remembered category
+ * could be overwritten.
  */
 export function suggestCategory(
   name: string,
@@ -60,10 +63,16 @@ export function suggestCategory(
   const remembered = catalog.find(
     (entry) => entry.name_normalized === key,
   )?.last_category_id;
-  const live = categories.find(
-    (category) => category.id === remembered && category.deleted_at == null,
+  const live = categories.filter((category) => category.deleted_at == null);
+  const own = live.find((category) => category.id === remembered);
+  if (own) return own.id;
+  const kind = seedKind(name);
+  if (kind === null) return null;
+  return (
+    live
+      .filter((category) => categoryKind(category) === kind)
+      .sort(compareRouteOrder)[0]?.id ?? null
   );
-  return live?.id ?? null;
 }
 
 /**

@@ -76,7 +76,7 @@ test.describe("a frequent product on its way to the list", () => {
     if (error) throw error;
     // The only frequent product (the filler was added once each); without
     // category, so its row lands last, below everything on screen.
-    await seedCatalog(list.id, [{ name: "Leche", times: 5 }]);
+    await seedCatalog(list.id, [{ name: "Pilas", times: 5 }]);
     const catalog = catalogLoaded(page);
     await page.reload();
     await expect(field(page)).toBeVisible();
@@ -90,11 +90,11 @@ test.describe("a frequent product on its way to the list", () => {
     });
     await expect(frequents.getByRole("button")).toHaveCount(1);
     await expect(frequents.getByRole("button")).toHaveAccessibleName(
-      texts.addItem.addProduct("Leche"),
+      texts.addItem.addProduct("Pilas"),
     );
 
     // Typed, with the suggestions closed: the bar is only the field.
-    await field(page).fill("Leche");
+    await field(page).fill("Pilas");
     await field(page).press("Escape");
     await expect(page.getByRole("listbox")).toBeHidden();
     await expect(frequents).toBeHidden();
@@ -148,7 +148,7 @@ test.describe("a frequent product on its way to the list", () => {
         };
       },
       {
-        pill: texts.addItem.addProduct("Leche"),
+        pill: texts.addItem.addProduct("Pilas"),
         bar: await page.locator("[data-keyboard-open]").elementHandle(),
         lastRow: await row(pending(page), last).elementHandle(),
       },
@@ -162,7 +162,7 @@ test.describe("a frequent product on its way to the list", () => {
     await field(page).press("Enter");
     await expect(field(page)).toHaveValue("");
     expect((await saved).ok()).toBe(true);
-    await expect(row(pending(page), "Leche")).toBeVisible();
+    await expect(row(pending(page), "Pilas")).toBeVisible();
     // The refetch after the add, and any exit animation of the bar.
     await page.waitForTimeout(1000);
     await page.evaluate(() => window.__stopRecording?.());

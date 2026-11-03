@@ -537,7 +537,9 @@ unidad del texto ("2 kg de tomates", "Leche x3"), marcar y desmarcar, editar
 en una hoja (nombre, cantidad, unidad y nota) y borrar con confirmación
 ligera (borrado blando con `deleted_at`). Pendientes se agrupa por categoría
 en el orden del recorrido, y un ítem nuevo entra en la categoría que el
-catálogo recuerda para ese producto (sin categoría, en "Otros"). "Vaciar el
+catálogo recuerda para ese producto o, si la lista nunca lo vio, en la que da
+el diccionario semilla de `src/lib/domain/seed-categories.ts` (A-1; sin
+categoría, en "Otros"). "Vaciar el
 carro" archiva con `deleted_at` las filas marcadas, con una sola marca de
 tiempo y un solo pedido, y muestra el momento "Buena compra". Todo es
 optimista, con un `scope` de mutaciones por lista, rollbacks dirigidos,

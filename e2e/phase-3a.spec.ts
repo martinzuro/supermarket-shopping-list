@@ -229,11 +229,11 @@ for (const scheme of SCHEMES) {
     }, testInfo) => {
       test.setTimeout(90_000);
       await openAndCreateList(page);
-      await add(page, "Yerba");
+      await add(page, "Pilas");
       // No category yet: the list shows it under Otros.
-      await expect(group(page, "Otros")).toContainText("Yerba");
+      await expect(group(page, "Otros")).toContainText("Pilas");
 
-      await openEditor(page, "Yerba");
+      await openEditor(page, "Pilas");
       const names = await editor(page)
         .getByRole("group", { name: t.editItem.category })
         .getByRole("button")
@@ -271,14 +271,14 @@ for (const scheme of SCHEMES) {
       // The sheet may be taller than the viewport: it scrolls to the end,
       // where Guardar is.
       await saveEditor(page);
-      await expect(group(page, "Almacén")).toContainText("Yerba");
+      await expect(group(page, "Almacén")).toContainText("Pilas");
       await expect(group(page, "Otros")).toHaveCount(0);
 
       await reload(page);
-      await expect(group(page, "Almacén")).toContainText("Yerba");
+      await expect(group(page, "Almacén")).toContainText("Pilas");
 
       // Deleted and added again, the product lands where it was put last.
-      await openEditor(page, "Yerba");
+      await openEditor(page, "Pilas");
       await expect(chip(page, "Almacén")).toHaveAttribute(
         "aria-pressed",
         "true",
@@ -287,17 +287,17 @@ for (const scheme of SCHEMES) {
       await remove.click();
       await expect(remove).toHaveAttribute("data-armed", "true");
       await remove.click();
-      await expect(row(pending(page), "Yerba")).toHaveCount(0);
-      await add(page, "Yerba");
-      await expect(group(page, "Almacén")).toContainText("Yerba");
+      await expect(row(pending(page), "Pilas")).toHaveCount(0);
+      await add(page, "Pilas");
+      await expect(group(page, "Almacén")).toContainText("Pilas");
       await expect(group(page, "Otros")).toHaveCount(0);
 
       // Picking Otros for an item in Almacén sends it there (the id, not
       // "no category"): it moves.
-      await openEditor(page, "Yerba");
+      await openEditor(page, "Pilas");
       await chip(page, "Otros").click();
       await saveEditor(page);
-      await expect(group(page, "Otros")).toContainText("Yerba");
+      await expect(group(page, "Otros")).toContainText("Pilas");
       await expect(group(page, "Almacén")).toHaveCount(0);
     });
 
