@@ -442,11 +442,12 @@ describe("Compras anteriores", () => {
     );
 
     await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    // In route order: the dictionary (A-1) puts each in its category.
     expect(
       (items.insert.mock.calls[0][0] as { name: string }[]).map(
         (one) => one.name,
       ),
-    ).toEqual(["Papel higiénico", "Ñoquis"]);
+    ).toEqual(["Ñoquis", "Papel higiénico"]);
   });
 
   it("takes the place of the notice it covers, which does not come back", async () => {

@@ -37,7 +37,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 
 | Id  | Qué                                                 | Requiere              | Orden sugerido |
 | --- | --------------------------------------------------- | --------------------- | -------------- |
-| A-1 | Los productos nuevos caen en "Otros"                | Nada                  | Antes de beta  |
+| A-1 | Los productos nuevos caen en "Otros"                | Nada                  | Hecho          |
 | A-2 | Duplicados sin aviso                                | Nada                  | Hecho          |
 | A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
 | A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
@@ -62,6 +62,35 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 ## Arreglos
 
 ### A-1. Los productos nuevos caen en "Otros"
+
+**Estado: hecho el 2026-11-03**, a pedido del usuario (rama
+`fix/a1-seed-categories`, PR PR_NUMBER). Lo decidido al implementarlo:
+
+- El diccionario es `src/lib/domain/seed-categories.ts`: unos 400 productos
+  por tipo de categoría, escritos en singular o plural y sin importar tildes
+  (`seedKind(nombre)`). Se compara por palabras sin plural ("tomates" y
+  "tomate", "yogures" y "yogur"), sin cantidades ni unidades ("Yerba Canarias
+  1 kg" es yerba).
+- El orden de la búsqueda: el nombre completo (las claves con `=`, como
+  `=agua`, valen solo así), después el comienzo más largo que sea un
+  producto conocido ("papel higiénico" gana sobre "papel", "leche en polvo"
+  sobre "leche", "leche descremada" es leche), después palabras clave
+  sueltas para nombres que empiezan con algo desconocido ("Pack de yogur").
+- Una palabra que puede ser dos cosas ("crema", "pasta", "papel", "jabón",
+  "bolsa", "toalla", "servilleta", "cepillo", "gel") sin una clave más larga
+  que la resuelva da null; también una clave con dos tipos y palabras clave
+  que apuntan a tipos distintos.
+- `suggestCategory`: el catálogo, si recuerda una categoría que sigue viva
+  (siempre gana, así la corrección manda); si no, el tipo del diccionario
+  llevado a la primera categoría viva de ese tipo en el recorrido
+  (`categoryKind`); si la lista no tiene una, null. Nunca el id de "Otros".
+  Un catálogo con la categoría borrada o sin categoría cae al diccionario.
+- Las altas ya pasaban todas por `suggestCategory` (campo, sugerencias,
+  frecuentes, "Lo de siempre", pegar y volver a comprar): la interfaz no
+  cambió.
+- Pruebas en `seed-categories.test.ts` y `categories.test.ts`. Los e2e que
+  usaban "Pan", "Leche" o "Yerba" como producto desconocido pasaron a usar
+  nombres fuera del diccionario.
 
 **Qué pasa.** `suggestCategory` (`src/lib/domain/categories.ts`) solo
 consulta el catálogo de la lista. Un producto que la lista nunca vio entra
@@ -909,8 +938,8 @@ los textos van en `texts.ts`.
 
 Pendiente de decisión del usuario.
 
-- **Antes de la beta** (baratas, definen la primera impresión): A-1, A-2
-  (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6 (hecha el
+- **Antes de la beta** (baratas, definen la primera impresión): A-1 (hecha
+  el 2026-11-03), A-2 (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6 (hecha el
   2026-10-22). F-3 (hecha el 2026-10-21) cubre "exportar lista como texto"
   de la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
