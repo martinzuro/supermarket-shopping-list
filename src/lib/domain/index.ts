@@ -50,6 +50,25 @@ export {
   suggestionsFor,
   usualsOf,
 } from "./catalog";
+export {
+  DEFAULT_LIST_INTERVAL_DAYS,
+  EVERY_TRIP_FACTOR,
+  USUAL_RHYTHM_FACTOR,
+  daysSince,
+  hasRhythm,
+  isDue,
+  isStillUsual,
+  listIntervalDays,
+  periodOf,
+  rhythmKind,
+} from "./rhythm";
+export type {
+  KnownRhythm,
+  ListRhythm,
+  Period,
+  ProductRhythm,
+  RhythmKind,
+} from "./rhythm";
 export { addedQuantity, findPending, pendingMatchesFor } from "./duplicates";
 export { PASTE_LIMIT, pastedList, splitPastedList } from "./paste";
 export { pendingText } from "./pending-text";
