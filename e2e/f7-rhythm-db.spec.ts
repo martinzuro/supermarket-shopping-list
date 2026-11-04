@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { v7 as newId } from "uuid";
 import {
   addMember,
+  adminClient,
   anonymousUser,
   noSessionClient,
   type Client,
@@ -170,6 +171,57 @@ test.describe("each product's rhythm, from the trips (F-7)", () => {
     });
   });
 
+  test("two emptyings in one visit are one purchase, for the products and for the list", async () => {
+    const ana = await person();
+    await shop(ana, ["Agua", "Pan"], day(0));
+    // Five minutes later, what was left: not a trip of its own.
+    await shop(
+      ana,
+      ["Pan"],
+      new Date(Date.parse(day(0)) + 5 * 60_000).toISOString(),
+    );
+    await shop(ana, ["Agua", "Pan"], day(7));
+
+    const rows = await rhythmOf(ana.client, ana.listId);
+    expect(rows.map((row) => [row.name_normalized, row.times_bought])).toEqual([
+      ["agua", 2],
+      ["pan", 2],
+    ]);
+    expect(rows[0].interval_days).toBe(7);
+    // From the second emptying of that visit: five minutes short of a week.
+    expect(rows[1].interval_days).toBeCloseTo(7, 1);
+    const list = await listRhythmOf(ana.client, ana.listId);
+    expect(list?.trips_count).toBe(2);
+    expect(list?.interval_days).toBeCloseTo(7, 1);
+  });
+
+  test("each list has its own rhythm, also for the same person and product", async () => {
+    const ana = await person();
+    const otherListId = newId();
+    const { error } = await ana.client
+      .from("lists")
+      .insert({ id: otherListId, name: "La otra" });
+    if (error) throw error;
+    const other: Person = { ...ana, listId: otherListId };
+    await shop(ana, ["Agua"], day(0));
+    await shop(ana, ["Agua"], day(7));
+    await shop(other, ["Agua"], day(0));
+    await shop(other, ["Agua"], day(21));
+
+    expect(await rhythmOf(ana.client, ana.listId)).toEqual([
+      expect.objectContaining({ name_normalized: "agua", interval_days: 7 }),
+    ]);
+    expect(await rhythmOf(ana.client, otherListId)).toEqual([
+      expect.objectContaining({ name_normalized: "agua", interval_days: 21 }),
+    ]);
+    expect(await listRhythmOf(ana.client, ana.listId)).toMatchObject({
+      interval_days: 7,
+    });
+    expect(await listRhythmOf(ana.client, otherListId)).toMatchObject({
+      interval_days: 21,
+    });
+  });
+
   test("a list with no trips has no rhythm", async () => {
     const ana = await person();
     const { error } = await ana.client
@@ -210,6 +262,14 @@ test.describe("who reads the rhythm", () => {
     if (error) throw error;
     expect(await rhythmOf(bob.client, ana.listId)).toEqual([]);
     expect(await listRhythmOf(bob.client, ana.listId)).toBeNull();
+
+    // The service role reads everything, as it does the tables.
+    expect(await rhythmOf(adminClient(), ana.listId)).toEqual([
+      expect.objectContaining({ name_normalized: "agua", times_bought: 2 }),
+    ]);
+    expect(await listRhythmOf(adminClient(), ana.listId)).toMatchObject({
+      trips_count: 2,
+    });
   });
 
   test("without a session there is nothing to read, and nobody writes the views", async () => {
@@ -235,8 +295,22 @@ test.describe("who reads the rhythm", () => {
       // @ts-expect-error the views take no writes: the types say so too.
       .insert({ list_id: ana.listId, name_normalized: "agua" });
     expect(["55000", "42501"]).toContain(written.error?.code);
+    const changed = await ana.client
+      .from("catalog_rhythm")
+      // @ts-expect-error the views take no writes: the types say so too.
+      .update({ times_bought: 9 })
+      .eq("list_id", ana.listId);
+    expect(["55000", "42501"]).toContain(changed.error?.code);
+    const removed = await ana.client
+      .from("list_rhythm")
+      .delete()
+      .eq("list_id", ana.listId);
+    expect(["55000", "42501"]).toContain(removed.error?.code);
     expect(await rhythmOf(ana.client, ana.listId)).toEqual([
       expect.objectContaining({ name_normalized: "agua", times_bought: 1 }),
     ]);
+    expect(await listRhythmOf(ana.client, ana.listId)).toMatchObject({
+      trips_count: 1,
+    });
   });
 });

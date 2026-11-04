@@ -25,8 +25,12 @@
 --     and one late or early purchase does not drag it the way an average
 --     would. Null with a single purchase.
 --   * A product counts once per trip, whatever its rows there: the same
---     product twice in one cart is one purchase. Two trips at the same
---     instant (two members emptying at once) count once too.
+--     product twice in one cart is one purchase.
+--   * An emptying less than half a day after the previous one is the same
+--     visit to the store (one member empties the cart, another checks what
+--     was missing and empties it again): it adds no purchase and no gap, so
+--     a gap of minutes does not drag the median to zero. The visit's last
+--     emptying is its time. Same rule for the list and for each product.
 --   * A row deleted for good leaves its trip, as it leaves the history: a
 --     purchase is a row that is still there. A trip with no rows left still
 --     counts as a trip of the list, since the cart was emptied.
@@ -62,19 +66,21 @@ gaps as (
 select
   list_id,
   name_normalized,
-  count(*)::integer as times_bought,
+  -- The first purchase, and each one half a day or more after the previous.
+  (count(*) filter (where gap_days is null or gap_days >= 0.5))::integer
+    as times_bought,
   max(emptied_at) as last_bought_at,
   percentile_cont(0.5) within group (order by gap_days)
-    filter (where gap_days is not null) as interval_days
+    filter (where gap_days >= 0.5) as interval_days
 from gaps
 group by list_id, name_normalized;
 
 comment on view public.catalog_rhythm is
   'How often a product goes through the checkout (F-7): the trips it was in, the last one and the median gap between them, in days. Read as the caller.';
 comment on column public.catalog_rhythm.times_bought is
-  'Trips the product was in, once per trip.';
+  'Trips the product was in, once per trip; two within half a day are one.';
 comment on column public.catalog_rhythm.last_bought_at is
-  'emptied_at of the last trip it was in.';
+  'emptied_at of the last emptying it was in.';
 comment on column public.catalog_rhythm.interval_days is
   'Median of the gaps between consecutive trips it was in, in days with a fraction. Null with a single trip.';
 
@@ -97,16 +103,18 @@ with gaps as (
 )
 select
   list_id,
-  count(*)::integer as trips_count,
+  -- The first trip, and each one half a day or more after the previous.
+  (count(*) filter (where gap_days is null or gap_days >= 0.5))::integer
+    as trips_count,
   percentile_cont(0.5) within group (order by gap_days)
-    filter (where gap_days is not null) as interval_days
+    filter (where gap_days >= 0.5) as interval_days
 from gaps
 group by list_id;
 
 comment on view public.list_rhythm is
   'How often a list''s cart is emptied (F-7): its trips and the median gap between them, in days. Read as the caller.';
 comment on column public.list_rhythm.trips_count is
-  'Trips of the list that were not undone.';
+  'Trips of the list that were not undone; two within half a day are one.';
 comment on column public.list_rhythm.interval_days is
   'Median of the gaps between consecutive trips, in days with a fraction. Null with a single trip.';
 

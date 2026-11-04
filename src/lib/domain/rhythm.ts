@@ -1,3 +1,4 @@
+import type { Tables } from "@/lib/supabase/database.types";
 import { USUAL_WINDOW_DAYS } from "./catalog";
 
 /**
@@ -27,6 +28,36 @@ export type ListRhythm = {
   interval_days: number | null;
 };
 
+/**
+ * A row of `catalog_rhythm` as the client reads it. The views' columns are
+ * nullable to the generated types only (Postgres does not tell a view's
+ * nullability): a row always has its purchases and its last one, and one
+ * without them is dropped rather than cast.
+ */
+export function productRhythmOf(
+  row: Pick<
+    Tables<"catalog_rhythm">,
+    "times_bought" | "last_bought_at" | "interval_days"
+  >,
+): ProductRhythm | null {
+  return row.times_bought === null || row.last_bought_at === null
+    ? null
+    : {
+        times_bought: row.times_bought,
+        last_bought_at: row.last_bought_at,
+        interval_days: row.interval_days,
+      };
+}
+
+/** A row of `list_rhythm`, or none: the list has no trips yet. */
+export function listRhythmOf(
+  row: Pick<Tables<"list_rhythm">, "trips_count" | "interval_days"> | null,
+): ListRhythm | null {
+  return row === null || row.trips_count === null
+    ? null
+    : { trips_count: row.trips_count, interval_days: row.interval_days };
+}
+
 /** Days between trips while the list has fewer than two: a weekly shop. */
 export const DEFAULT_LIST_INTERVAL_DAYS = 7;
 /** A product bought at most this many list gaps apart is of every trip. */
@@ -39,9 +70,14 @@ export const USUAL_RHYTHM_FACTOR = 2;
 
 const DAY_MS = 86_400_000;
 
-/** How many days apart the list's trips are: the median gap, or the default. */
+/**
+ * How many days apart the list's trips are: the median gap, or the default.
+ * A median under a day is not a household's pace (the views fold emptyings
+ * within half a day, so it takes several in a row): the default, too.
+ */
 export function listIntervalDays(list: ListRhythm | null | undefined): number {
-  return list?.interval_days ?? DEFAULT_LIST_INTERVAL_DAYS;
+  const days = list?.interval_days;
+  return days != null && days >= 1 ? days : DEFAULT_LIST_INTERVAL_DAYS;
 }
 
 /**
@@ -73,13 +109,16 @@ export function rhythmKind(
 /**
  * Due: by its rhythm the product runs out before the next trip, which is
  * assumed one list gap away, so it goes on this one. A product of every trip
- * is always due; one bought a gap ago or more too.
+ * is always due, by definition: its gap may run up to a half more than the
+ * list's (rhythmKind), and the count below alone would leave it at home for
+ * the first days after a purchase.
  */
 export function isDue(
   rhythm: KnownRhythm,
   now: Date,
   listInterval: number,
 ): boolean {
+  if (rhythmKind(rhythm, listInterval) === "every") return true;
   const runsOut =
     Date.parse(rhythm.last_bought_at) + rhythm.interval_days * DAY_MS;
   return runsOut <= now.getTime() + listInterval * DAY_MS;
@@ -105,18 +144,20 @@ const WEEK_DAYS = 7;
 const MONTH_DAYS = 365.25 / 12;
 
 /**
- * A number of days as it is said: in days under two weeks, in weeks under
- * six, in months from there ("Cada 10 días", "Cada 3 semanas", "Cada 3
- * meses"), each rounded to the nearest whole one and never under one.
+ * A number of days as it is said: in days under two weeks, in weeks under a
+ * month and a half, in months from there ("Cada 10 días", "Cada 3 semanas",
+ * "Cada 3 meses"), each rounded to the nearest whole one and never under
+ * one. Never "one month": six weeks are said as six weeks, since a month
+ * would say less than it is.
  */
 export function periodOf(days: number): Period {
   if (days < 2 * WEEK_DAYS) {
     return { unit: "day", count: Math.max(1, Math.round(days)) };
   }
-  if (days < 6 * WEEK_DAYS) {
+  if (days < 1.5 * MONTH_DAYS) {
     return { unit: "week", count: Math.max(1, Math.round(days / WEEK_DAYS)) };
   }
-  return { unit: "month", count: Math.max(1, Math.round(days / MONTH_DAYS)) };
+  return { unit: "month", count: Math.round(days / MONTH_DAYS) };
 }
 
 /** Whole days from the last purchase to now, never negative. */
