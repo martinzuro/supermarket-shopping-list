@@ -181,3 +181,24 @@ auth, Realtime, compartir y lógica con casos límite; Sonnet en medium/high
 para UI, funciones de dominio, configuración y docs; Haiku en low para
 explorar, resumir y triar. Revisar cada PR con un modelo distinto al que
 lo escribió.
+
+## Contexto y sesiones
+
+Cada turno reenvía todo el contexto de la sesión (instrucciones,
+herramientas, skills y el historial completo), así que una sesión larga
+encarece cada mensaje. Para mantenerlo chico:
+
+- Una sesión por tarea o PR. Cuando un PR se mergea y lo siguiente es otra
+  tarea, ofrecer una sesión nueva con un resumen de lo pendiente en lugar
+  de seguir en la misma. Al cerrar cada tarea, guardar en la memoria lo
+  que valga conservar entre sesiones.
+- Las investigaciones que pidan leer más de unos cinco archivos o
+  documentación larga (`node_modules/next/dist/docs/`, páginas web) van a
+  un subagente Explore con Haiku en low, que devuelve solo la conclusión
+  con rutas y líneas.
+- No leer enteros `src/lib/supabase/database.types.ts` ni
+  `package-lock.json`: buscar con `grep` y leer solo el tramo necesario.
+- Recortar las salidas largas de build y logs con `| tail -n 40`, siempre
+  con `set -o pipefail` para que un fallo no pase como éxito. Los tests ya
+  detectan Claude Code (`CLAUDECODE=1`): Vitest usa su reporter mínimo y
+  Playwright el de puntos, que solo detalla los fallos.

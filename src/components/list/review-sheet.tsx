@@ -44,7 +44,7 @@ type ReviewSheetProps = {
   description: string;
   /** Nombre accesible de la lista. */
   listLabel: string;
-  /** Una línea más bajo la descripción ("Solo van los primeros 50"). */
+  /** Una línea más bajo la descripción ("Pegaste más de 100 productos: …"). */
   note?: string;
   products: readonly ReviewProduct[];
   /** Agrega los tildados; quien abre la hoja la cierra. */

@@ -5,7 +5,14 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
+  // Claude Code runs commands with CLAUDECODE=1: there each test is one dot
+  // and only failures print in full, so a run doesn't flood its context.
+  // Vitest already switches to its minimal reporter on its own.
+  reporter: process.env.CI
+    ? [["github"], ["html", { open: "never" }]]
+    : process.env.CLAUDECODE
+      ? "dot"
+      : "list",
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
