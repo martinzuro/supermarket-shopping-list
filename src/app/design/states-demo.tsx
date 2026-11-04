@@ -3,6 +3,10 @@
 import { Link2 } from "lucide-react";
 import { useState } from "react";
 import { EstimateLine } from "@/components/list/estimate-line";
+import {
+  ReviewSheet,
+  type ReviewProduct,
+} from "@/components/list/review-sheet";
 import { Button } from "@/components/ui/button";
 import { CategoryChip } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
@@ -93,6 +97,44 @@ export function RowsDemo() {
         {t.rowHighlight}
       </Button>
     </div>
+  );
+}
+
+/**
+ * La hoja de repaso de "Lo de siempre" con el ritmo de las compras (F-7):
+ * arriba lo que toca, tildado y con su ritmo; plegado al final, lo que
+ * todavía hay en casa, destildado.
+ */
+export function ReviewSheetDemo() {
+  const [open, setOpen] = useState(false);
+  const products: ReviewProduct[] = [
+    ...t.review.due.map((product) => ({ key: product.name, ...product })),
+    ...t.review.later.map((product) => ({
+      key: product.name,
+      ...product,
+      later: true,
+    })),
+  ];
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        {t.review.open}
+      </Button>
+      <ReviewSheet
+        open={open}
+        onOpenChange={setOpen}
+        title={texts.addItem.usuals.title}
+        description={texts.addItem.usuals.descriptionRhythm}
+        listLabel={texts.addItem.usuals.listLabel}
+        products={products}
+        onAdd={() => setOpen(false)}
+      />
+    </>
   );
 }
 

@@ -1,3 +1,22 @@
+/** Un plazo dicho en palabras (F-7): "día", "3 semanas", "mes". */
+type Period = { unit: "day" | "week" | "month"; count: number };
+const PERIOD_WORDS = {
+  day: ["día", "días"],
+  week: ["semana", "semanas"],
+  month: ["mes", "meses"],
+} as const;
+function periodWords({ unit, count }: Period) {
+  const [one, many] = PERIOD_WORDS[unit];
+  return count === 1 ? one : `${count} ${many}`;
+}
+/** Para "hace …": "un día", "una semana", "un mes", "2 semanas". */
+function sinceWords(period: Period) {
+  if (period.count !== 1) return periodWords(period);
+  return period.unit === "week"
+    ? "una semana"
+    : `un ${PERIOD_WORDS[period.unit][0]}`;
+}
+
 /**
  * Todos los textos visibles de la interfaz (ADR 0007). Ningún componente
  * debe contener cadenas literales de interfaz: se leen de este objeto.
@@ -66,6 +85,24 @@ export const texts = {
       aria: (count: number) => `Lo de siempre: repasar ${count} productos`,
       title: "Lo de siempre",
       description: "Destildá lo que todavía tenés en casa y agregá el resto.",
+      /**
+       * Con el ritmo de las compras (F-7): lo tildado es lo que toca; lo que
+       * todavía hay en casa va plegado abajo, destildado.
+       */
+      descriptionRhythm:
+        "Tildado, lo que te toca comprar. Abajo, lo que todavía tenés, por si se acabó antes.",
+      /** El ritmo de cada producto, bajo su nombre en la hoja (F-7). */
+      rhythm: {
+        every: "Cada compra",
+        each: (period: Period) => `Cada ${periodWords(period)}`,
+        since: (days: number, period: Period) =>
+          days === 0
+            ? "hoy"
+            : days === 1
+              ? "ayer"
+              : `hace ${sinceWords(period)}`,
+        join: (rhythm: string, since: string) => `${rhythm} · ${since}`,
+      },
       listLabel: "Productos de siempre",
       /**
        * El aviso de lo agregado de una vez: de aquí, de una lista pegada o de
@@ -85,6 +122,14 @@ export const texts = {
       none: "Nada para agregar",
       /** Lo que ya está pendiente: no se agrega otra vez (A-2). */
       inList: "Ya está en la lista",
+      /**
+       * Con el ritmo (F-7): el título de lo que toca, lo que se dice si no
+       * toca nada, y el grupo plegado de lo que todavía hay en casa.
+       */
+      due: "Te toca comprar",
+      nothingDue: "Por ahora no te toca nada.",
+      later: "Todavía tenés",
+      laterLabel: "Productos que todavía tenés",
     },
     /**
      * Varias líneas (o una con comas) pegadas en el campo: una lista, que se
@@ -905,6 +950,38 @@ export const texts = {
         fieldValue: "lista.app/i/7f3k2",
         confirm: "Copiar enlace",
         cancel: "Cancelar",
+      },
+      /** La hoja de repaso de "Lo de siempre" con el ritmo (F-7). */
+      review: {
+        open: "Abrir “Lo de siempre”",
+        due: [
+          { name: "Pan", category: "panaderia" },
+          {
+            name: "Café",
+            category: "almacen",
+            amount: "250 g",
+            detail: "Cada 3 semanas · hace 2 semanas",
+          },
+          {
+            name: "Agua",
+            category: "bebidas",
+            amount: "6",
+            detail: "Cada compra",
+          },
+        ],
+        later: [
+          {
+            name: "Ketchup",
+            category: "almacen",
+            detail: "Cada 3 meses · hace 10 días",
+          },
+          {
+            name: "Detergente",
+            category: "limpieza",
+            amount: "1 l",
+            detail: "Cada 3 semanas · hace 7 días",
+          },
+        ],
       },
       banners: "Avisos",
       banner: {

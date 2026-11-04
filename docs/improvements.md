@@ -854,8 +854,31 @@ de F-1.
 ### F-7. Ritmo por producto en "Lo de siempre"
 
 **Estado: en curso desde el 2026-11-03**, a pedido del usuario, en dos PRs:
-primero la base y las funciones puras (rama `feat/f7-product-rhythm`),
-después la hoja. Lo decidido en el primero:
+primero la base y las funciones puras (PR #59, rama
+`feat/f7-product-rhythm`), después la hoja (rama `feat/f7-usuals-sheet`).
+Lo decidido en el segundo:
+
+- `useRhythm` (`src/lib/queries/rhythm.ts`) lee las dos vistas con el
+  catálogo; se releen al vaciar el carro y al deshacerlo, y cuando una fila
+  de otro miembro entra o sale de una compra (`items.trip_id` cambia) o al
+  recuperar el canal de Realtime. "Lo de siempre" espera a tenerlas antes de
+  ofrecerse (si no, todo saldría como "toca" y se partiría después); si la
+  lectura falla, vale la regla del catálogo.
+- `usualsOf` devuelve dos grupos, `due` y `later`, cada uno con el tope de
+  15. Un producto con ritmo (dos compras) lo sigue; el resto va por sus
+  altas, como antes, y siempre a `due`: una lista sin compras no cambia.
+- La hoja de repaso (`review-sheet.tsx`) gana el título "Te toca comprar",
+  la línea de ritmo bajo el nombre ("Cada compra", "Cada 3 semanas · hace 2
+  semanas") y el grupo plegado "Todavía tenés", destildado, con su cuenta; si
+  no toca nada, "Por ahora no te toca nada." y el grupo abierto. La lista
+  pegada y las compras anteriores no cambian. Textos en
+  `texts.addItem.usuals.rhythm` y `texts.addItem.review`; muestra en
+  `/design`. Pruebas en `add-item-bar-catalog.test.tsx`, `catalog.test.ts` y
+  `e2e/f7-rhythm.spec.ts` (con `seedTrips` en `e2e/supabase-admin.ts`).
+- Queda abierto: mostrar el ritmo en "Productos guardados" del menú, y un
+  ajuste manual del ritmo si el uso real muestra que el aprendizaje tarda.
+
+Lo decidido en el primero:
 
 - La migración `20261103130138_catalog_rhythm.sql` crea dos vistas con
   `security_invoker`, de solo lectura para `authenticated`:

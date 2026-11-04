@@ -1,5 +1,4 @@
 import type { Tables } from "@/lib/supabase/database.types";
-import { USUAL_WINDOW_DAYS } from "./catalog";
 
 /**
  * Each product's rhythm, from the trips (docs/improvements.md, F-7): how
@@ -58,6 +57,12 @@ export function listRhythmOf(
     : { trips_count: row.trips_count, interval_days: row.interval_days };
 }
 
+/**
+ * "Lo de siempre" by the adds alone (usualsOf): added often, the last time
+ * within these days. The floor of how long a product with a rhythm stays
+ * usual, too.
+ */
+export const USUAL_WINDOW_DAYS = 60;
 /** Days between trips while the list has fewer than two: a weekly shop. */
 export const DEFAULT_LIST_INTERVAL_DAYS = 7;
 /** A product bought at most this many list gaps apart is of every trip. */

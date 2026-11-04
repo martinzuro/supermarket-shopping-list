@@ -48,22 +48,30 @@ import {
   SUGGESTION_LIMIT,
   addedQuantity,
   categoryKind,
+  daysSince,
   findPending,
   formatMoney,
   formatQuantity,
   frequentsOf,
+  hasRhythm,
   inRouteOrder,
+  listIntervalDays,
   normalizeName,
   parseItemInput,
   pendingMatchesFor,
+  periodOf,
   rememberedAmount,
   rememberedPrice,
+  rhythmKind,
   suggestCategory,
   pastedList,
   suggestionsFor,
   unitForQuantity,
   usualsOf,
+  type KnownRhythm,
   type ParsedItemInput,
+  type Rhythms,
+  type Usuals,
 } from "@/lib/domain";
 import {
   categoryMutationKeys,
@@ -78,6 +86,7 @@ import {
   useCatalog,
   useCategories,
   useItems,
+  useRhythm,
   currentListOf,
   useLists,
   type AddItems,
@@ -91,6 +100,29 @@ import {
   type UndoAdd,
 } from "@/lib/queries";
 import { texts } from "@/lib/texts";
+
+/** The rhythm not read yet, or no trips: nothing to split (F-7). */
+const NO_PRODUCT_RHYTHMS: Rhythms["products"] = {};
+const NO_USUALS: Usuals<CatalogEntry> = { due: [], later: [] };
+const NO_REVIEW_PRODUCTS: ReviewProduct[] = [];
+
+/**
+ * El ritmo de un producto como lo dice la hoja de repaso (F-7): "Cada
+ * compra" para lo de cada vez; para lo demás, cada cuánto y hace cuánto.
+ */
+function rhythmDetail(
+  rhythm: KnownRhythm,
+  listInterval: number,
+  now: Date,
+): string {
+  const t = texts.addItem.usuals.rhythm;
+  if (rhythmKind(rhythm, listInterval) === "every") return t.every;
+  const days = daysSince(rhythm.last_bought_at, now);
+  return t.join(
+    t.each(periodOf(rhythm.interval_days)),
+    t.since(days, periodOf(days)),
+  );
+}
 
 /** Id del campo de añadir; la bienvenida le pasa el foco al terminar. */
 export const ADD_ITEM_INPUT_ID = "add-item-name";
@@ -643,17 +675,30 @@ export function AddItemBar() {
     () => (typing ? [] : frequentsOf(entries, pendingNames)),
     [typing, entries, pendingNames],
   );
+  // Each product's rhythm from the trips (F-7), to tell what is due from
+  // what is still at home. Until it is read nothing is offered: everything
+  // would come due and then split. A failed read falls back to the catalog.
+  const rhythm = useRhythm(userId, listId);
+  const rhythmReady = rhythm.data !== undefined || rhythm.isError;
+  const rhythms = useMemo<Rhythms>(
+    () => ({
+      products: rhythm.data?.products ?? NO_PRODUCT_RHYTHMS,
+      listInterval: listIntervalDays(rhythm.data?.list),
+    }),
+    [rhythm.data],
+  );
   // The clock is read only with a catalog in hand: never while the page is
   // prerendered, where the time would be the build's.
   const usuals = useMemo(
     () =>
-      typing || entries.length === 0
-        ? []
-        : usualsOf(entries, pendingNames, new Date()),
-    [typing, entries, pendingNames],
+      typing || entries.length === 0 || !rhythmReady
+        ? NO_USUALS
+        : usualsOf(entries, pendingNames, new Date(), rhythms),
+    [typing, entries, pendingNames, rhythmReady, rhythms],
   );
   // Con uno solo no hay nada que agregar "de una vez".
-  const usualsCount = usuals.length >= 2 ? usuals.length : 0;
+  const usualsTotal = usuals.due.length + usuals.later.length;
+  const usualsCount = usualsTotal >= 2 ? usualsTotal : 0;
   // The review sheet, of the usuals or of a paste.
   const [review, setReview] = useState<Review | null>(null);
   // The review on screen, kept for when its sheet is gone (the state is
@@ -672,20 +717,35 @@ export function AddItemBar() {
   // leaves (it stays on screen for its exit) is not a second add, and a
   // one-line paste is not put back in the field.
   const reviewAnswered = useRef(false);
-  // "Lo de siempre" in route order, each with the quantity it comes back with.
-  const usualProducts = useMemo<ReviewProduct[]>(
-    () =>
-      inRouteOrder(usuals, categories.data ?? []).map((entry) => {
-        const amount = rememberedAmount(entry);
-        return {
-          key: entry.name_normalized,
-          name: entry.display_name,
-          category: kindOf(categories.data, entry.last_category_id),
-          amount: formatQuantity(amount.quantity, amount.unit),
-        };
-      }),
-    [usuals, categories.data],
-  );
+  // "Lo de siempre" in route order, each with the quantity it comes back
+  // with and, when the trips know it, its rhythm (F-7): first what is due,
+  // then what is still at home, which the sheet folds and leaves unticked.
+  const usualProducts = useMemo<ReviewProduct[]>(() => {
+    // The clock only with something to tell: never while prerendered.
+    if (usuals.due.length === 0 && usuals.later.length === 0) {
+      return NO_REVIEW_PRODUCTS;
+    }
+    const now = new Date();
+    const product = (entry: CatalogEntry, later: boolean): ReviewProduct => {
+      const amount = rememberedAmount(entry);
+      const own = rhythms.products[entry.name_normalized];
+      return {
+        key: entry.name_normalized,
+        name: entry.display_name,
+        category: kindOf(categories.data, entry.last_category_id),
+        amount: formatQuantity(amount.quantity, amount.unit),
+        detail: hasRhythm(own)
+          ? rhythmDetail(own, rhythms.listInterval, now)
+          : undefined,
+        later,
+      };
+    };
+    const route = categories.data ?? [];
+    return [
+      ...inRouteOrder(usuals.due, route).map((entry) => product(entry, false)),
+      ...inRouteOrder(usuals.later, route).map((entry) => product(entry, true)),
+    ];
+  }, [usuals, categories.data, rhythms]);
 
   // A paste, as pasted, each with the category it would land in; what is
   // already pending is shown as such and not added again (A-2).
@@ -1005,7 +1065,10 @@ export function AddItemBar() {
    */
   function usualItems(keys: readonly string[]): NewItem[] {
     const byKey = new Map(
-      usuals.map((entry) => [entry.name_normalized, entry]),
+      [...usuals.due, ...usuals.later].map((entry) => [
+        entry.name_normalized,
+        entry,
+      ]),
     );
     return keys
       .flatMap((key) => byKey.get(key) ?? [])
@@ -1343,7 +1406,9 @@ export function AddItemBar() {
         description={
           review?.kind === "paste"
             ? texts.addItem.paste.description
-            : texts.addItem.usuals.description
+            : usuals.later.length > 0
+              ? texts.addItem.usuals.descriptionRhythm
+              : texts.addItem.usuals.description
         }
         listLabel={
           review?.kind === "paste"

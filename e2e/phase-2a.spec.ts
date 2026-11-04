@@ -95,7 +95,7 @@ function emptyCartWrite(page: Page) {
 function catalogLoaded(page: Page) {
   return page.waitForResponse(
     (response) =>
-      response.url().includes("/rest/v1/catalog") &&
+      new URL(response.url()).pathname === "/rest/v1/catalog" &&
       response.request().method() === "GET",
   );
 }

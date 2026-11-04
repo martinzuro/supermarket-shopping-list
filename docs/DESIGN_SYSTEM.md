@@ -428,6 +428,24 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   (`data-slot="add-announcement"`) siempre montada lo lee. Un rechazo del alta
   de varios o del deshacer tiene su propio texto (`itemErrors.addMany`,
   `itemErrors.undoAdd`) y reemplaza al aviso.
+- **Con el ritmo de las compras** (`docs/improvements.md`, F-7). Las vistas
+  `catalog_rhythm` y `list_rhythm` (`useRhythm`, leídas con el catálogo y de
+  nuevo al vaciar el carro o deshacerlo, acá o por otro miembro) dicen cada
+  cuánto pasa por la caja cada producto. "Lo de siempre" espera a leerlas y,
+  cuando algo todavía hay en casa, la hoja se parte: arriba un eyebrow "Te
+  toca comprar" (`h3`) y las filas de lo que se acaba antes de la próxima
+  compra, tildadas; bajo cada nombre con ritmo, en `text-label` tinta 2, cada
+  cuánto se compra y hace cuánto ("Cada compra", "Cada 3 semanas · hace 2
+  semanas"; `periodOf` y `daysSince` en `src/lib/domain/rhythm.ts`, las
+  palabras en `texts.addItem.usuals.rhythm`); al final, un botón de 56px con
+  `aria-expanded` y el chevron de lucide (girado solo con `transform`),
+  "Todavía tenés" con la cuenta en mono, que despliega en un `Collapse` las
+  filas de lo que todavía hay, destildadas: se tilda lo que se acabó antes.
+  Si no toca nada, "Por ahora no te toca nada." y el grupo abierto desde el
+  inicio. La descripción pasa a "Tildado, lo que te toca comprar…". La
+  píldora cuenta los dos grupos. Sin ritmo (una lista sin compras) nada
+  cambia, y la lista pegada y las compras anteriores tampoco. Muestra en
+  `/design` (`ReviewSheetDemo`).
 - **Lista pegada** (F-2). Pegar en el campo dos productos o más en varias
   líneas, o tres o más en una ("leche, pan, 1,5 kg de papas"), no los escribe
   en el campo: abre la misma hoja de repaso, "Lista pegada", con un producto
@@ -775,6 +793,13 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
   y agregar el resto en una petición con su cantidad y su precio por kilo, un
   frecuente que entra con su cantidad, y cerrar sin agregar. Con capturas a
   375px en claro y oscuro.
+- `e2e/f7-rhythm.spec.ts`: con compras pasadas sembradas (`seedTrips`), la
+  hoja de "Lo de siempre" tilda lo que toca con su ritmo bajo el nombre,
+  pliega lo que todavía hay y lo agrega si se tilda (una petición), y dice
+  "Por ahora no te toca nada" cuando nada toca. Con capturas a 375px en claro
+  y oscuro. `e2e/f7-rhythm-db.spec.ts` prueba contra la base las vistas del
+  ritmo (la mediana por producto y por lista, una vaciada deshecha y una fila
+  borrada que dejan de contar, y quién lee).
 - `e2e/f2-paste.spec.ts`: una lista pegada abre el repaso (lo pendiente se
   ve y no se agrega), lo tildado entra en una sola petición con su categoría
   y su precio, un doble toque en "Agregar" agrega una vez, y una lista de una
