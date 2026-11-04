@@ -68,6 +68,7 @@ export {
   type RestoreCart,
 } from "./items";
 export { useTrips, TRIP_LIMIT, type Trip, type TripHistory } from "./trips";
+export { useRhythm, readRhythmAgain, type Rhythm } from "./rhythm";
 export {
   useCategories,
   useCatalog,

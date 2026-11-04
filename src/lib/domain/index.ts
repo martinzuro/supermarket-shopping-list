@@ -42,14 +42,17 @@ export {
 export type { Direction, ItemGroup } from "./categories";
 export {
   FREQUENT_LIMIT,
+  NO_RHYTHMS,
   SUGGESTION_LIMIT,
   USUAL_LIMIT,
+  USUAL_WINDOW_DAYS,
   frequentsOf,
   matchOf,
   rememberedAmount,
   suggestionsFor,
   usualsOf,
 } from "./catalog";
+export type { Rhythms, Usuals } from "./catalog";
 export {
   DEFAULT_LIST_INTERVAL_DAYS,
   EVERY_TRIP_FACTOR,

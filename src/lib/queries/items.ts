@@ -19,6 +19,7 @@ import type { Tables } from "@/lib/supabase/database.types";
 import { DUPLICATE_KEY, RequestError, unwrap, writeSignal } from "./errors";
 import { queryKeys } from "./keys";
 import { isOwnVersion, readAgain, rememberOwn } from "./reconcile";
+import { readRhythmAgain } from "./rhythm";
 import type { TripHistory } from "./trips";
 
 export type Item = Tables<"items">;
@@ -849,6 +850,7 @@ export function useEmptyCart(userId: string, listId: string) {
     },
     onSettled: () => {
       readTripsAgain(queryClient, userId, listId);
+      readRhythmAgain(queryClient, userId, listId);
       return settle(queryClient, key);
     },
   });
@@ -951,6 +953,7 @@ export function useRestoreCart(userId: string, listId: string) {
     },
     onSettled: () => {
       readTripsAgain(queryClient, userId, listId);
+      readRhythmAgain(queryClient, userId, listId);
       return settle(queryClient, key);
     },
   });
@@ -1148,7 +1151,8 @@ export function applyRemoteItem(
       }
       // Archived, and the cache no longer has it (a read dropped it first)
       // or never had it: nothing to apply, and nothing told, since nothing
-      // says the user ever saw the row.
+      // says the user ever saw the row. A purchase for the rhythm, though.
+      if (row.trip_id !== null) readRhythmAgain(queryClient, userId, listId);
       return null;
     }
     if (row.deleted_at !== null) return null;
@@ -1164,6 +1168,11 @@ export function applyRemoteItem(
   }
   if (!cached || CATALOG_FIELDS.some((field) => cached[field] !== row[field])) {
     readCatalogAgain(queryClient, userId, listId);
+  }
+  // Into a trip or out of one (another member emptied the cart, or undid
+  // it): the rhythm follows the trips (F-7).
+  if (cached && cached.trip_id !== row.trip_id) {
+    readRhythmAgain(queryClient, userId, listId);
   }
   return own ? null : outcome(row, cached);
 }

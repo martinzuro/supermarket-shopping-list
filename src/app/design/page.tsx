@@ -37,7 +37,12 @@ import {
 import { formatMoney } from "@/lib/domain";
 import { texts } from "@/lib/texts";
 import { MotionDemo } from "./motion-demo";
-import { ChipPickerDemo, RowsDemo, SheetDemo } from "./states-demo";
+import {
+  ChipPickerDemo,
+  ReviewSheetDemo,
+  RowsDemo,
+  SheetDemo,
+} from "./states-demo";
 
 const t = texts.design;
 
@@ -647,8 +652,9 @@ export default function DesignPage() {
         </div>
 
         <p className="eyebrow mt-10">{t.states.sheets}</p>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap gap-3">
           <SheetDemo />
+          <ReviewSheetDemo />
         </div>
 
         <p className="eyebrow mt-10">{t.states.banners}</p>
