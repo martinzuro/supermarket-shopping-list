@@ -42,14 +42,14 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
 | A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
 | M-1 | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
-| M-2 | Totales a la vista mientras se compra               | Nada                  | Con la beta    |
-| M-3 | "Buena compra" con resumen                          | Nada                  | Con la beta    |
+| M-2 | Totales a la vista mientras se compra               | Nada                  | Hecho          |
+| M-3 | "Buena compra" con resumen                          | Nada                  | Hecho          |
 | M-4 | Categorías propias: crear, renombrar, borrar        | Migración             | Después        |
 | M-5 | Olvidar una sugerencia del catálogo                 | Migración             | Hecho          |
 | M-6 | Nombres con mayúscula inicial                       | Nada                  | Hecho          |
 | M-7 | Quién agregó cada producto                          | Migración             | Después        |
 | M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
-| F-1 | Modo compra                                         | Nada                  | Con la beta    |
+| F-1 | Modo compra                                         | Nada                  | Hecho          |
 | F-2 | Pegar una lista                                     | Nada                  | Hecho          |
 | F-3 | Mandar lo que falta como texto                      | Nada                  | Hecho          |
 | F-4 | Historial de compras                                | Migración             | Hecho          |
@@ -343,6 +343,20 @@ campo.
 
 ### M-2. Totales a la vista mientras se compra
 
+**Estado: hecho el 2026-11-04**, asignado ese día por el usuario junto con
+F-1 y M-3 (rama `feat/f1-shopping-mode`, PR 63): va dentro del modo compra.
+Lo decidido al implementarlo:
+
+- La línea vive en la barra de abajo del modo compra, sobre "+" y "Terminé"
+  (`ShoppingTotals`, `src/components/list/shopping-totals.tsx`): a la
+  izquierda "Carro" con lo del carro, a la derecha "Falta" con "~" y lo
+  pendiente, cada lado por moneda con `estimateOf`. Cada lado conserva su
+  lugar y aparece solo si tiene algún precio; sin ningún precio no hay línea.
+  "N de M con precio" se queda en el pie de cada sección.
+- Fuera del modo compra no hay línea fija: mientras no se compra, los totales
+  del pie de cada sección alcanzan.
+- El lector oye "Falta, cerca de $ 708" (el "~" va oculto).
+
 **Qué pasa.** El "Estimado" está al pie de Pendientes y al pie del carro.
 Mientras se compra no se ve sin bajar, y no hay un total de la compra
 entera.
@@ -355,6 +369,25 @@ precio. "N de M con precio" se queda en el pie.
 **Requiere.** Nada fuera del cliente.
 
 ### M-3. "Buena compra" con resumen
+
+**Estado: hecho el 2026-11-04**, asignado ese día por el usuario junto con
+F-1 y M-2 (rama `feat/f1-shopping-mode`, PR 63). Lo decidido al
+implementarlo:
+
+- Vale para toda vaciada del carro, con "Terminé" del modo compra o con
+  "Vaciar el carro". `Moment` ganó `details`, un bloque entre el texto y la
+  acción que entra escalonado con el resto.
+- El resumen es un ticket sobre la tinta (`TripSummary`,
+  `src/components/list/trip-summary.tsx`): una línea por cifra entre reglas,
+  el rótulo como eyebrow y la cifra en mono. "Pasó por caja" (las filas que
+  se archivaron), "Estimado" (por moneda, con "N de M con precio" si a alguno
+  le faltaba; sin ningún precio la línea no está) y "Falta" (lo que quedó
+  pendiente según los datos al tocar, o "Nada"). Sin nada pendiente el texto
+  pasa a "El carro quedó vacío y no falta nada.".
+- Se cuenta al tocar y no cambia mientras se ve. La región del momento lo
+  dice entero, una oración por cifra, después del titular.
+- Queda abierto: el resumen no sale en "Compras anteriores" del menú (F-4),
+  que ya muestra la cuenta y el estimado de cada compra.
 
 **Propuesta.** El momento de vaciar el carro muestra cuántos productos
 pasaron por caja, el estimado del carro por moneda y cuántos quedaron
@@ -530,6 +563,66 @@ invitar primero y pedir la cuenta después.
 ## Funcionalidades nuevas
 
 ### F-1. Modo compra
+
+**Estado: hecho el 2026-11-04**, asignado ese día por el usuario con M-2 y
+M-3 adentro porque el modo los usa (rama `feat/f1-shopping-mode`, PR 63).
+F-5 queda afuera. Lo decidido al implementarlo:
+
+- **Por dispositivo.** El estado vive en `src/components/list/shopping-mode.ts`
+  (un store por `QueryClient`, como los avisos entre la lista y la barra) y en
+  `localStorage` (`lista:shopping`: la lista y desde cuándo), así sobrevive a
+  recargar y lo siguen las otras pestañas. A las 6 horas se olvida
+  (`SHOPPING_MAX_MS`): una compra que alguien dejó prendida no vuelve la
+  semana siguiente con la pantalla encendida. Un modo guardado para otra lista
+  (la persona salió de ella) no cuenta; mientras la lista carga, sí, para que
+  la recarga no muestre un instante la lista de siempre.
+- **Entrar y salir.** "Empezar a comprar" va en la cabecera, entre la marca
+  y compartir, solo con algo en la lista. La cabecera pasa a "Comprando" con
+  lo que va al carro en el serif de la marca ("7 de 18", sobre los datos y no
+  sobre la fila que todavía se queda), una línea de 2px en la regla de la
+  cabecera que se llena (tinta en claro, lima en oscuro, por `scaleX`) y
+  "Salir", que deja el carro como está. Compartir y el menú esperan ocultos:
+  en el pasillo no hacen falta, y quedan montados para no perder lo que
+  tuvieran a medio escribir. El foco pasa de un botón al otro.
+- **La barra plegada.** Sin campo ni frecuentes: "+" y "Terminé", con los
+  totales de M-2 encima. "+" despliega el campo en el mismo toque (el
+  teléfono abre el teclado) y vuelve a ser el botón al dejar el campo vacío o
+  con Escape; con texto se queda. El formulario no se desmonta: el
+  `autoFocus` es solo de la primera carga y lo escrito no se pierde. Los
+  avisos (el "al carro" con Deshacer de A-4, que en el súper es el más usado,
+  y los rechazos) siguen arriba.
+- **"Terminé"** vacía el carro con el flujo de siempre (`handleEmptyCart`,
+  que la lista registra con `useShoppingFinish`), sale del modo y trae a la
+  vista el momento con el resumen de M-3. Su "Deshacer" devuelve el carro y
+  también el modo, con el foco en "Terminé": quien tocó "Terminé" sin querer
+  sigue comprando. Sin nada en el carro, solo sale del modo. Mientras se
+  compra, "Vaciar el carro" no se muestra: lo hace "Terminé".
+- **La pantalla encendida** (`src/components/list/use-wake-lock.ts`): pide el
+  lock al entrar, otra vez cuando la página vuelve a verse y en el próximo
+  toque si se lo negaron (hay navegadores que lo dan solo después de un
+  gesto, como una app abierta desde la pantalla de inicio); lo suelta al
+  salir. Sin la API o con un rechazo se sigue sin ella y sin avisos. No hay
+  indicador visible: el estado queda en `data-wake-lock` para las pruebas.
+- Pruebas: `use-wake-lock.test.tsx` (la API simulada, presente y ausente),
+  `shopping-mode.test.tsx`, `trip-summary.test.tsx`, la barra plegada en
+  `add-item-bar.test.tsx`, `e2e/f1-shopping.spec.ts` (con el lock simulado,
+  porque Chromium sin pantalla lo niega) y el modo compra en
+  `e2e/visual.spec.ts`, también con movimiento reducido. El punto 10 de
+  `device-checklist.md` lo prueba en el teléfono: el soporte de Wake Lock en
+  las apps web agregadas a la pantalla de inicio de iOS llegó tarde.
+- Revisado por Fable: se corrigieron "Terminé" tocado enseguida después de
+  marcar lo último (la fila todavía se quedaba 320 ms en Pendientes, quedaba
+  afuera del vaciado y el viaje terminaba con algo en el carro: ahora
+  "Terminé" toma lo marcado según los datos), un vaciado rechazado por el
+  servidor que dejaba fuera del modo (vuelve con el carro), un navegador sin
+  `localStorage` que terminaba el modo al volver de otra app (la página
+  recuerda su compra hasta las 6 horas) y el foco de teclado que se perdía en
+  el campo oculto (va al "+").
+- Queda abierto: F-5 ("Está comprando" para los otros miembros); un
+  indicador de que la pantalla queda encendida, si la prueba en el teléfono
+  muestra que hace falta; y la recarga muestra la lista de siempre hasta que
+  la página se hidrata (la página se prerenderiza sin el modo), con el foco
+  automático del campo antes de plegarse.
 
 **Propuesta.** Una acción "Empezar a comprar" que cambia la pantalla mientras
 se está en el súper:
@@ -997,7 +1090,8 @@ Pendiente de decisión del usuario.
   el 2026-11-03), A-2 (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6 (hecha el
   2026-10-22). F-3 (hecha el 2026-10-21) cubre "exportar lista como texto"
   de la Fase 4.
-- **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
-  M-8, F-1 y F-2 (hecha el 2026-10-21).
+- **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2 y M-3
+  (hechas el 2026-11-04), M-8, F-1 (hecha el 2026-11-04) y F-2 (hecha el
+  2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
   2026-10-21), F-5, F-6 y F-7 (hecha el 2026-11-03).

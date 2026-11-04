@@ -154,6 +154,29 @@ teléfono que hizo el cambio):
 - [ ] Reducir movimiento activado: nada se desliza (las filas y los grupos
       cambian de lugar sin animación), los fundidos siguen.
 
+## 10. Modo compra (F-1, agregado el 2026-11-04)
+
+Con la app instalada como PWA y abierta desde el ícono: es lo que hay que
+comprobar en el teléfono. El soporte de Screen Wake Lock en las apps web
+agregadas a la pantalla de inicio de iOS llegó tarde (los e2e la simulan), y
+si el sistema no la da la app sigue sin ella, sin avisar.
+
+- [ ] "Empezar a comprar" (arriba, con una lista con algo pendiente): la
+      cabecera pasa a "Comprando" con "0 de N", la barra de abajo queda en
+      "+" y "Terminé" y, si algo tiene precio, la línea "Carro … · Falta ~…".
+- [ ] La pantalla no se apaga: con el bloqueo automático del sistema en 30
+      segundos, la lista sigue a la vista después de un par de minutos sin
+      tocarla. Con "Salir" vuelve a apagarse sola.
+- [ ] Pasar a otra app y volver (o bloquear y desbloquear con el botón):
+      la pantalla sigue sin apagarse después de volver.
+- [ ] Cerrar la app del todo y abrirla de nuevo: sigue en modo compra, y la
+      pantalla tampoco se apaga (si no, probar tocando la lista una vez).
+- [ ] "+" abre el campo con el teclado en el mismo toque; al cerrar el
+      teclado con el campo vacío vuelve el botón.
+- [ ] "Terminé" muestra "Buena compra" con el resumen (cuántos productos,
+      el estimado y lo que falta) y la pantalla de siempre; "Deshacer" vuelve
+      al carro y al modo compra.
+
 ## Resultado
 
 | Punto | iPhone | Android | Notas |
@@ -167,6 +190,7 @@ teléfono que hizo el cambio):
 | 7. Tiempo real | | | |
 | 8. Compartir | | | |
 | 9. Accesibilidad | | | |
+| 10. Modo compra | | | |
 
 Fecha y quién lo hizo: iPhone, puntos 1 a 6, Martin Zuro, informado el
-2026-11-03. Pendientes: 7 a 9 en iPhone y todo en Android.
+2026-11-03. Pendientes: 7 a 10 en iPhone y todo en Android.

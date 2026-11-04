@@ -58,7 +58,10 @@ nuevos, aviso de duplicados, repaso de "Lo de siempre" con cantidades,
 deshacer al marcar y al vaciar, modo compra, pegar una lista, historial de
 compras y otras. El historial de compras (F-4, hecho el 2026-10-21) completa
 el "Historial" de "Diferencial": cada carro vaciado queda en el menú, y sus
-productos se vuelven a agregar, todos o algunos.
+productos se vuelven a agregar, todos o algunos. El modo compra (F-1, hecho el
+2026-11-04, con los totales a la vista y el resumen de la compra) es la
+pantalla para usar en el súper: la cuenta de lo que va al carro, la barra de
+agregar plegada, la pantalla encendida y "Terminé".
 
 ## Fuera de alcance
 
