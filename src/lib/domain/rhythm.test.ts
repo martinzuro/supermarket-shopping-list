@@ -7,7 +7,9 @@ import {
   isDue,
   isStillUsual,
   listIntervalDays,
+  listRhythmOf,
   periodOf,
+  productRhythmOf,
   rhythmKind,
   type KnownRhythm,
 } from "./rhythm";
@@ -31,6 +33,52 @@ describe("listIntervalDays", () => {
     expect(listIntervalDays({ trips_count: 1, interval_days: null })).toBe(7);
     expect(listIntervalDays(null)).toBe(7);
     expect(listIntervalDays(undefined)).toBe(7);
+  });
+
+  it("takes a median under a day for no pace at all", () => {
+    expect(listIntervalDays({ trips_count: 4, interval_days: 0.003 })).toBe(7);
+    expect(listIntervalDays({ trips_count: 4, interval_days: 0 })).toBe(7);
+    expect(listIntervalDays({ trips_count: 4, interval_days: 1 })).toBe(1);
+  });
+});
+
+describe("productRhythmOf and listRhythmOf", () => {
+  it("take the views' rows, whose columns are nullable to the types only", () => {
+    expect(
+      productRhythmOf({
+        times_bought: 3,
+        last_bought_at: daysAgo(1),
+        interval_days: 7,
+      }),
+    ).toEqual({
+      times_bought: 3,
+      last_bought_at: daysAgo(1),
+      interval_days: 7,
+    });
+    expect(
+      productRhythmOf({
+        times_bought: 1,
+        last_bought_at: daysAgo(1),
+        interval_days: null,
+      }),
+    ).toEqual({
+      times_bought: 1,
+      last_bought_at: daysAgo(1),
+      interval_days: null,
+    });
+    expect(
+      productRhythmOf({
+        times_bought: null,
+        last_bought_at: null,
+        interval_days: null,
+      }),
+    ).toBeNull();
+    expect(listRhythmOf({ trips_count: 2, interval_days: 7 })).toEqual({
+      trips_count: 2,
+      interval_days: 7,
+    });
+    expect(listRhythmOf({ trips_count: null, interval_days: null })).toBeNull();
+    expect(listRhythmOf(null)).toBeNull();
   });
 });
 
@@ -76,13 +124,23 @@ describe("isDue", () => {
   it("is always true for a product of every trip, and late for a quarterly one", () => {
     expect(isDue(bought(7, 0), NOW, WEEKLY)).toBe(true);
     expect(isDue(bought(7, 7), NOW, WEEKLY)).toBe(true);
+    // Of every trip by its kind (up to a half more than the list's gap),
+    // though the count alone would leave it at home right after buying it.
+    expect(isDue(bought(10.5, 0), NOW, WEEKLY)).toBe(true);
+    expect(isDue(bought(10.5, 2), NOW, WEEKLY)).toBe(true);
+    // The same gap is periodic for a household that shops twice a week.
+    expect(isDue(bought(10.5, 2), NOW, 3.5)).toBe(false);
     expect(isDue(bought(90, 82), NOW, WEEKLY)).toBe(false);
     expect(isDue(bought(90, 83), NOW, WEEKLY)).toBe(true);
   });
 
   it("looks further ahead for a household that shops less often", () => {
-    expect(isDue(bought(21, 7), NOW, 14)).toBe(true);
-    expect(isDue(bought(21, 6), NOW, 14)).toBe(false);
+    // Every ten days: three weeks is periodic there (over a half more), and
+    // the next trip is ten days away.
+    expect(isDue(bought(21, 11), NOW, 10)).toBe(true);
+    expect(isDue(bought(21, 10), NOW, 10)).toBe(false);
+    // Every fortnight: three weeks is of every trip, so always due.
+    expect(isDue(bought(21, 6), NOW, 14)).toBe(true);
   });
 });
 
@@ -96,14 +154,17 @@ describe("isStillUsual", () => {
 });
 
 describe("periodOf", () => {
-  it("says days under two weeks, weeks under six, months from there", () => {
+  it("says days under two weeks, weeks under a month and a half, months from there", () => {
     expect(periodOf(3)).toEqual({ unit: "day", count: 3 });
     expect(periodOf(10.5)).toEqual({ unit: "day", count: 11 });
     expect(periodOf(13.9)).toEqual({ unit: "day", count: 14 });
     expect(periodOf(14)).toEqual({ unit: "week", count: 2 });
     expect(periodOf(24)).toEqual({ unit: "week", count: 3 });
     expect(periodOf(41)).toEqual({ unit: "week", count: 6 });
-    expect(periodOf(42)).toEqual({ unit: "month", count: 1 });
+    // Six weeks are six weeks, never "one month".
+    expect(periodOf(42)).toEqual({ unit: "week", count: 6 });
+    expect(periodOf(45)).toEqual({ unit: "week", count: 6 });
+    expect(periodOf(46)).toEqual({ unit: "month", count: 2 });
     expect(periodOf(60)).toEqual({ unit: "month", count: 2 });
     expect(periodOf(90)).toEqual({ unit: "month", count: 3 });
     expect(periodOf(365)).toEqual({ unit: "month", count: 12 });

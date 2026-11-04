@@ -59,7 +59,9 @@ export {
   isDue,
   isStillUsual,
   listIntervalDays,
+  listRhythmOf,
   periodOf,
+  productRhythmOf,
   rhythmKind,
 } from "./rhythm";
 export type {

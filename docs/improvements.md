@@ -863,15 +863,21 @@ después la hoja. Lo decidido en el primero:
   y `interval_days`, la mediana en días de los huecos entre las compras en
   que estuvo, nula con una sola) y `list_rhythm` (por lista: `trips_count`
   e `interval_days`, la mediana entre sus compras). Un producto cuenta una
-  vez por compra; una vaciada deshecha o una fila borrada del todo dejan de
-  contar solas. No hay columnas nuevas ni relleno.
+  vez por compra; dos vaciadas con menos de medio día entre sí son una sola
+  compra (el otro miembro tildó lo que faltaba y volvió a vaciar), para que
+  no hundan la mediana; una vaciada deshecha o una fila borrada del todo
+  dejan de contar solas. No hay columnas nuevas ni relleno.
 - Las reglas viven en `src/lib/domain/rhythm.ts`: `listIntervalDays` (7
   sin datos), `hasRhythm` (hacen falta dos compras), `rhythmKind` ("cada
-  compra" hasta 1,5× el hueco de la lista), `isDue` (se acaba antes de la
-  próxima compra, un hueco de la lista más adelante), `isStillUsual` (2×
-  su hueco, con el piso de 60 días) y `periodOf` (días hasta dos semanas,
-  semanas hasta seis, meses desde ahí). Pruebas en `rhythm.test.ts` y
-  `e2e/f7-rhythm-db.spec.ts`.
+  compra" hasta 1,5× el hueco de la lista), `isDue` (lo de cada compra
+  siempre; lo demás, cuando se acaba antes de la próxima compra, un hueco
+  de la lista más adelante), `isStillUsual` (2× su hueco, con el piso de 60
+  días), `periodOf` (días hasta dos semanas, semanas hasta mes y medio,
+  meses desde ahí; nunca "un mes") y `productRhythmOf` y `listRhythmOf`,
+  que convierten las filas de las vistas (nulas para los tipos generados).
+  Pruebas en `rhythm.test.ts` y `e2e/f7-rhythm-db.spec.ts`. La revisión
+  cruzada del PR #59 (Opus) dio el pliegue de medio día, el "cada compra"
+  siempre toca y el "nunca un mes".
 - Queda para el segundo PR: leer las vistas junto al catálogo, releerlas al
   vaciar y deshacer, partir la hoja en "Te toca comprar" y "Todavía tenés",
   los textos y la muestra en `/design`.
