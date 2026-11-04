@@ -1546,13 +1546,13 @@ describe("a pasted list (F-2)", () => {
 
   it("takes at most the limit, and says so", async () => {
     const { field } = await renderBar({ catalog: [] });
-    const many = Array.from({ length: 60 }, (_, n) => `Cosa ${n + 1}a`);
+    const many = Array.from({ length: 110 }, (_, n) => `Cosa ${n + 1}a`);
 
     paste(field, many.join("\n"));
     const sheet = await waitFor(() => pasteSheet()!);
 
-    expect(within(sheet).getAllByRole("checkbox")).toHaveLength(50);
-    expect(within(sheet).getByText(p.limit(50))).toBeInTheDocument();
+    expect(within(sheet).getAllByRole("checkbox")).toHaveLength(100);
+    expect(within(sheet).getByText(p.limit(100))).toBeInTheDocument();
   });
 });
 

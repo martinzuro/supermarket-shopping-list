@@ -573,7 +573,10 @@ diseño según `DESIGN_DIRECTION.md`.
   texto de cada uno se corrige después, en su fila. Lo que ya está pendiente
   se muestra sin círculo con "Ya está en la lista" y no se agrega (A-2); sumar
   se hace desde la fila, no desde el pegado.
-- Hasta 50 por pegado (una escritura); si vinieron más, la hoja lo dice.
+- Hasta 100 por pegado (una escritura); si vinieron más, la hoja lo dice.
+  Eran 50 hasta el 2026-11-04, cuando el usuario pidió subirlo: el número no
+  sale de ningún límite de Supabase, solo acota una escritura y la hoja de
+  repaso.
 - Una lista de una línea cerrada sin agregar queda en el campo, donde se
   pegó y hasta lo que el campo admite, como un pegado común; una de varias
   líneas se descarta. Si se tocó "Agregar", no vuelve al campo.

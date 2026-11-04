@@ -7,7 +7,7 @@ import { parseItemInput } from "./parse-item-input";
  */
 
 /** At most this many products are added from one paste (one request). */
-export const PASTE_LIMIT = 50;
+export const PASTE_LIMIT = 100;
 
 /** Same limit as the `items.name` column (characters, not UTF-16 units). */
 const MAX_LENGTH = 200;
