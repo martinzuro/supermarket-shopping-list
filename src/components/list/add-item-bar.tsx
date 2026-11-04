@@ -914,9 +914,7 @@ export function AddItemBar() {
     event: MouseEvent<HTMLButtonElement>,
   ) {
     if (isDoubleTap(event)) return;
-    if (document.activeElement === event.currentTarget) {
-      inputRef.current?.focus();
-    }
+    if (document.activeElement === event.currentTarget) focusField();
     close(shown);
     const { name, added } = shown.duplicate;
     const current = findPending(name, pendingItems);
@@ -1047,9 +1045,7 @@ export function AddItemBar() {
     event.preventDefault();
     const closed = shownReview.current;
     shownReview.current = null;
-    if (reviewRefocus.current) {
-      inputRef.current?.focus({ preventScroll: true });
-    }
+    if (reviewRefocus.current) focusField({ preventScroll: true });
     const added = reviewAdded.current;
     reviewAdded.current = null;
     if (added) {
@@ -1159,9 +1155,7 @@ export function AddItemBar() {
     shown: Notice & { undo: Undo },
     event: MouseEvent<HTMLButtonElement>,
   ) {
-    if (document.activeElement === event.currentTarget) {
-      inputRef.current?.focus();
-    }
+    if (document.activeElement === event.currentTarget) focusField();
     if (shown.undo.kind === "add") {
       const variables: UndoAdd = {
         ids: shown.undo.ids,
@@ -1229,6 +1223,16 @@ export function AddItemBar() {
   function unfold() {
     flushSync(() => setExpanded(true));
     inputRef.current?.focus();
+  }
+
+  /**
+   * The focus back to the bar: to the field, or, folded while shopping, to
+   * the button that unfolds it (a hidden field takes no focus).
+   */
+  function focusField(options?: FocusOptions) {
+    const field = inputRef.current;
+    if (field && !field.form?.hidden) field.focus(options);
+    else addButton.current?.focus(options);
   }
 
   /** Back to the button, which takes the focus the field had. */

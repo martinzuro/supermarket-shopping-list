@@ -362,8 +362,10 @@ test.describe("shopping mode with reduced motion", () => {
       });
       return seen;
     }, texts.shopping.start);
-    expect(frames.length).toBeGreaterThan(0);
-    for (const frame of frames) {
+    // The first frame may still be the one the tap painted; the entrance
+    // would be visible in the ones after it.
+    expect(frames.length).toBeGreaterThan(2);
+    for (const frame of frames.slice(1)) {
       expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(frame.masthead);
       expect(frame.line).toBeCloseTo(1 / 3, 2);
     }

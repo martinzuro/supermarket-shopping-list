@@ -338,7 +338,10 @@ export function ListView() {
     // held there while it leaves, and must not be archived with the rest. A
     // row checked a moment ago is still held in Pendientes, unseen in the
     // cart: it stays out, lands in the cart afterwards and ends the moment.
-    const rows = cart.filter((item) => item.checked);
+    // Not for "Terminé" (F-1): tapped right after the last check, the usual
+    // last gesture of a trip, it would leave that product behind and end the
+    // trip with something in the cart. It takes what the data has checked.
+    const rows = fromShopping ? checked : cart.filter((item) => item.checked);
     const ids = rows.map((item) => item.id);
     if (ids.length === 0) return false;
     const emptying = { deletedAt: new Date().toISOString(), tripId: newId() };
@@ -354,7 +357,12 @@ export function ListView() {
     });
     setCartCleared(false);
     // A rejection brings the rows back, and that ends the moment (above).
-    emptyCart.mutate({ ids, ...emptying });
+    // After "Terminé" the trip comes back with them: nothing was paid for
+    // as far as the list knows.
+    emptyCart.mutate(
+      { ids, ...emptying },
+      { onError: () => (fromShopping ? shopping.start() : undefined) },
+    );
     return true;
   }
 

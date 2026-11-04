@@ -610,10 +610,19 @@ F-5 queda afuera. Lo decidido al implementarlo:
   `e2e/visual.spec.ts`, también con movimiento reducido. El punto 10 de
   `device-checklist.md` lo prueba en el teléfono: el soporte de Wake Lock en
   las apps web agregadas a la pantalla de inicio de iOS llegó tarde.
+- Revisado por Fable: se corrigieron "Terminé" tocado enseguida después de
+  marcar lo último (la fila todavía se quedaba 320 ms en Pendientes, quedaba
+  afuera del vaciado y el viaje terminaba con algo en el carro: ahora
+  "Terminé" toma lo marcado según los datos), un vaciado rechazado por el
+  servidor que dejaba fuera del modo (vuelve con el carro), un navegador sin
+  `localStorage` que terminaba el modo al volver de otra app (la página
+  recuerda su compra hasta las 6 horas) y el foco de teclado que se perdía en
+  el campo oculto (va al "+").
 - Queda abierto: F-5 ("Está comprando" para los otros miembros); un
   indicador de que la pantalla queda encendida, si la prueba en el teléfono
   muestra que hace falta; y la recarga muestra la lista de siempre hasta que
-  la página se hidrata (la página se prerenderiza sin el modo).
+  la página se hidrata (la página se prerenderiza sin el modo), con el foco
+  automático del campo antes de plegarse.
 
 **Propuesta.** Una acción "Empezar a comprar" que cambia la pantalla mientras
 se está en el súper:

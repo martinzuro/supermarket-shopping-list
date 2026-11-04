@@ -357,6 +357,35 @@ for (const scheme of SCHEMES) {
       await expect(masthead(page)).toHaveAttribute("data-wake-lock", "held");
     });
 
+    test("Terminé right after the last check takes it too", async ({
+      page,
+    }) => {
+      test.setTimeout(90_000);
+      await setScene(page);
+      await field(page).blur();
+      await startButton(page).click();
+      for (const name of ["Tomates", "Leche", "Café"]) {
+        await checkAndSync(page, name);
+      }
+      const emptied = rpcAnswered(page, "empty_cart");
+      // The last product and "Terminé" in one go, while its row still
+      // lingers in Pendientes (320 ms).
+      await checkbox(page, "Pan").click();
+      await finishButton(page).click();
+      await expect(moment(page)).toBeVisible();
+      expect((await emptied).ok()).toBe(true);
+      await expect(summary(page)).toContainText([
+        `4 ${m.summary.products(4)}`,
+        "$ 334 · US$ 6",
+        m.summary.nothing,
+      ]);
+      // Nothing comes back to the cart, and the moment stays.
+      await page.waitForTimeout(800);
+      await expect(moment(page)).toBeVisible();
+      await expect(checkbox(page, "Pan")).toHaveCount(0);
+      await expect(masthead(page)).toHaveCount(0);
+    });
+
     test("Terminé with nothing in the cart only ends the trip; Vaciar el carro tells the summary too", async ({
       page,
     }) => {

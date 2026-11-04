@@ -32,6 +32,8 @@ type Stored = { listId: string; since: number };
 type ShoppingStore = {
   /** The list being shopped, or null. Read from storage on first use. */
   listId: string | null;
+  /** When it started: the trip ends after SHOPPING_MAX_MS. */
+  since: number;
   loaded: boolean;
   /** What "Terminé" does: the list's (list-view.tsx), set while it shows. */
   finish: (() => void) | null;
@@ -45,33 +47,50 @@ const stores = new WeakMap<QueryClient, ShoppingStore>();
 function storeOf(queryClient: QueryClient) {
   let store = stores.get(queryClient);
   if (!store) {
-    store = { listId: null, loaded: false, finish: null, listeners: new Set() };
+    store = {
+      listId: null,
+      since: 0,
+      loaded: false,
+      finish: null,
+      listeners: new Set(),
+    };
     stores.set(queryClient, store);
   }
   return store;
 }
 
+/** Within the trip: started, and not longer ago than any trip lasts. */
+function current(since: number) {
+  const age = Date.now() - since;
+  return age >= 0 && age <= SHOPPING_MAX_MS;
+}
+
 /**
- * The list kept in storage, if it is still this trip's. Storage can be
- * blocked (a private window) or hold anything: then there is no mode.
+ * The trip kept in storage, if it is still this trip's; null if there is
+ * none (or it holds anything else). "blocked" when storage cannot be read
+ * at all (a browser that blocks site data): then only this page knows.
  */
-function readStored(): string | null {
+function readStored(): Stored | null | "blocked" {
+  let raw: string | null;
   try {
-    const raw = window.localStorage.getItem(SHOPPING_KEY);
-    if (!raw) return null;
+    raw = window.localStorage.getItem(SHOPPING_KEY);
+  } catch {
+    return "blocked";
+  }
+  if (!raw) return null;
+  try {
     const value = JSON.parse(raw) as Partial<Stored> | null;
-    const age = Date.now() - (value?.since ?? Number.NaN);
     if (
       typeof value?.listId === "string" &&
-      age >= 0 &&
-      age <= SHOPPING_MAX_MS
+      typeof value.since === "number" &&
+      current(value.since)
     ) {
-      return value.listId;
+      return { listId: value.listId, since: value.since };
     }
-    window.localStorage.removeItem(SHOPPING_KEY);
   } catch {
-    // Nothing kept: the mode is off.
+    // Not ours to read: dropped below.
   }
+  write(null);
   return null;
 }
 
@@ -84,19 +103,31 @@ function write(value: Stored | null) {
   }
 }
 
-function setShopping(store: ShoppingStore, listId: string | null) {
+function setShopping(store: ShoppingStore, trip: Stored | null) {
   store.loaded = true;
+  store.since = trip?.since ?? 0;
+  const listId = trip?.listId ?? null;
   if (store.listId === listId) return;
   store.listId = listId;
   store.listeners.forEach((listener) => listener());
 }
 
+/**
+ * What storage says now. Without storage, the page's own trip stands until
+ * it is over: a glance at another app must not end it.
+ */
+function sync(store: ShoppingStore) {
+  const stored = readStored();
+  if (stored !== "blocked") {
+    setShopping(store, stored);
+  } else if (store.listId !== null && !current(store.since)) {
+    setShopping(store, null);
+  }
+}
+
 /** Only in the browser: on the server (prerender) the mode is off. */
 function snapshot(store: ShoppingStore) {
-  if (!store.loaded) {
-    store.loaded = true;
-    store.listId = readStored();
-  }
+  if (!store.loaded) sync(store);
   return store.listId;
 }
 
@@ -119,12 +150,11 @@ export function useShoppingMode(listId: string | null): ShoppingMode {
       store.listeners.add(listener);
       // Another tab started or ended it, or the page comes back after hours
       // (the trip may be long over): read storage again.
-      const sync = () => setShopping(store, readStored());
       const onStorage = (event: StorageEvent) => {
-        if (event.key === null || event.key === SHOPPING_KEY) sync();
+        if (event.key === null || event.key === SHOPPING_KEY) sync(store);
       };
       const onVisible = () => {
-        if (document.visibilityState === "visible") sync();
+        if (document.visibilityState === "visible") sync(store);
       };
       window.addEventListener("storage", onStorage);
       document.addEventListener("visibilitychange", onVisible);
@@ -144,8 +174,9 @@ export function useShoppingMode(listId: string | null): ShoppingMode {
   const on = shopping !== null && (listId === null || shopping === listId);
   const start = useCallback(() => {
     if (listId === null) return;
-    write({ listId, since: Date.now() });
-    setShopping(store, listId);
+    const trip = { listId, since: Date.now() };
+    write(trip);
+    setShopping(store, trip);
   }, [store, listId]);
   const stop = useCallback(() => {
     write(null);

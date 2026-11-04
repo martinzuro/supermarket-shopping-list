@@ -117,6 +117,36 @@ describe("useShoppingMode", () => {
   });
 });
 
+describe("useShoppingMode without storage", () => {
+  it("keeps the page's trip when the page comes back, until it is over", () => {
+    vi.useFakeTimers({ now: new Date("2026-11-04T10:00:00Z") });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Blocked", "SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Blocked", "SecurityError");
+    });
+    const { result } = renderMode(LIST);
+    expect(result.current.mode.on).toBe(false);
+    act(() => result.current.mode.start());
+    expect(result.current.mode.on).toBe(true);
+
+    // A glance at another app does not end it.
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(result.current.mode.on).toBe(true);
+
+    // Hours later, it was another trip.
+    vi.setSystemTime(Date.now() + SHOPPING_MAX_MS + 1000);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(result.current.mode.on).toBe(false);
+    vi.restoreAllMocks();
+  });
+});
+
 describe("Terminé", () => {
   it("runs what the list registered", () => {
     const wrapper = makeWrapper(makeTestQueryClient());
