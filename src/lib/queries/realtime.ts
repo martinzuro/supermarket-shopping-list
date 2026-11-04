@@ -172,6 +172,9 @@ function openListChannel(
     void queryClient.invalidateQueries({
       queryKey: queryKeys.catalog(userId, listId),
     });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.rhythm(userId, listId),
+    });
   }
 
   async function open() {

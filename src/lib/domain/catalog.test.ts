@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   frequentsOf,
+  NO_RHYTHMS,
   rememberedAmount,
   suggestionsFor,
   usualsOf,
   USUAL_WINDOW_DAYS,
+  type Rhythms,
 } from "./catalog";
 import { normalizeName } from "./normalize-name";
+import type { KnownRhythm } from "./rhythm";
 
 const NOW = new Date("2026-10-20T12:00:00.000Z");
 const daysAgo = (days: number) =>
@@ -93,14 +96,21 @@ describe("frequentsOf", () => {
   });
 });
 
+/** A product with a known rhythm, last bought `ago` days ago. */
+function bought(interval_days: number, ago: number): KnownRhythm {
+  return { times_bought: 3, last_bought_at: daysAgo(ago), interval_days };
+}
+
 describe("usualsOf", () => {
-  it("is the products added at least three times, the last one recently", () => {
-    expect(names(usualsOf(catalog, none, NOW))).toEqual([
+  it("is the products added at least three times, the last one recently, all due without trips", () => {
+    const usuals = usualsOf(catalog, none, NOW);
+    expect(names(usuals.due)).toEqual([
       "Leche",
       "Leche descremada",
       "Dulce de leche",
       "Café",
     ]);
+    expect(usuals.later).toEqual([]);
   });
 
   it("counts the window's last day in, and the day after out", () => {
@@ -108,14 +118,69 @@ describe("usualsOf", () => {
       entry("Aceite", 3, USUAL_WINDOW_DAYS),
       entry("Vinagre", 3, USUAL_WINDOW_DAYS + 1),
     ];
-    expect(names(usualsOf(edge, none, NOW))).toEqual(["Aceite"]);
+    expect(names(usualsOf(edge, none, NOW).due)).toEqual(["Aceite"]);
   });
 
   it("leaves out what is pending, and stops at the limit", () => {
-    expect(names(usualsOf(catalog, new Set(["leche"]), NOW, 2))).toEqual([
+    expect(
+      names(usualsOf(catalog, new Set(["leche"]), NOW, NO_RHYTHMS, 2).due),
+    ).toEqual(["Leche descremada", "Dulce de leche"]);
+  });
+
+  it("follows the rhythm the trips know: due before the next trip, still at home otherwise", () => {
+    const rhythms: Rhythms = {
+      listInterval: 7,
+      products: {
+        // Of every trip: due.
+        leche: bought(7, 7),
+        // Every three weeks, bought a week ago: there is some left.
+        cafe: bought(21, 7),
+        // Added long ago by the catalog, but the trips say ten days ago:
+        // the rhythm wins, and it is quarterly.
+        yerba: bought(90, 10),
+        // Two adds only, but a rhythm: usual by it.
+        lechuga: bought(14, 14),
+      },
+    };
+    const usuals = usualsOf(catalog, none, NOW, rhythms);
+    expect(names(usuals.due)).toEqual([
+      "Leche",
       "Leche descremada",
       "Dulce de leche",
+      "Lechuga",
     ]);
+    expect(names(usuals.later)).toEqual(["Yerba", "Café"]);
+  });
+
+  it("drops a product with a rhythm after twice its gap, never before the catalog's window", () => {
+    const rhythms: Rhythms = {
+      listInterval: 7,
+      products: {
+        // Weekly, two months ago: gone (the window, not twice a week).
+        leche: bought(7, USUAL_WINDOW_DAYS + 1),
+        // Quarterly, six months ago: the last day in.
+        cafe: bought(90, 180),
+        // A day more: out, whatever its adds.
+        pan: bought(90, 181),
+      },
+    };
+    const usuals = usualsOf(catalog, none, NOW, rhythms);
+    expect(names(usuals.due)).toEqual([
+      "Leche descremada",
+      "Dulce de leche",
+      "Café",
+    ]);
+    expect(usuals.later).toEqual([]);
+  });
+
+  it("caps each group on its own", () => {
+    const rhythms: Rhythms = {
+      listInterval: 7,
+      products: { leche: bought(21, 7), yerba: bought(21, 7) },
+    };
+    const usuals = usualsOf(catalog, none, NOW, rhythms, 1);
+    expect(names(usuals.due)).toEqual(["Leche descremada"]);
+    expect(names(usuals.later)).toEqual(["Leche"]);
   });
 });
 

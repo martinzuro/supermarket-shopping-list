@@ -75,7 +75,17 @@ export function emptyAction(page: Page) {
 export function catalogLoaded(page: Page) {
   return page.waitForResponse(
     (response) =>
-      response.url().includes("/rest/v1/catalog") &&
+      // The path itself: the rhythm (F-7) is read from /catalog_rhythm.
+      new URL(response.url()).pathname === "/rest/v1/catalog" &&
+      response.request().method() === "GET",
+  );
+}
+
+/** The first answer of the rhythm (F-7): "Lo de siempre" waits for it. */
+export function rhythmLoaded(page: Page) {
+  return page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/rest/v1/catalog_rhythm" &&
       response.request().method() === "GET",
   );
 }

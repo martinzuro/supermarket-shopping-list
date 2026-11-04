@@ -13,6 +13,7 @@ import {
   makeWrapper,
 } from "@/lib/queries/test-utils";
 import { queryKeys } from "@/lib/queries/keys";
+import type { Rhythm } from "@/lib/queries/rhythm";
 import { texts } from "@/lib/texts";
 import { AddItemBar } from "./add-item-bar";
 
@@ -162,11 +163,16 @@ function archived(changes: unknown, filters: [string, unknown][]): Result {
   return { data: rows, error: null };
 }
 
+/** No trips: "Lo de siempre" goes by the adds alone, as before F-7. */
+const NO_TRIPS: Rhythm = { products: {}, list: null };
+
 async function renderBar({
   catalog = CATALOG as unknown[],
   pending = [] as string[],
   // Items with more than a name (a quantity, in the cart...).
   rows = [] as ReturnType<typeof serverItem>[],
+  // What the trips say of the products (F-7).
+  rhythm = NO_TRIPS,
 } = {}) {
   const queryClient = makeTestQueryClient();
   queryClient.setQueryData(queryKeys.lists(USER), [
@@ -176,6 +182,7 @@ async function renderBar({
   queryClient.setQueryData(queryKeys.items(USER, LIST), listed());
   queryClient.setQueryData(queryKeys.categories(USER, LIST), CATEGORIES);
   queryClient.setQueryData(queryKeys.catalog(USER, LIST), catalog);
+  queryClient.setQueryData(queryKeys.rhythm(USER, LIST), rhythm);
   server = listed();
   const view = render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
   const field = screen.getByRole<HTMLInputElement>("combobox", {
@@ -633,6 +640,127 @@ describe("the frequents row", () => {
     expect(alert).toHaveTextContent(texts.itemErrors.add("Leche"));
     expect(alert).toHaveTextContent(texts.itemErrors.addLost);
     expect(field.value).toBe("");
+  });
+});
+
+/** A product with a known rhythm, last bought `ago` days ago. */
+const bought = (interval_days: number, ago: number) => ({
+  times_bought: 3,
+  last_bought_at: new Date(Date.now() - ago * 86_400_000).toISOString(),
+  interval_days,
+});
+
+describe("Lo de siempre with the rhythm of the trips (F-7)", () => {
+  const u = texts.addItem.usuals;
+  const r = texts.addItem.review;
+  const laterToggle = (sheet: HTMLElement) =>
+    within(sheet).getByRole("button", { name: new RegExp(`^${r.later}`) });
+
+  it("splits what is due from what there still is, each with its rhythm, and ticking the latter adds it", async () => {
+    await renderBar({
+      rhythm: {
+        list: { trips_count: 6, interval_days: 7 },
+        products: {
+          // Of every trip.
+          tomates: bought(7, 7),
+          // Every three weeks, two weeks ago: it runs out before the next trip.
+          leche: bought(21, 14),
+          // Still at home: quarterly, ten days ago; and every three weeks a
+          // week ago (added twice only, but the trips know its rhythm).
+          arroz: bought(90, 10),
+          yerba: bought(21, 7),
+        },
+      },
+    });
+
+    // Three due (Pan by its adds alone) and two still at home.
+    fireEvent.click(usualsButton(5)!);
+    const sheet = await waitFor(() => usualsSheet()!);
+    expect(sheet).toHaveTextContent(u.descriptionRhythm);
+    // In the document, not "visible": the sheet is still fading in.
+    expect(
+      within(sheet).getByRole("heading", { name: r.due }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet)
+        .getAllByRole("checkbox")
+        .map((row) => row.textContent),
+    ).toEqual([
+      "Tomates Cada compra 2 kg",
+      "Leche Cada 3 semanas · hace 2 semanas",
+      "Pan",
+    ]);
+    expect(usualsAdd(3)).toBeEnabled();
+    // Folded, with its count, until it is opened.
+    expect(laterToggle(sheet)).toHaveAttribute("aria-expanded", "false");
+    expect(laterToggle(sheet)).toHaveTextContent(`${r.later} 2`);
+
+    fireEvent.click(laterToggle(sheet));
+
+    expect(laterToggle(sheet)).toHaveAttribute("aria-expanded", "true");
+    const rows = within(sheet).getAllByRole("checkbox");
+    expect(rows.slice(3).map((row) => row.textContent)).toEqual([
+      "Arroz Cada 3 meses · hace 10 días",
+      "Yerba Cada 3 semanas · hace 7 días",
+    ]);
+    for (const row of rows.slice(0, 3)) {
+      expect(row).toHaveAttribute("aria-checked", "true");
+    }
+    for (const row of rows.slice(3)) {
+      expect(row).toHaveAttribute("aria-checked", "false");
+    }
+
+    // The rice ran out early.
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: /^Arroz/ }));
+    expect(
+      within(sheet).getByRole("checkbox", { name: /^Arroz/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(usualsAdd(4)!);
+
+    await waitFor(() => expect(items.insert).toHaveBeenCalledTimes(1));
+    const inserted = items.insert.mock.calls[0][0] as { name: string }[];
+    expect(inserted.map((row) => row.name)).toEqual([
+      "Tomates",
+      "Leche",
+      "Pan",
+      "Arroz",
+    ]);
+  });
+
+  it("says so when nothing is due, with what there still is unfolded", async () => {
+    await renderBar({
+      catalog: [entry("Leche", 5), entry("Arroz", 6)],
+      rhythm: {
+        list: { trips_count: 2, interval_days: 7 },
+        products: { leche: bought(21, 7), arroz: bought(21, 7) },
+      },
+    });
+
+    fireEvent.click(usualsButton(2)!);
+    const sheet = await waitFor(() => usualsSheet()!);
+
+    expect(sheet).toHaveTextContent(r.nothingDue);
+    expect(laterToggle(sheet)).toHaveAttribute("aria-expanded", "true");
+    expect(within(sheet).getAllByRole("checkbox")).toHaveLength(2);
+    expect(within(sheet).getByRole("button", { name: r.none })).toBeDisabled();
+  });
+
+  it("drops what the trips say was last bought long ago, whatever its adds", async () => {
+    await renderBar({
+      // Weekly milk, not bought for two months: the household stopped.
+      rhythm: { list: null, products: { leche: bought(7, 61) } },
+    });
+
+    fireEvent.click(usualsButton(3)!);
+    const sheet = await waitFor(() => usualsSheet()!);
+
+    expect(sheet).toHaveTextContent(u.description);
+    expect(
+      within(sheet)
+        .getAllByRole("checkbox")
+        .map((row) => row.textContent),
+    ).toEqual(["Tomates 2 kg", "Arroz", "Pan"]);
+    expect(within(sheet).queryByRole("heading", { name: r.due })).toBeNull();
   });
 });
 

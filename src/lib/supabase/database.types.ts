@@ -160,7 +160,35 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "catalog_rhythm": {
+                  Row: {
+                    "interval_days": number | null,"last_bought_at": string | null,"list_id": string | null,"name_normalized": string | null,"times_bought": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "items_list_id_fkey"
+      columns: ["list_id"]
+isOneToOne: false
+      referencedRelation: "lists"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"list_rhythm": {
+                  Row: {
+                    "interval_days": number | null,"list_id": string | null,"trips_count": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "trips_list_id_fkey"
+      columns: ["list_id"]
+isOneToOne: false
+      referencedRelation: "lists"
+      referencedColumns: ["id"]
+    }
+                  ]
+                }
           }
           Functions: {
             "accept_invite":

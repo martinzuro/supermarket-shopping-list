@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { v7 as newId } from "uuid";
 import { normalizeName } from "../src/lib/domain/normalize-name";
 import type { Database } from "../src/lib/supabase/database.types";
 
@@ -167,6 +168,71 @@ export async function seedCatalog(listId: string, rows: CatalogSeed[]) {
       })),
     ),
   });
+}
+
+export type TripSeed = {
+  /** When the cart was emptied: this many days ago, at this time of day. */
+  daysAgo: number;
+  products: {
+    name: string;
+    /** By name, as the categories are seeded. */
+    category?: string;
+    quantity?: number;
+    unit?: string;
+  }[];
+};
+
+/**
+ * Gives a list past trips: as if the cart had been emptied those days with
+ * those products, which is what the rhythm (F-7) is read from. The rows go
+ * in live first, so the catalog triggers learn the products (they skip an
+ * archived row), and are then archived into the trip by the service role,
+ * which the trip_id guard lets through.
+ */
+export async function seedTrips(
+  listId: string,
+  userId: string,
+  trips: TripSeed[],
+) {
+  const categories = await categoryIds(listId);
+  for (const trip of trips) {
+    const emptiedAt = new Date(
+      Date.now() - trip.daysAgo * 86_400_000,
+    ).toISOString();
+    const [row] = await admin<{ id: string }[]>("/trips", {
+      method: "POST",
+      body: JSON.stringify({
+        id: newId(),
+        list_id: listId,
+        emptied_at: emptiedAt,
+        emptied_by: userId,
+      }),
+    });
+    const ids = trip.products.map(() => newId());
+    await admin("/items", {
+      method: "POST",
+      body: JSON.stringify(
+        trip.products.map((product, index) => ({
+          id: ids[index],
+          list_id: listId,
+          name: product.name,
+          quantity: product.quantity ?? null,
+          unit: product.unit ?? null,
+          category_id: product.category
+            ? (categories.get(product.category) ?? null)
+            : null,
+          checked: true,
+          checked_at: emptiedAt,
+          created_by: userId,
+          created_at: emptiedAt,
+        })),
+      ),
+    });
+    await admin(`/items?id=in.(${ids.join(",")})`, {
+      method: "PATCH",
+      body: JSON.stringify({ deleted_at: emptiedAt, trip_id: row.id }),
+    });
+  }
 }
 
 /** Archives an item, as the app does when it is deleted or emptied. */

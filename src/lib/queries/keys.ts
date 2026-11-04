@@ -19,6 +19,9 @@ export const queryKeys = {
   /** The list's past trips, for the history (docs/improvements.md, F-4). */
   trips: (userId: string, listId: string) =>
     ["user", userId, "list", listId, "trips"] as const,
+  /** Each product's rhythm and the list's, from the trips (F-7). */
+  rhythm: (userId: string, listId: string) =>
+    ["user", userId, "list", listId, "rhythm"] as const,
   /** What an invite link says before the user joins (invite_preview). */
   invite: (userId: string, token: string) =>
     ["user", userId, "invite", token] as const,

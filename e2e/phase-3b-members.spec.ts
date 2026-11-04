@@ -183,7 +183,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         // A's catalog is read again because of it (step 3 needs that).
         const catalogOfA = a.waitForResponse(
           (response) =>
-            response.url().includes("/rest/v1/catalog") &&
+            new URL(response.url()).pathname === "/rest/v1/catalog" &&
             response.request().method() === "GET",
         );
         await openEditorOfB();

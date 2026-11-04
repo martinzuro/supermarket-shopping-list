@@ -1,12 +1,23 @@
 import type { Tables } from "@/lib/supabase/database.types";
 import { compareTimestamps } from "./timestamps";
 import { normalizeName } from "./normalize-name";
+import {
+  DEFAULT_LIST_INTERVAL_DAYS,
+  USUAL_WINDOW_DAYS,
+  hasRhythm,
+  isDue,
+  isStillUsual,
+  type ProductRhythm,
+} from "./rhythm";
+
+export { USUAL_WINDOW_DAYS };
 
 /**
  * What the catalog remembers that the add bar uses to propose products
  * (Phase 3 decisions, plan 3.3): suggestions while typing, the frequent
  * products and "lo de siempre". All of it filtered in the client from the
- * cached catalog, and never a product already pending.
+ * cached catalog, and never a product already pending. "Lo de siempre" also
+ * reads each product's rhythm from the trips (F-7, rhythm.ts).
  */
 type Entry = Pick<
   Tables<"catalog">,
@@ -17,11 +28,13 @@ export const SUGGESTION_LIMIT = 5;
 export const FREQUENT_LIMIT = 12;
 /** A product added this many times is frequent. */
 export const FREQUENT_MIN_TIMES = 2;
+/** At most this many in each group of "Lo de siempre". */
 export const USUAL_LIMIT = 15;
-/** "Lo de siempre": added at least this many times... */
+/**
+ * "Lo de siempre" by the adds, for a product the trips know no rhythm of:
+ * added at least this many times, the last one within USUAL_WINDOW_DAYS.
+ */
 export const USUAL_MIN_TIMES = 3;
-/** ...and the last one within these days. */
-export const USUAL_WINDOW_DAYS = 60;
 
 const DAY_MS = 86_400_000;
 
@@ -100,27 +113,58 @@ export function frequentsOf<E extends Entry>(
     .slice(0, limit);
 }
 
+/** What the trips say of the list's products (useRhythm), for usualsOf. */
+export type Rhythms = {
+  /** By normalized name: the products bought at least once. */
+  products: Readonly<Record<string, ProductRhythm>>;
+  /** Days between the list's trips (listIntervalDays). */
+  listInterval: number;
+};
+
+/** No trips read: every usual product is due, as before F-7. */
+export const NO_RHYTHMS: Rhythms = {
+  products: {},
+  listInterval: DEFAULT_LIST_INTERVAL_DAYS,
+};
+
+/** "Lo de siempre" in two groups: what is due, and what is still at home. */
+export type Usuals<E> = { due: E[]; later: E[] };
+
 /**
- * "Lo de siempre": the products added at least USUAL_MIN_TIMES times whose
- * last add is within USUAL_WINDOW_DAYS, so something bought often last year
- * but not lately does not come back. At most USUAL_LIMIT, the most used
- * first.
+ * "Lo de siempre" (A-3, F-7): the usual products not pending, split into
+ * what to buy on this trip and what there still is at home.
+ *
+ * A product the trips know a rhythm of (two purchases or more) follows it:
+ * usual while it is not long since its last purchase (isStillUsual), due
+ * when it runs out before the next trip (isDue), still at home otherwise.
+ * The rest go by their adds, as before: usual when added at least
+ * USUAL_MIN_TIMES times with the last one within USUAL_WINDOW_DAYS, and
+ * always due, so nothing changes for a list without trips. At most
+ * USUAL_LIMIT in each group, the most used first.
  */
 export function usualsOf<E extends Entry>(
   catalog: readonly E[],
   pending: ReadonlySet<string>,
   now: Date,
+  rhythms: Rhythms = NO_RHYTHMS,
   limit = USUAL_LIMIT,
-): E[] {
+): Usuals<E> {
   const since = now.getTime() - USUAL_WINDOW_DAYS * DAY_MS;
-  return notPending(catalog, pending)
-    .filter(
-      (entry) =>
-        entry.times_added >= USUAL_MIN_TIMES &&
-        Date.parse(entry.last_added_at) >= since,
-    )
-    .sort(byUse)
-    .slice(0, limit);
+  const due: E[] = [];
+  const later: E[] = [];
+  for (const entry of notPending(catalog, pending).sort(byUse)) {
+    const rhythm = rhythms.products[entry.name_normalized];
+    if (hasRhythm(rhythm)) {
+      if (!isStillUsual(rhythm, now)) continue;
+      (isDue(rhythm, now, rhythms.listInterval) ? due : later).push(entry);
+    } else if (
+      entry.times_added >= USUAL_MIN_TIMES &&
+      Date.parse(entry.last_added_at) >= since
+    ) {
+      due.push(entry);
+    }
+  }
+  return { due: due.slice(0, limit), later: later.slice(0, limit) };
 }
 
 /**

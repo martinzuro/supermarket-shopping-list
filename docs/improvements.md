@@ -55,7 +55,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | F-4 | Historial de compras                                | Migración             | Hecho          |
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
 | F-6 | Presupuesto por compra                              | Migración             | Después        |
-| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | Después        |
+| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | Hecho          |
 
 ---
 
@@ -853,6 +853,58 @@ de F-1.
 
 ### F-7. Ritmo por producto en "Lo de siempre"
 
+**Estado: hecho el 2026-11-03**, a pedido del usuario, en dos pasos y un
+solo PR (#59, rama `feat/f7-product-rhythm`): primero la base y las
+funciones puras, después la hoja (el PR #60 de la segunda parte se cerró y
+sus commits fueron al #59). Lo decidido en el segundo:
+
+- `useRhythm` (`src/lib/queries/rhythm.ts`) lee las dos vistas con el
+  catálogo; se releen al vaciar el carro y al deshacerlo, y cuando una fila
+  de otro miembro entra o sale de una compra (`items.trip_id` cambia) o al
+  recuperar el canal de Realtime. "Lo de siempre" espera a tenerlas antes de
+  ofrecerse (si no, todo saldría como "toca" y se partiría después); si la
+  lectura falla, vale la regla del catálogo.
+- `usualsOf` devuelve dos grupos, `due` y `later`, cada uno con el tope de
+  15. Un producto con ritmo (dos compras) lo sigue; el resto va por sus
+  altas, como antes, y siempre a `due`: una lista sin compras no cambia.
+- La hoja de repaso (`review-sheet.tsx`) gana el título "Te toca comprar",
+  la línea de ritmo bajo el nombre ("Cada compra", "Cada 3 semanas · hace 2
+  semanas") y el grupo plegado "Todavía tenés", destildado, con su cuenta; si
+  no toca nada, "Por ahora no te toca nada." y el grupo abierto. La lista
+  pegada y las compras anteriores no cambian. Textos en
+  `texts.addItem.usuals.rhythm` y `texts.addItem.review`; muestra en
+  `/design`. Pruebas en `add-item-bar-catalog.test.tsx`, `catalog.test.ts` y
+  `e2e/f7-rhythm.spec.ts` (con `seedTrips` en `e2e/supabase-admin.ts`).
+- Queda abierto: mostrar el ritmo en "Productos guardados" del menú, y un
+  ajuste manual del ritmo si el uso real muestra que el aprendizaje tarda.
+
+Lo decidido en el primero:
+
+- La migración `20261103130138_catalog_rhythm.sql` crea dos vistas con
+  `security_invoker`, de solo lectura para `authenticated`:
+  `catalog_rhythm` (por lista y producto: `times_bought`, `last_bought_at`
+  y `interval_days`, la mediana en días de los huecos entre las compras en
+  que estuvo, nula con una sola) y `list_rhythm` (por lista: `trips_count`
+  e `interval_days`, la mediana entre sus compras). Un producto cuenta una
+  vez por compra; dos vaciadas con menos de medio día entre sí son una sola
+  compra (el otro miembro tildó lo que faltaba y volvió a vaciar), para que
+  no hundan la mediana; una vaciada deshecha o una fila borrada del todo
+  dejan de contar solas. No hay columnas nuevas ni relleno.
+- Las reglas viven en `src/lib/domain/rhythm.ts`: `listIntervalDays` (7
+  sin datos), `hasRhythm` (hacen falta dos compras), `rhythmKind` ("cada
+  compra" hasta 1,5× el hueco de la lista), `isDue` (lo de cada compra
+  siempre; lo demás, cuando se acaba antes de la próxima compra, un hueco
+  de la lista más adelante), `isStillUsual` (2× su hueco, con el piso de 60
+  días), `periodOf` (días hasta dos semanas, semanas hasta mes y medio,
+  meses desde ahí; nunca "un mes") y `productRhythmOf` y `listRhythmOf`,
+  que convierten las filas de las vistas (nulas para los tipos generados).
+  Pruebas en `rhythm.test.ts` y `e2e/f7-rhythm-db.spec.ts`. La revisión
+  cruzada del PR #59 (Opus) dio el pliegue de medio día, el "cada compra"
+  siempre toca y el "nunca un mes".
+- Queda para el segundo PR: leer las vistas junto al catálogo, releerlas al
+  vaciar y deshacer, partir la hoja en "Te toca comprar" y "Todavía tenés",
+  los textos y la muestra en `/design`.
+
 **Qué pasa.** El catálogo guarda de cada producto solo cuántas veces se
 agregó y la última vez (`times_added`, `last_added_at`), y "Lo de siempre"
 trata a todos igual: 3 o más altas en los últimos 60 días, todo tildado
@@ -945,4 +997,4 @@ Pendiente de decisión del usuario.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2 (hecha el 2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
-  2026-10-21), F-5, F-6 y F-7.
+  2026-10-21), F-5, F-6 y F-7 (hecha el 2026-11-03).
