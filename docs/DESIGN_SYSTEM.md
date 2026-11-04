@@ -454,7 +454,7 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   negrita; los títulos "Súper:" fuera; "Tomates, 2 kg" es un producto; cada
   uno una vez), todos tildados con su cantidad y el icono de la categoría que
   les tocaría. Lo que ya está pendiente se ve sin círculo, en tinta secundaria,
-  con "Ya está en la lista", y no se agrega. Hasta 50 por pegado; si vinieron
+  con "Ya está en la lista", y no se agrega. Hasta 100 por pegado; si vinieron
   más, una línea lo dice bajo la descripción. "Agregar N productos" los suma
   en una escritura, en el orden pegado, con la categoría y el precio del
   catálogo y el mismo aviso con "Deshacer". Una lista de una línea que se
