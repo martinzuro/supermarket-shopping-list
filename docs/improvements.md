@@ -855,7 +855,8 @@ de F-1.
 
 **Estado: en curso desde el 2026-11-03**, a pedido del usuario, en dos PRs:
 primero la base y las funciones puras (PR #59, rama
-`feat/f7-product-rhythm`), después la hoja (rama `feat/f7-usuals-sheet`).
+`feat/f7-product-rhythm`), después la hoja (PR #60, rama
+`feat/f7-usuals-sheet`, contra la rama del #59 hasta que se mergee).
 Lo decidido en el segundo:
 
 - `useRhythm` (`src/lib/queries/rhythm.ts`) lee las dos vistas con el
