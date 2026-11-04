@@ -55,7 +55,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | F-4 | Historial de compras                                | Migración             | Hecho          |
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
 | F-6 | Presupuesto por compra                              | Migración             | Después        |
-| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | En curso       |
+| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | Hecho          |
 
 ---
 
@@ -853,11 +853,10 @@ de F-1.
 
 ### F-7. Ritmo por producto en "Lo de siempre"
 
-**Estado: en curso desde el 2026-11-03**, a pedido del usuario, en dos PRs:
-primero la base y las funciones puras (PR #59, rama
-`feat/f7-product-rhythm`), después la hoja (PR #60, rama
-`feat/f7-usuals-sheet`, contra la rama del #59 hasta que se mergee).
-Lo decidido en el segundo:
+**Estado: hecho el 2026-11-03**, a pedido del usuario, en dos pasos y un
+solo PR (#59, rama `feat/f7-product-rhythm`): primero la base y las
+funciones puras, después la hoja (el PR #60 de la segunda parte se cerró y
+sus commits fueron al #59). Lo decidido en el segundo:
 
 - `useRhythm` (`src/lib/queries/rhythm.ts`) lee las dos vistas con el
   catálogo; se releen al vaciar el carro y al deshacerlo, y cuando una fila
@@ -998,4 +997,4 @@ Pendiente de decisión del usuario.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2, M-3,
   M-8, F-1 y F-2 (hecha el 2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
-  2026-10-21), F-5, F-6 y F-7.
+  2026-10-21), F-5, F-6 y F-7 (hecha el 2026-11-03).
