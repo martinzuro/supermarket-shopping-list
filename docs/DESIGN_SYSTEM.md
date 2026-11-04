@@ -13,7 +13,8 @@ invitación, miembros, avisos de lista perdida y "traer lo de otra lista"), y
 el 2026-10-20 con la Fase 3 (selector de categoría y hoja "Recorrido", precio
 y totales, combobox, frecuentes y "Lo de siempre", guarda del doble toque y
 alto medido de la barra). Todo lo de la Fase 3 se armó con tokens y
-componentes existentes, sin tokens nuevos.
+componentes existentes, sin tokens nuevos. El 2026-11-04, el modo compra
+(F-1, con M-2 y M-3), también sin tokens nuevos: `Moment` ganó `details`.
 
 ---
 
@@ -236,7 +237,7 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | `Banner` | Aviso persistente | Tonos `info`, `attention`, `error`. El texto siempre en tinta; el color en icono e hilo izquierdo. Esquinas izquierdas rectas. `action` va al costado (un botón); `footer` en una línea propia debajo del texto, alineada con él, para dos botones o una pregunta (muestra en `/design`) |
 | `Sheet` | Hoja flotante | Radix Dialog + Motion. `side` right, left, bottom, top. `SheetHeader`, `SheetBody`, `SheetFooter`, `SheetTitle`, `SheetDescription`. Guarda el estado abierto para animar la salida |
 | `InvitationCard` | La invitación como objeto | Pistacho, `rounded-sheet`: arriba el nombre de la lista en serif, una línea de corte discontinua con muescas del color del papel, abajo el enlace en mono (`data-testid="invite-link"`, `select-all`). `link` en `null` muestra el texto de "preparando". Lo usa la hoja de compartir (`src/components/share/`) |
-| `Moment` | Momento editorial | Superficie tinta, titular display con `<em>`, ilustración, acción, entrada escalonada. Pocas veces: carro vaciado, invitación |
+| `Moment` | Momento editorial | Superficie tinta, titular display con `<em>`, ilustración, acción, entrada escalonada. `details` pone un bloque entre el texto y la acción (el resumen de la compra, M-3). Pocas veces: carro vaciado, invitación |
 
 Las primitivas accesibles vienen de Radix (`radix-ui`); el aspecto es
 siempre propio y sale de los tokens. Las primitivas accesibles nuevas se
@@ -545,6 +546,69 @@ F-3), armado con piezas existentes, sin componente nuevo en `ui`.
 - Lo común con la hoja de compartir (`useCanShare`, `shareOrCopy`,
   `selectText`) está en `src/components/share/web-share.ts`.
 
+### Modo compra
+
+`docs/improvements.md` F-1, con M-2 y M-3 adentro: la pantalla en el súper.
+Es de este dispositivo (`src/components/list/shopping-mode.ts`, un store por
+`QueryClient` guardado en `localStorage` como `lista:shopping`, con la lista y
+desde cuándo): los otros miembros no ven nada distinto. Sobrevive a recargar y
+se olvida a las 6 horas (`SHOPPING_MAX_MS`: era otra compra). Se arma con
+piezas existentes, sin tokens ni componentes nuevos en `ui`.
+
+- **Entrar.** "Empezar a comprar" (`secondary`, `touch`, con `ShoppingCart`
+  de lucide) en la cabecera, entre la marca y compartir; solo con algo en la
+  lista. Sale de `ListMasthead` (`list-masthead.tsx`), que es el contenido de
+  la cabecera de la página.
+- **La cabecera** pasa a ser la del súper: en el lugar de la marca, el eyebrow
+  "Comprando" sobre la cuenta del carro en el serif de la marca y a su tamaño
+  (`text-title`, "7 de 18"; el lector oye "7 de 18 en el carro"), y "Salir"
+  (`ghost`, nombre accesible "Salir del modo compra") a la derecha. Compartir
+  y el menú esperan, ocultos y montados (un código a medio escribir no se
+  pierde). La regla de la cabecera se llena: una línea de 2px en el par de
+  "hecho" (`bg-action-bg`: tinta en claro, lima en oscuro) que crece por
+  `scaleX` con `transitions.base` al marcar (lo dicen los datos, no la fila
+  que todavía se queda 320 ms). Cambiar de estado entra con `Enter`; una
+  recarga no anima nada. Con movimiento reducido la cabecera solo funde y la
+  línea salta a su lugar.
+- **La barra de abajo se pliega.** Sin campo ni frecuentes: un botón "+"
+  (`outline`, `icon-touch-lg`, "Agregar un producto") y "Terminé" (el
+  primario, `touch-lg`, con el check de trazo 2.5) ocupando el resto. Encima,
+  la línea de totales (M-2, `ShoppingTotals`, `shopping-totals.tsx`): a la
+  izquierda "Carro" y lo del carro, a la derecha "Falta" y "~" con lo
+  pendiente, cada uno por moneda, eyebrow y mono en `text-label`. Cada lado
+  conserva su lugar (al empezar solo "Falta", al final solo "Carro"); sin
+  ningún precio no hay línea; "N de M con precio" sigue al pie de cada
+  sección. "+" despliega el campo en el mismo toque (`flushSync` y foco, así
+  el teléfono abre el teclado), con sus sugerencias y frecuentes; vacío, al
+  salir de él o con Escape vuelve a ser el botón. El formulario queda montado
+  (`hidden`): su `autoFocus` es solo el de la primera carga y lo escrito no se
+  pierde. Los avisos de la barra (el "al carro" con Deshacer de A-4, los
+  rechazos) siguen arriba de todo.
+- **"Terminé"** vacía el carro con el flujo de siempre (`handleEmptyCart` de
+  la lista, que lo registra con `useShoppingFinish`) y sale del modo; el
+  momento "Buena compra" se trae a la vista, su acción arriba de la barra. Su
+  "Deshacer" devuelve el carro y también el modo compra, con el foco en
+  "Terminé". Sin nada en el carro solo sale del modo, con el foco en "Empezar
+  a comprar". Mientras se compra, "Vaciar el carro" no está: lo hace
+  "Terminé".
+- **El resumen** (M-3, `TripSummary`, `trip-summary.tsx`, en `details` del
+  `Moment`, también al vaciar con "Vaciar el carro"): un ticket sobre la
+  tinta, una línea por cifra entre reglas `inverse-fg-2/40`, el rótulo como
+  eyebrow en `inverse-fg-2` y la cifra en mono: "Pasó por caja" (cuántas
+  filas), "Estimado" (por moneda, con "N de M con precio" si faltan; sin
+  precios no está) y "Falta" (lo que quedó pendiente, o "Nada"). Sin nada
+  pendiente el texto pasa a "El carro quedó vacío y no falta nada.". La
+  región del momento lo dice entero después del titular.
+- **La pantalla no se apaga** (`useWakeLock`, `use-wake-lock.ts`): pide el
+  Screen Wake Lock al entrar, otra vez cuando la página vuelve a verse (el
+  navegador lo suelta al ocultarla) y en el próximo toque si se lo negaron
+  (hay navegadores que lo dan solo después de un gesto), y lo suelta al salir.
+  Sin la API, o si la rechazan, todo sigue igual, sin avisos. El estado queda
+  en `data-wake-lock` de la cabecera (`off`, `unsupported`, `waiting`,
+  `held`), para las pruebas.
+- Muestras en `/design`: la cabecera en modo compra bajo la de siempre, la
+  barra plegada en "Estados" y el momento con su resumen en "Superficies".
+
 ### Miembros, avisos y "traer lo de otra lista"
 
 - **Hoja de la cabecera para todos.** La acción es `UserPlus` si el dueño
@@ -840,6 +904,20 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
   filas ni la deshace); una fila de una compra no vuelve a la lista sin
   `restore_trip`; y nadie escribe una compra ni `items.trip_id` a mano ni
   mueve una compra a otra lista.
+- `e2e/f1-shopping.spec.ts`: el modo compra con el Screen Wake Lock simulado
+  (`addInitScript`, porque Chromium sin pantalla lo niega): entrar (la
+  cabecera con la cuenta, compartir y el menú fuera, el foco en "Salir", el
+  lock pedido una vez), la barra plegada con los totales, marcar (la cuenta,
+  los totales y la línea a un cuarto), "+" con el foco en el campo, Escape y
+  el campo vacío que lo pliegan, la recarga que lo conserva, "Salir" (el lock
+  suelto, el carro intacto); "Terminé" con un solo `empty_cart`, el momento a
+  la vista con su resumen y lo que oye el lector, y su "Deshacer" que vuelve
+  al modo; "Terminé" con el carro vacío, y el resumen al vaciar con "Vaciar el
+  carro" sin nada pendiente. Con capturas a 375px en claro y oscuro.
+  `visual.spec.ts` suma la lista en modo compra (invariantes, 44px, la cuenta
+  en serif, "Terminé" en el par de acción) y, con movimiento reducido, que la
+  cabecera no se traslada y la línea no crece. Unitarios del lock (con la API
+  y sin ella), del store y del resumen.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles
   tipográficos, táctiles, radios, sombra, curva, duración). Sin esa
   configuración borra `text-label` cuando sigue un `text-ink`.

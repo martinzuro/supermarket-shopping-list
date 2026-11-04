@@ -18,6 +18,17 @@ import { MembershipNotices } from "@/components/list/membership-notice";
 import { ListSection } from "@/components/list/list-section";
 import { RouteSheet } from "@/components/list/route-sheet";
 import { SendPending } from "@/components/list/send-pending";
+import {
+  SHOPPING_FINISH_ID,
+  SHOPPING_START_ID,
+  useShoppingFinish,
+  useShoppingMode,
+} from "@/components/list/shopping-mode";
+import {
+  TripSummary,
+  tripSummarySpoken,
+  type TripSummaryData,
+} from "@/components/list/trip-summary";
 import { useDoubleTap } from "@/components/list/use-double-tap";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import { FullBagIllustration } from "@/components/illustrations";
@@ -63,6 +74,12 @@ type Place = "pending" | "cart";
 
 /** An emptying of the cart: when, and the trip it makes for the history. */
 type Emptying = Pick<EmptyCart, "deletedAt" | "tripId">;
+
+/**
+ * What the moment of an emptying tells (M-3), and whether it ended a
+ * shopping trip ("Terminé", F-1): its "Deshacer" goes back to the mode.
+ */
+type Summary = TripSummaryData & { shopping: boolean };
 
 /** Id of the group of items that have no category (the list has no "Otros"). */
 const NO_CATEGORY = "none";
@@ -186,6 +203,11 @@ export function ListView() {
   const [emptied, setEmptied] = useState<Emptying | null>(null);
   // What that emptying took, as it was: "Deshacer" brings it back (A-4).
   const [emptiedRows, setEmptiedRows] = useState<readonly Item[]>([]);
+  // And what its moment tells about it (M-3), counted on the tap.
+  const [summary, setSummary] = useState<Summary | null>(null);
+  // This device in the supermarket (F-1): "Terminé" is its way to empty the
+  // cart, so "Vaciar el carro" waits until the trip is over.
+  const shopping = useShoppingMode(listId);
   // Whether the cart has been seen empty during this moment. The optimistic
   // archive lands a moment after the tap (onMutate awaits), so only a cart
   // that fills up again after that ends the moment.
@@ -267,9 +289,15 @@ export function ListView() {
   // that was tapped to get here is gone with the cart's header).
   const momentShown = emptied !== null;
   const momentAction = useRef<HTMLButtonElement>(null);
+  const momentGroup = useRef<HTMLDivElement>(null);
+  // After "Terminé" (F-1) the button was in the bar, maybe far from the
+  // cart: the whole moment comes into view, its action above the bar.
+  const momentAfterTrip = momentShown && summary?.shopping === true;
   useEffect(() => {
-    if (momentShown) momentAction.current?.focus();
-  }, [momentShown]);
+    if (!momentShown) return;
+    momentAction.current?.focus({ preventScroll: momentAfterTrip });
+    if (momentAfterTrip) momentGroup.current?.scrollIntoView({ block: "end" });
+  }, [momentShown, momentAfterTrip]);
 
   // Whatever lands in the cart while the moment shows (a rejected emptying
   // bringing its rows back, a check that was still in its hold, a rolled
@@ -289,7 +317,10 @@ export function ListView() {
   const handledRefocusEmpty = useRef(0);
   useLayoutEffect(() => {
     if (refocusEmpty === handledRefocusEmpty.current) return;
-    const button = document.getElementById(EMPTY_CART_BUTTON_ID);
+    // While shopping, the cart is emptied from the bar.
+    const button = document.getElementById(
+      shopping.on ? SHOPPING_FINISH_ID : EMPTY_CART_BUTTON_ID,
+    );
     if (!button) return;
     handledRefocusEmpty.current = refocusEmpty;
     const active = document.activeElement;
@@ -298,21 +329,56 @@ export function ListView() {
     }
   });
 
-  function handleEmptyCart() {
+  /**
+   * Empties the cart, with its moment. Returns whether there was anything
+   * to empty.
+   */
+  function handleEmptyCart(fromShopping = false) {
     // Only what is really in the cart: a row unchecked a moment ago is still
     // held there while it leaves, and must not be archived with the rest. A
     // row checked a moment ago is still held in Pendientes, unseen in the
     // cart: it stays out, lands in the cart afterwards and ends the moment.
     const rows = cart.filter((item) => item.checked);
     const ids = rows.map((item) => item.id);
-    if (ids.length === 0) return;
+    if (ids.length === 0) return false;
     const emptying = { deletedAt: new Date().toISOString(), tripId: newId() };
     setEmptied(emptying);
     setEmptiedRows(rows);
+    // What stays pending is what the data says: a row unchecked a moment ago
+    // is pending already, though it still lingers in the cart.
+    setSummary({
+      count: rows.length,
+      estimate: estimateOf(rows),
+      remaining: unchecked.length,
+      shopping: fromShopping,
+    });
     setCartCleared(false);
     // A rejection brings the rows back, and that ends the moment (above).
     emptyCart.mutate({ ids, ...emptying });
+    return true;
   }
+
+  // "Terminé" (F-1): the trip ends with the moment of the emptied cart, and
+  // the screen goes back to the usual list. With nothing in the cart it only
+  // ends the trip, and the focus, if the button had it, goes to "Empezar a
+  // comprar".
+  const [refocusStart, setRefocusStart] = useState(0);
+  useShoppingFinish(() => {
+    const emptiedNow = handleEmptyCart(true);
+    shopping.stop();
+    if (!emptiedNow) setRefocusStart((count) => count + 1);
+  });
+  const handledRefocusStart = useRef(0);
+  useLayoutEffect(() => {
+    if (refocusStart === handledRefocusStart.current) return;
+    handledRefocusStart.current = refocusStart;
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      document
+        .getElementById(SHOPPING_START_ID)
+        ?.focus({ preventScroll: true });
+    }
+  });
 
   function dismissMoment() {
     document.getElementById(ADD_ITEM_INPUT_ID)?.focus();
@@ -321,10 +387,13 @@ export function ListView() {
 
   // The rows land back in the cart at once, and that ends the moment (as a
   // rejected emptying does): the focus goes to "Vaciar el carro".
+  // After "Terminé", the trip comes back too: the user was still shopping.
   function undoEmptying() {
     if (emptied === null) return;
     const emptying = emptied;
     const rows = emptiedRows;
+    const told = summary;
+    if (told?.shopping) shopping.start();
     restoreCart.mutate(
       { ids: rows.map((item) => item.id), rows, ...emptying },
       {
@@ -333,7 +402,9 @@ export function ListView() {
         onError: () => {
           setEmptied(emptying);
           setEmptiedRows(rows);
+          setSummary(told);
           setCartCleared(false);
+          if (told?.shopping) shopping.stop();
         },
       },
     );
@@ -458,6 +529,8 @@ export function ListView() {
   }
 
   const t = texts.moments.cartEmptied;
+  const momentBody =
+    summary !== null && summary.remaining === 0 ? t.bodyDone : t.body;
   return (
     <>
       {/* What happened to the list that was here, and what the user may
@@ -467,7 +540,13 @@ export function ListView() {
       {/* The focus lands on the moment's action, whose name alone would not
           say what happened: the moment is read out once as it appears. */}
       <div aria-live="polite" className="sr-only">
-        {emptied !== null ? `${t.lead} ${t.em}. ${t.body}` : ""}
+        {emptied !== null
+          ? [
+              `${t.lead} ${t.em}.`,
+              momentBody,
+              summary ? tripSummarySpoken(summary) : "",
+            ].join(" ")
+          : ""}
       </div>
       {/* What other members change is colour for the eyes (the pulse) and one
           sentence per burst here. Always mounted, like the connection banner's
@@ -527,15 +606,30 @@ export function ListView() {
           cierra. */}
       {emptied !== null ? (
         <div
+          ref={momentGroup}
           role="group"
           aria-label={texts.moments.cartEmptied.eyebrow}
           className="mt-6"
+          // Scrolled into view after "Terminé": the bar stays over the page.
+          style={{
+            scrollMarginBottom:
+              "calc(var(--add-bar-measured, var(--add-bar-height)) + 1rem)",
+          }}
         >
           <Moment
             eyebrow={texts.moments.cartEmptied.eyebrow}
             lead={texts.moments.cartEmptied.lead}
             em={texts.moments.cartEmptied.em}
-            body={texts.moments.cartEmptied.body}
+            body={momentBody}
+            details={
+              summary ? (
+                <TripSummary
+                  count={summary.count}
+                  estimate={summary.estimate}
+                  remaining={summary.remaining}
+                />
+              ) : undefined
+            }
             illustration={<FullBagIllustration />}
             action={
               <div className="flex flex-wrap gap-2">
@@ -572,14 +666,15 @@ export function ListView() {
           surface="cart"
           footer={<EstimateLine estimate={estimateOf(cart)} />}
           action={
-            ready && !loading && cart.length > 0 ? (
+            // While shopping, "Terminé" in the bar empties it (F-1).
+            ready && !loading && cart.length > 0 && !shopping.on ? (
               // Outline: el carro es pistacho y "secondary" se perdería.
               <Button
                 id={EMPTY_CART_BUTTON_ID}
                 type="button"
                 variant="outline"
                 size="touch"
-                onClick={handleEmptyCart}
+                onClick={() => handleEmptyCart()}
               >
                 {texts.list.cart.emptyAction}
               </Button>

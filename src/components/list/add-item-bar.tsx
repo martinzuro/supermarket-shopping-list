@@ -6,7 +6,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { Plus, XIcon } from "lucide-react";
+import { Check, Plus, XIcon } from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -17,6 +17,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import {
   lastAddedAt,
   showAdded,
@@ -26,6 +27,12 @@ import {
 } from "@/components/list/add-several";
 import { FrequentsRow } from "@/components/list/frequents-row";
 import { lastCopyAt, useLastCopy } from "@/components/list/send-pending";
+import {
+  SHOPPING_FINISH_ID,
+  useFinishShopping,
+  useShoppingMode,
+} from "@/components/list/shopping-mode";
+import { ShoppingTotals } from "@/components/list/shopping-totals";
 import {
   SuggestionList,
   optionId,
@@ -49,6 +56,7 @@ import {
   addedQuantity,
   categoryKind,
   daysSince,
+  estimateOf,
   findPending,
   formatMoney,
   formatQuantity,
@@ -63,6 +71,7 @@ import {
   rememberedAmount,
   rememberedPrice,
   rhythmKind,
+  splitByChecked,
   suggestCategory,
   pastedList,
   suggestionsFor,
@@ -451,6 +460,22 @@ export function AddItemBar() {
   const edit = useEditItem(userId ?? "", listId ?? "");
   const toggle = useToggleItem(userId ?? "", listId ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // In the supermarket (F-1) the bar folds into a button, with "Terminé" and
+  // the totals (M-2): the list gets the room. The button unfolds the field
+  // (`expanded`) until it is left empty. The form stays mounted, hidden: its
+  // autofocus is the first load's only, and a field typed into keeps its
+  // text.
+  const shopping = useShoppingMode(listId);
+  const finishShopping = useFinishShopping();
+  const [expanded, setExpanded] = useState(false);
+  const [wasShopping, setWasShopping] = useState(shopping.on);
+  if (wasShopping !== shopping.on) {
+    setWasShopping(shopping.on);
+    setExpanded(false);
+  }
+  const compact = shopping.on && !expanded;
+  const addButton = useRef<HTMLButtonElement>(null);
 
   // El campo no es controlado (se vacía y se llena a mano al agregar y al
   // rechazar); `query` lo refleja para filtrar las sugerencias.
@@ -1162,6 +1187,12 @@ export function AddItemBar() {
       setActiveKey(null);
       return;
     }
+    // While shopping, Escape folds the field back into its button.
+    if (key === "Escape" && shopping.on) {
+      event.preventDefault();
+      fold();
+      return;
+    }
     if ((key === "ArrowUp" || key === "ArrowDown") && options.length > 0) {
       event.preventDefault();
       if (!open) {
@@ -1190,6 +1221,26 @@ export function AddItemBar() {
       pick(options[activeIndex].key);
     }
   }
+
+  /**
+   * The add button of the shopping bar: the field, at once and with the
+   * focus, so that the phone opens its keyboard on this same tap.
+   */
+  function unfold() {
+    flushSync(() => setExpanded(true));
+    inputRef.current?.focus();
+  }
+
+  /** Back to the button, which takes the focus the field had. */
+  function fold() {
+    flushSync(() => setExpanded(false));
+    addButton.current?.focus({ preventScroll: true });
+  }
+
+  // What the shopping bar tells: the cart and what is left, per currency.
+  const { pending: pendingRows, cart: cartRows } = splitByChecked(
+    items.data ?? [],
+  );
 
   const undoNotice =
     notice?.undo !== undefined ? (notice as Notice & { undo: Undo }) : null;
@@ -1321,7 +1372,10 @@ export function AddItemBar() {
           </span>
         ) : null}
       </div>
-      <Collapse show={open || showRow} className="mx-auto max-w-xl pt-2">
+      <Collapse
+        show={!compact && (open || showRow)}
+        className="mx-auto max-w-xl pt-2"
+      >
         {open ? (
           <div className="px-safe">
             <SuggestionList
@@ -1343,8 +1397,43 @@ export function AddItemBar() {
           />
         )}
       </Collapse>
+      {compact ? (
+        <div
+          data-slot="shopping-bar"
+          className="px-safe pb-safe mx-auto w-full max-w-xl pt-3"
+        >
+          <ShoppingTotals
+            cart={estimateOf(cartRows)}
+            pending={estimateOf(pendingRows)}
+            className="mb-3"
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              ref={addButton}
+              type="button"
+              variant="outline"
+              size="icon-touch-lg"
+              aria-label={texts.shopping.add}
+              onClick={unfold}
+            >
+              <Plus aria-hidden strokeWidth={2} />
+            </Button>
+            <Button
+              id={SHOPPING_FINISH_ID}
+              type="button"
+              size="touch-lg"
+              className="flex-1"
+              onClick={finishShopping}
+            >
+              <Check aria-hidden strokeWidth={2.5} />
+              {texts.shopping.finish}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <form
         onSubmit={handleSubmit}
+        hidden={compact}
         className="px-safe pb-safe mx-auto flex w-full max-w-xl items-center gap-2 pt-3 in-data-[keyboard-open=true]:pb-3"
       >
         <label htmlFor={INPUT_ID} className="sr-only">
@@ -1381,7 +1470,18 @@ export function AddItemBar() {
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onFocus={() => setAway(false)}
-          onBlur={() => setAway(true)}
+          onBlur={(event) => {
+            setAway(true);
+            // While shopping, a field left empty folds back into its button;
+            // not for the review sheet it opened, which gives the focus back.
+            if (
+              shopping.on &&
+              review === null &&
+              event.currentTarget.value.trim() === ""
+            ) {
+              setExpanded(false);
+            }
+          }}
         />
         <Button
           type="submit"

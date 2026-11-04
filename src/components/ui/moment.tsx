@@ -9,6 +9,11 @@ type MomentProps = {
   em: string;
   tail?: string;
   body: string;
+  /**
+   * Lo que el momento resume, bajo el texto y antes de la acción (el
+   * resumen de la compra al vaciar el carro). Entra escalonado con el resto.
+   */
+  details?: React.ReactNode;
   illustration?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
@@ -25,6 +30,7 @@ export function Moment({
   em,
   tail,
   body,
+  details,
   illustration,
   action,
   className,
@@ -61,6 +67,11 @@ export function Moment({
       >
         {body}
       </StaggerItem>
+      {details ? (
+        <StaggerItem as="div" className="mt-8">
+          {details}
+        </StaggerItem>
+      ) : null}
       {action ? (
         <StaggerItem as="div" className="mt-8">
           {action}

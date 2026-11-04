@@ -9,6 +9,8 @@ import {
   WifiOff,
 } from "lucide-react";
 import { CategoryIcon } from "@/components/icons/category-icons";
+import { ShoppingTotals } from "@/components/list/shopping-totals";
+import { TripSummary } from "@/components/list/trip-summary";
 import {
   CartIllustration,
   EmptyBagIllustration,
@@ -131,6 +133,23 @@ export default function DesignPage() {
           </div>
         </div>
         <Meta>{t.brand.headerSample}</Meta>
+        <div className="border-rule relative mt-8 border-y">
+          <div className="flex h-14 items-center justify-between">
+            <p className="flex flex-col">
+              <span className="eyebrow">{texts.shopping.eyebrow}</span>
+              <span className="text-title font-serif">
+                {texts.shopping.progress(7, 18)}
+              </span>
+            </p>
+            <span className="text-label px-5">{texts.shopping.exit}</span>
+          </div>
+          <div
+            aria-hidden
+            className="bg-action-bg absolute inset-x-0 -bottom-px h-0.5 origin-left"
+            style={{ transform: `scaleX(${7 / 18})` }}
+          />
+        </div>
+        <Meta>{t.brand.shoppingSample}</Meta>
       </Section>
 
       {/* Tipografía */}
@@ -410,6 +429,20 @@ export default function DesignPage() {
             lead={texts.moments.cartEmptied.lead}
             em={texts.moments.cartEmptied.em}
             body={texts.moments.cartEmptied.body}
+            details={
+              <TripSummary
+                count={12}
+                estimate={{
+                  totals: [
+                    { currency: "UYU", total: 1234 },
+                    { currency: "USD", total: 12 },
+                  ],
+                  priced: 11,
+                  count: 12,
+                }}
+                remaining={3}
+              />
+            }
             illustration={<FullBagIllustration />}
             action={
               <Button
@@ -603,6 +636,41 @@ export default function DesignPage() {
         <div className="mt-3">
           <RowsDemo />
         </div>
+
+        <p className="eyebrow mt-10">{t.states.shoppingBar}</p>
+        <div className="border-rule mt-3 max-w-md border-t pt-3">
+          <ShoppingTotals
+            cart={{
+              totals: [{ currency: "UYU", total: 253 }],
+              priced: 3,
+              count: 3,
+            }}
+            pending={{
+              totals: [
+                { currency: "UYU", total: 708 },
+                { currency: "USD", total: 4 },
+              ],
+              priced: 8,
+              count: 9,
+            }}
+            className="mb-3"
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-touch-lg"
+              aria-label={texts.shopping.add}
+            >
+              <Plus aria-hidden strokeWidth={2} />
+            </Button>
+            <Button type="button" size="touch-lg" className="flex-1">
+              <Check aria-hidden strokeWidth={2.5} />
+              {texts.shopping.finish}
+            </Button>
+          </div>
+        </div>
+        <Meta>{t.states.shoppingBarNote}</Meta>
 
         <p className="eyebrow mt-10">{t.states.sections}</p>
         <div className="mt-3 grid gap-6">

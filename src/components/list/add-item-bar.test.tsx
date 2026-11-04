@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   makeTable,
   makeTestQueryClient,
@@ -14,6 +14,7 @@ import {
 import { queryKeys } from "@/lib/queries/keys";
 import { texts } from "@/lib/texts";
 import { AddItemBar } from "./add-item-bar";
+import { SHOPPING_KEY } from "./shopping-mode";
 
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
@@ -384,5 +385,119 @@ describe("AddItemBar", () => {
       ["Tomates", VEGETABLES],
       ["Yerba", null],
     ]);
+  });
+});
+
+describe("AddItemBar while shopping (F-1)", () => {
+  const row = (
+    id: string,
+    name: string,
+    checked: boolean,
+    price: number | null,
+  ) => ({
+    id,
+    list_id: LIST,
+    name,
+    name_normalized: name.toLowerCase(),
+    quantity: null,
+    unit: null,
+    note: null,
+    category_id: null,
+    checked,
+    position: Number(id.slice(-1)),
+    estimated_price: price,
+    currency: "UYU",
+    created_at: "",
+    updated_at: "",
+    deleted_at: null,
+    created_by: USER,
+    trip_id: null,
+  });
+
+  function renderShopping() {
+    localStorage.setItem(
+      SHOPPING_KEY,
+      JSON.stringify({ listId: LIST, since: Date.now() }),
+    );
+    const queryClient = makeTestQueryClient();
+    queryClient.setQueryData(queryKeys.lists(USER), [
+      { id: LIST, name: "Mi lista" },
+    ]);
+    queryClient.setQueryData(queryKeys.items(USER, LIST), [
+      row("00000000-0000-7000-8000-0000000000a1", "Tomates", true, 253),
+      row("00000000-0000-7000-8000-0000000000a2", "Leche", false, 708),
+    ]);
+    queryClient.setQueryData(queryKeys.categories(USER, LIST), CATEGORIES);
+    queryClient.setQueryData(queryKeys.catalog(USER, LIST), []);
+    render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
+    return queryClient;
+  }
+
+  afterEach(() => localStorage.clear());
+
+  it("folds into a button and Terminé, with the totals over them", () => {
+    renderShopping();
+    expect(
+      screen.queryByRole("combobox", { name: texts.addItem.label }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: texts.shopping.add }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: texts.shopping.finish }),
+    ).toBeVisible();
+    const totals = document.querySelector('[data-slot="shopping-totals"]');
+    expect(totals?.textContent?.replace(/\s/g, " ")).toBe(
+      `${texts.shopping.totals.cart}$ 253${texts.shopping.totals.remaining}~${texts.shopping.totals.aboutSpoken}$ 708`,
+    );
+  });
+
+  it("unfolds the field with the focus, and folds it back when left empty", () => {
+    renderShopping();
+    const add = screen.getByRole("button", { name: texts.shopping.add });
+    fireEvent.click(add);
+    const field = screen.getByRole<HTMLInputElement>("combobox", {
+      name: texts.addItem.label,
+    });
+    expect(field).toHaveFocus();
+    expect(
+      screen.queryByRole("button", { name: texts.shopping.finish }),
+    ).toBeNull();
+
+    // Escape folds it, with the focus on the button.
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(
+      screen.queryByRole("combobox", { name: texts.addItem.label }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: texts.shopping.add }),
+    ).toHaveFocus();
+
+    // So does leaving it, empty; with text it stays.
+    fireEvent.click(screen.getByRole("button", { name: texts.shopping.add }));
+    const again = screen.getByRole<HTMLInputElement>("combobox", {
+      name: texts.addItem.label,
+    });
+    type(again, "Pan");
+    fireEvent.blur(again);
+    expect(
+      screen.getByRole("combobox", { name: texts.addItem.label }),
+    ).toBeVisible();
+    fireEvent.change(again, { target: { value: "" } });
+    fireEvent.blur(again);
+    expect(
+      screen.queryByRole("combobox", { name: texts.addItem.label }),
+    ).toBeNull();
+  });
+
+  it("Terminé without the list on screen only ends the trip", () => {
+    renderShopping();
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.shopping.finish }),
+    );
+    expect(localStorage.getItem(SHOPPING_KEY)).toBeNull();
+    expect(
+      screen.getByRole("combobox", { name: texts.addItem.label }),
+    ).toBeVisible();
   });
 });
