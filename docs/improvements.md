@@ -344,7 +344,7 @@ campo.
 ### M-2. Totales a la vista mientras se compra
 
 **Estado: hecho el 2026-11-04**, asignado ese día por el usuario junto con
-F-1 y M-3 (rama `feat/f1-shopping-mode`, PR PRNUM): va dentro del modo compra.
+F-1 y M-3 (rama `feat/f1-shopping-mode`, PR 63): va dentro del modo compra.
 Lo decidido al implementarlo:
 
 - La línea vive en la barra de abajo del modo compra, sobre "+" y "Terminé"
@@ -371,7 +371,7 @@ precio. "N de M con precio" se queda en el pie.
 ### M-3. "Buena compra" con resumen
 
 **Estado: hecho el 2026-11-04**, asignado ese día por el usuario junto con
-F-1 y M-2 (rama `feat/f1-shopping-mode`, PR PRNUM). Lo decidido al
+F-1 y M-2 (rama `feat/f1-shopping-mode`, PR 63). Lo decidido al
 implementarlo:
 
 - Vale para toda vaciada del carro, con "Terminé" del modo compra o con
@@ -565,7 +565,7 @@ invitar primero y pedir la cuenta después.
 ### F-1. Modo compra
 
 **Estado: hecho el 2026-11-04**, asignado ese día por el usuario con M-2 y
-M-3 adentro porque el modo los usa (rama `feat/f1-shopping-mode`, PR PRNUM).
+M-3 adentro porque el modo los usa (rama `feat/f1-shopping-mode`, PR 63).
 F-5 queda afuera. Lo decidido al implementarlo:
 
 - **Por dispositivo.** El estado vive en `src/components/list/shopping-mode.ts`
