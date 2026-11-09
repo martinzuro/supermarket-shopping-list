@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type MouseEvent,
+  type ReactElement,
 } from "react";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
 import { BringOver } from "@/components/list/bring-over";
@@ -41,6 +42,7 @@ import { useSession } from "@/components/session-provider";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { ListRow } from "@/components/ui/list-row";
+import { SwipeToRemove } from "@/components/ui/swipe-to-remove";
 import { Moment } from "@/components/ui/moment";
 import { Section } from "@/components/ui/section";
 import {
@@ -411,6 +413,41 @@ export function ListView() {
     toggle.mutate({ id: item.id, name: item.name, checked: next });
   }
 
+  /**
+   * Deleting from the list (M-9): with one tap in the edit sheet or by
+   * swiping a pending row. The bar's notice offers to undo it.
+   */
+  function removeItem(item: Item) {
+    // Rows held after a check (A-5) settle first: the list moves once.
+    flush();
+    remove.mutate({
+      id: item.id,
+      name: item.name,
+      row: item,
+      deletedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Swiping deletes only what is pending. A checked row is something
+   * bought, also while it is still held in Pendientes (A-5): deleting it
+   * takes it out of the trip, and a sideways flick while shopping with one
+   * hand is the likelier accident. The edit sheet still deletes it. A
+   * swipe past 10px flushes the held rows (deferred-reflow.ts), so the list
+   * settles as the gesture starts, before the threshold.
+   */
+  function swipe(item: Item, row: ReactElement) {
+    return (
+      <SwipeToRemove
+        label={texts.list.removed.swipe}
+        disabled={item.checked}
+        onRemove={() => removeItem(item)}
+      >
+        {row}
+      </SwipeToRemove>
+    );
+  }
+
   function renderRow(item: Item, groupEnters: boolean) {
     const line = lineTotal(item);
     return (
@@ -431,26 +468,29 @@ export function ListView() {
           ? {}
           : { initial: false })}
       >
-        <ListRow
-          as="div"
-          name={item.name}
-          quantity={formatQuantity(item.quantity, item.unit)}
-          total={
-            line === null
-              ? undefined
-              : formatMoney(line, item.currency || DEFAULT_CURRENCY)
-          }
-          note={item.note ?? undefined}
-          checked={item.checked}
-          highlighted={remote.has(item.id)}
-          onCheckedChange={(next, event) =>
-            handleCheckedChange(item, next, event)
-          }
-          onPress={() => {
-            flush();
-            setEditingId(item.id);
-          }}
-        />
+        {swipe(
+          item,
+          <ListRow
+            as="div"
+            name={item.name}
+            quantity={formatQuantity(item.quantity, item.unit)}
+            total={
+              line === null
+                ? undefined
+                : formatMoney(line, item.currency || DEFAULT_CURRENCY)
+            }
+            note={item.note ?? undefined}
+            checked={item.checked}
+            highlighted={remote.has(item.id)}
+            onCheckedChange={(next, event) =>
+              handleCheckedChange(item, next, event)
+            }
+            onPress={() => {
+              flush();
+              setEditingId(item.id);
+            }}
+          />,
+        )}
       </Enter>
     );
   }
@@ -713,7 +753,7 @@ export function ListView() {
         onSave={(item, changes) =>
           edit.mutate({ id: item.id, name: item.name, changes })
         }
-        onRemove={(item) => remove.mutate({ id: item.id, name: item.name })}
+        onRemove={removeItem}
         onClose={() => setEditingId(null)}
       />
     </>

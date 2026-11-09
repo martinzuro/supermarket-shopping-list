@@ -92,6 +92,7 @@ import {
   useEditItem,
   useToggleItem,
   useUndoAdd,
+  useRestoreItems,
   useCatalog,
   useCategories,
   useItems,
@@ -105,6 +106,7 @@ import {
   type Item,
   type MoveCategory,
   type RemoveItem,
+  type RestoreItems,
   type ToggleItem,
   type UndoAdd,
 } from "@/lib/queries";
@@ -140,6 +142,12 @@ const INPUT_ID = ADD_ITEM_INPUT_ID;
 /** El aviso se va solo; para entonces el cambio ya se deshizo a la vista. */
 const NOTICE_MS = 8000;
 
+/**
+ * Id del "Deshacer" del aviso: la hoja de edición le pasa el foco al cerrarse
+ * después de borrar (M-9).
+ */
+export const NOTICE_UNDO_ID = "notice-undo";
+
 /** Mismo límite que la columna `items.name`. */
 export const MAX_NAME_LENGTH = 200;
 
@@ -162,13 +170,20 @@ type Review =
     };
 
 /**
- * Lo que "Deshacer" deshace: lo que "Lo de siempre" acaba de agregar, o el
- * último producto que se marcó (A-4), que vuelve a pendientes. `label` es el
+ * Lo que "Deshacer" deshace: lo que "Lo de siempre" acaba de agregar, el
+ * último producto que se marcó (A-4), que vuelve a pendientes, o lo borrado
+ * desde que se abrió el aviso (M-9), que vuelve a la lista. `label` es el
  * nombre accesible del botón cuando "Deshacer" solo no alcanza.
  */
 type Undo =
   | { kind: "add"; ids: readonly string[] }
-  | { kind: "check"; id: string; name: string; label: string };
+  | { kind: "check"; id: string; name: string; label: string }
+  | {
+      kind: "remove";
+      ids: readonly string[];
+      rows: readonly Item[];
+      label: string;
+    };
 
 /**
  * Un aviso de la barra: un rechazo del servidor (tono error, con su cierre)
@@ -204,6 +219,7 @@ const FAILURE_KINDS = new Set([
   "add-many",
   "undo-add",
   "restore-cart",
+  "restore",
 ]);
 
 /**
@@ -247,6 +263,15 @@ function useWriteFailures(userId: string, listId: string): Notice[] {
           at,
           title: texts.itemErrors.restoreCart,
           body: texts.itemErrors.restoreCartBody,
+        };
+      }
+      if (kind === "restore") {
+        const { ids } = mutation.state.variables as RestoreItems;
+        return {
+          key,
+          at,
+          title: texts.itemErrors.restoreItems,
+          body: texts.itemErrors.restoreItemsBody(ids.length),
         };
       }
       if (kind === "toggle") {
@@ -337,6 +362,79 @@ function lastCheckAt(
     );
 }
 
+type Removed = Pick<RemoveItem, "id" | "name" | "row"> & {
+  key: string;
+  at: number;
+};
+
+/**
+ * Lo que este dispositivo borró (M-9), desde la hoja o deslizando la fila,
+ * mientras el borrado va al servidor o ya llegó. Un borrado rechazado tiene
+ * su propio aviso.
+ */
+function useRemoves(userId: string, listId: string): Removed[] {
+  return useMutationState({
+    filters: {
+      mutationKey: itemMutationKeys.remove(userId, listId),
+      predicate: (mutation) =>
+        mutation.state.status !== "error" &&
+        mutation.state.variables !== undefined,
+    },
+    select: (mutation): Removed => {
+      const { id, name, row } = mutation.state.variables as RemoveItem;
+      return {
+        key: `remove:${mutation.mutationId}`,
+        at: mutation.state.submittedAt,
+        id,
+        name,
+        row,
+      };
+    },
+  });
+}
+
+/**
+ * Un aviso para todo lo borrado desde que se cerró el último: dos borrados
+ * seguidos se deshacen juntos, y el aviso dice cuántos son.
+ */
+function removedNotice(
+  removes: readonly Removed[],
+  closedAt: number,
+): Notice | null {
+  const open = removes
+    .filter((removed) => removed.at > closedAt)
+    .sort((a, b) => a.at - b.at);
+  const last = open.at(-1);
+  if (!last) return null;
+  const names = open.map((removed) => removed.name);
+  return {
+    key: last.key,
+    at: last.at,
+    title: texts.list.removed.notice(names),
+    undo: {
+      kind: "remove",
+      ids: open.map((removed) => removed.id),
+      rows: open.map((removed) => removed.row),
+      label: texts.list.removed.undoAria(names),
+    },
+  };
+}
+
+/** When the last delete already in the cache was made (see lastCheckAt). */
+function lastRemoveAt(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+): number {
+  return queryClient
+    .getMutationCache()
+    .findAll({ mutationKey: itemMutationKeys.remove(userId, listId) })
+    .reduce(
+      (latest, mutation) => Math.max(latest, mutation.state.submittedAt),
+      0,
+    );
+}
+
 /** This device's adds: of one product, or of several at once. */
 const ADD_KINDS = new Set(["add", "add-many"]);
 
@@ -407,6 +505,35 @@ function latestNotice(
   return latest;
 }
 
+/** Un dedo, no un mouse: llevar el foco al campo abriría el teclado. */
+export function coarsePointer() {
+  return window.matchMedia?.("(pointer: coarse)").matches ?? false;
+}
+
+/**
+ * El foco al título de Pendientes, cuando lo que lo tenía se fue y el campo
+ * de agregar abriría el teclado: no lo abre y deja al lector en la lista.
+ */
+export function focusPendingHeading() {
+  const heading = document.getElementById("pending-heading");
+  heading?.setAttribute("tabindex", "-1");
+  heading?.focus({ preventScroll: true });
+}
+
+/**
+ * Lleva el foco al nombre de la fila de ese id cuando vuelve a la lista
+ * (lo optimista llega un momento después del toque), o, si no aparece en
+ * unos cuadros, hace lo de `otherwise`.
+ */
+function focusRowWhenBack(id: string, otherwise: () => void, frames = 30) {
+  const row = document.querySelector<HTMLElement>(
+    `[data-item-id="${CSS.escape(id)}"] [data-slot="list-row-name"]`,
+  );
+  if (row) row.focus({ preventScroll: true });
+  else if (frames === 0) otherwise();
+  else requestAnimationFrame(() => focusRowWhenBack(id, otherwise, frames - 1));
+}
+
 /** Tinte e icono de la categoría de ese id, o los de "Otros". */
 function kindOf(
   categories: readonly Category[] | undefined,
@@ -459,6 +586,7 @@ export function AddItemBar() {
   const undoAdd = useUndoAdd(userId ?? "", listId ?? "");
   const edit = useEditItem(userId ?? "", listId ?? "");
   const toggle = useToggleItem(userId ?? "", listId ?? "");
+  const restoreItems = useRestoreItems(userId ?? "", listId ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // In the supermarket (F-1) the bar folds into a button, with "Terminé" and
@@ -527,6 +655,15 @@ export function AddItemBar() {
       ? lastCheck
       : null;
 
+  // What this device deleted (M-9): one notice for every delete since the
+  // last one closed (its timer, Deshacer, something newer in its place).
+  // Deletes from before this bar mounted are old news.
+  const removes = useRemoves(userId ?? "", listId ?? "");
+  const [removesClosedAt, setRemovesClosedAt] = useState(() =>
+    lastRemoveAt(queryClient, userId ?? "", listId ?? ""),
+  );
+  const removeNotice = removedNotice(removes, removesClosedAt);
+
   // What an add of several put on the list: "Lo de siempre" or a paste, from
   // this bar's review sheet, or a past trip, from the menu's (F-4). They
   // share it through add-several.ts. Adds from before this bar mounted (back
@@ -578,8 +715,23 @@ export function AddItemBar() {
       ? aside
       : written;
   const notice = shownOf(
-    latestNotice([duplicateNotice, checkNotice, copyNotice], 0),
+    latestNotice([duplicateNotice, checkNotice, copyNotice, removeNotice], 0),
   );
+  // The deletes' notice does not come back once something newer took its
+  // place: a "Deshacer" reappearing later would undo something no longer in
+  // view. Adjusted during render.
+  // A rejection only covers it: once closed, the undo is back.
+  if (
+    removeNotice &&
+    notice &&
+    notice !== removeNotice &&
+    notice.at > removeNotice.at &&
+    (notice.undo !== undefined ||
+      notice.duplicate !== undefined ||
+      notice.copied === true)
+  ) {
+    setRemovesClosedAt((current) => Math.max(current, removeNotice.at));
+  }
 
   function dismiss(at: number) {
     setDismissedAt((current) => Math.max(current, at));
@@ -596,6 +748,8 @@ export function AddItemBar() {
       );
     } else if (shown.undo?.kind === "check") {
       setChecksClosedAt((current) => Math.max(current, shown.at));
+    } else if (shown.undo?.kind === "remove") {
+      setRemovesClosedAt((current) => Math.max(current, shown.at));
     } else if (shown.copied) {
       setCopiesClosedAt((current) => Math.max(current, shown.at));
     } else {
@@ -609,7 +763,9 @@ export function AddItemBar() {
   const [copyTook, setCopyTook] = useState<string | null>(null);
   if (copyNotice && notice === copyNotice && copyTook !== copyNotice.key) {
     setCopyTook(copyNotice.key);
-    const covered = shownOf(latestNotice([duplicateNotice, checkNotice], 0));
+    const covered = shownOf(
+      latestNotice([duplicateNotice, checkNotice, removeNotice], 0),
+    );
     if (covered) close(covered);
   }
   // So does an add of several: this bar's own close the notice they cover
@@ -618,7 +774,10 @@ export function AddItemBar() {
   const [addedTook, setAddedTook] = useState<string | null>(null);
   if (addedNotice && notice === addedNotice && addedTook !== addedNotice.key) {
     setAddedTook(addedNotice.key);
-    const covered = latestNotice([duplicateNotice, checkNotice, copyNotice], 0);
+    const covered = latestNotice(
+      [duplicateNotice, checkNotice, copyNotice, removeNotice],
+      0,
+    );
     if (covered && covered.at < addedNotice.at) close(covered);
   }
 
@@ -628,9 +787,11 @@ export function AddItemBar() {
     ? "duplicate"
     : notice?.undo?.kind === "check"
       ? "check"
-      : notice?.copied
-        ? "copied"
-        : "written";
+      : notice?.undo?.kind === "remove"
+        ? "remove"
+        : notice?.copied
+          ? "copied"
+          : "written";
   useEffect(() => {
     if (noticeAt === null) return;
     const timer = setTimeout(() => {
@@ -640,6 +801,8 @@ export function AddItemBar() {
         );
       } else if (noticeKind === "check") {
         setChecksClosedAt((current) => Math.max(current, noticeAt));
+      } else if (noticeKind === "remove") {
+        setRemovesClosedAt((current) => Math.max(current, noticeAt));
       } else if (noticeKind === "copied") {
         setCopiesClosedAt((current) => Math.max(current, noticeAt));
       } else {
@@ -1150,12 +1313,28 @@ export function AddItemBar() {
     reviewAdded.current = addMany(created);
   }
 
-  /** "Deshacer": lo agregado de una vez sale; lo marcado vuelve a pendientes. */
+  /**
+   * "Deshacer": lo agregado de una vez sale; lo marcado vuelve a pendientes;
+   * lo borrado vuelve a la lista.
+   */
   function undo(
     shown: Notice & { undo: Undo },
     event: MouseEvent<HTMLButtonElement>,
   ) {
-    if (document.activeElement === event.currentTarget) focusField();
+    const focused = document.activeElement === event.currentTarget;
+    if (shown.undo.kind === "remove") {
+      restoreItems.mutate({ ids: shown.undo.ids, rows: shown.undo.rows });
+      // The focus follows what came back, not the field: with a finger the
+      // field would open the keyboard.
+      if (focused) {
+        focusRowWhenBack(shown.undo.ids[0], () =>
+          coarsePointer() ? focusPendingHeading() : focusField(),
+        );
+      }
+      close(shown);
+      return;
+    }
+    if (focused) focusField();
     if (shown.undo.kind === "add") {
       const variables: UndoAdd = {
         ids: shown.undo.ids,
@@ -1257,7 +1436,9 @@ export function AddItemBar() {
   // solos (role="alert").
   // A check is already said by its checkbox, which keeps the focus.
   const infoNotice =
-    (undoNotice?.undo.kind === "add" ? undoNotice : null) ??
+    (undoNotice?.undo.kind === "add" || undoNotice?.undo.kind === "remove"
+      ? undoNotice
+      : null) ??
     duplicateShown ??
     copiedShown;
 
@@ -1282,8 +1463,10 @@ export function AddItemBar() {
               <Button
                 type="button"
                 variant="outline"
+                id={NOTICE_UNDO_ID}
                 aria-label={
-                  undoNotice.undo.kind === "check"
+                  undoNotice.undo.kind === "check" ||
+                  undoNotice.undo.kind === "remove"
                     ? undoNotice.undo.label
                     : undefined
                 }

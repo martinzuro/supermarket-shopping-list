@@ -50,6 +50,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | M-6 | Nombres con mayúscula inicial                       | Nada                  | Hecho          |
 | M-7 | Quién agregó cada producto                          | Migración             | Después        |
 | M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
+| M-9 | Borrar con un toque y deshacer                      | Nada                  | Hecho          |
 | F-1 | Modo compra                                         | Nada                  | Hecho          |
 | F-2 | Pegar una lista                                     | Nada                  | Hecho          |
 | F-3 | Mandar lo que falta como texto                      | Nada                  | Hecho          |
@@ -639,6 +640,90 @@ sin eventos, así que no hay medición automática. Si duele, ADR nuevo para
 invitar primero y pedir la cuenta después.
 
 **Requiere.** Nada ahora; un ADR si se cambia.
+
+### M-9. Borrar con un toque y deshacer
+
+**Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
+(rama `feat/m9-delete-undo`, PR #66). Lo decidido al implementarlo:
+
+- El deshacer reusa el borrado lógico que ya existía (`deleted_at`, plan
+  3.2), sin migración: "Deshacer" limpia la marca en la misma fila, con el
+  mismo id, así que vuelve todo (nombre, cantidad, unidad, precio, moneda,
+  nota, categoría, posición y estado). Es un solo `PATCH` para todo lo
+  borrado mientras el aviso estaba abierto, solo sobre filas que siguen
+  borradas y no están en una compra (`trip_id is null`): lo que archivó
+  "Vaciar el carro" es de `restore_trip`, y la restricción
+  `items_trip_id_archived` lo rechazaría igual. Un producto borrado nunca
+  entra en `trips` (allí solo van los que tienen `trip_id`), así que reusar
+  la marca no mezcla borrados con compras ni con el ritmo de F-7.
+  `useRestoreItems` (`src/lib/queries/items.ts`) sigue el patrón optimista:
+  la fila vuelve al instante en su lugar, también si la lectura posterior al
+  borrado ya la había sacado del caché (el aviso guarda la fila), y un
+  rechazo la vuelve a ocultar con su propio aviso.
+- Se descartaron reinsertar la fila con el mismo id (exige un `DELETE` real
+  antes, y el trigger del catálogo contaría la reinserción como un alta
+  nueva) y demorar el borrado hasta que venza el aviso (los demás miembros
+  la seguirían viendo, y cerrar la pestaña la dejaría viva).
+- Un deshacer tocado antes de que el borrado salga de la cola de la lista no
+  manda nada: `useRemoveItem` no envía el borrado si hay un deshacer de esa
+  fila en la cola. Lo decide la cola, no el caché: una lectura en el medio
+  trae la fila viva y el borrado igual se tiene que mandar. La hora del
+  borrado la pone quien borra y sobrevive a los reintentos.
+- Los otros miembros ven por Realtime que la fila se va y que vuelve (con el
+  pulso y el aviso para lectores de pantalla de un alta). Mientras está
+  borrada no la pueden editar: su hoja se cierra sola. Si una edición suya
+  llegó al servidor antes del borrado, el deshacer la conserva, porque solo
+  toca `deleted_at`.
+- Dos borrados seguidos: el aviso junta todo lo borrado desde que se abrió
+  ("Borraste 2 productos") y "Deshacer" lo devuelve junto. Un aviso
+  informativo más nuevo que ocupe su lugar (marcar, "ya está", copiar, "Lo
+  de siempre") lo cierra para siempre: un "Deshacer" que reaparece más tarde
+  desharía algo que ya no está a la vista. Un rechazo solo lo tapa. Se va solo a
+  los 8 s (`NOTICE_MS`), como el del marcado.
+- En la hoja de edición, "Borrar" borra con un toque y cierra la hoja. Al
+  cerrarse, el foco va al "Deshacer" del aviso (`NOTICE_UNDO_ID`), no al
+  campo de agregar, que en el teléfono abría el teclado. Si no hay aviso (la
+  borró otro miembro), con puntero táctil va al título de Pendientes y con
+  mouse sigue yendo al campo. "Deshacer" lleva el foco a la fila que vuelve.
+- Deslizar una fila de Pendientes hacia la izquierda la borra, con el mismo
+  aviso: `SwipeToRemove` (`src/components/ui/swipe-to-remove.tsx`), con
+  Motion (`drag="x"`, sin librerías de gestos). Umbral: 35% del ancho, o un
+  tirón de 56 px a 700 px/s. El scroll vertical queda del navegador
+  (`touch-action: pan-y` y `dragDirectionLock`), y un arrastre no dispara el
+  toque de marcar ni el de editar. Detrás asoma `--danger-bg` con la
+  papelera; pasado el umbral el disco se llena de tomate (y el teléfono
+  vibra 8 ms donde puede). Con movimiento reducido la fila sigue al dedo
+  pero no vuela ni rebota. Patrón en DESIGN_SYSTEM.md, muestra en `/design`.
+- En el carro no se desliza: una fila del carro es algo comprado, borrarla
+  la saca de la compra, y un tirón de costado comprando con una mano es el
+  accidente más probable. La hoja la sigue borrando.
+- Límite conocido: si otro miembro vacía el carro con una fila borrada
+  desde el carro antes del deshacer, esa fila queda en la compra y el
+  deshacer no la trae, sin aviso. Es raro (solo una fila del carro, borrada
+  desde la hoja) y no tiene prueba entre dos miembros.
+- `use-confirm` (dos toques) queda donde estaba: sacar a un miembro y
+  olvidar un producto guardado no tienen deshacer (uno echa a alguien de la
+  lista y el otro borra la fila del catálogo de verdad), así que la
+  confirmación sigue siendo la protección.
+- Pruebas: `src/lib/queries/items.test.tsx` (mutación y deshacer, con
+  respuestas demoradas), `src/components/list/remove-undo.test.tsx` (el
+  aviso con las mutaciones reales), `src/components/list/edit-item-sheet.test.tsx`
+  (un toque y el foco), `src/components/ui/swipe-to-remove.test.tsx` y
+  `e2e/m9-remove-undo.spec.ts` (hoja + deshacer, deslizar, deslizar corto,
+  scroll, dos seguidos y el carro, a 375 px en claro y oscuro, con toques
+  reales). Los e2e que borraban con dos toques pasaron a uno.
+
+**Qué pasaba** (antes de M-9). Borrar costaba tres toques: abrir la hoja
+tocando el nombre, "Borrar" y otra vez dentro de 4 s ("Tocá otra vez para
+borrar"). Después no había forma de deshacer, y al cerrarse la hoja el foco
+volvía al campo de agregar, que en el teléfono podía abrir el teclado.
+
+**Propuesta original** (cumplida). "Borrar" borra con un toque y el aviso de
+la barra ofrece "Deshacer", que restaura el producto completo. Deslizar la
+fila hacia la izquierda también borra, con Motion, umbral claro, el color de
+peligro, movimiento reducido respetado y la hoja como alternativa accesible.
+
+**Requiere.** Nada: sin migración.
 
 ---
 

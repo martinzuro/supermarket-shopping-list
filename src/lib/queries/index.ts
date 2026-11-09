@@ -54,6 +54,7 @@ export {
   useRemoveItem,
   useEmptyCart,
   useRestoreCart,
+  useRestoreItems,
   newItem,
   itemMutationKeys,
   type Item,
@@ -66,6 +67,7 @@ export {
   type RemoveItem,
   type EmptyCart,
   type RestoreCart,
+  type RestoreItems,
 } from "./items";
 export { useTrips, TRIP_LIMIT, type Trip, type TripHistory } from "./trips";
 export { useRhythm, readRhythmAgain, type Rhythm } from "./rhythm";

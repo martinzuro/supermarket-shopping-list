@@ -1,5 +1,4 @@
 import {
-  act,
   fireEvent,
   render,
   screen,
@@ -211,31 +210,15 @@ describe("EditItemSheet", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("deletes on the second tap, ignoring an accidental double tap", () => {
-    vi.useFakeTimers();
-    const { onRemove, onClose } = renderSheet();
-    const remove = () => screen.getByRole("button", { name: /Borrar|borrar/ });
-
-    fireEvent.click(remove());
-    expect(remove()).toHaveTextContent(t.confirmRemove);
-    fireEvent.click(remove());
-    expect(onRemove).not.toHaveBeenCalled();
-
-    act(() => vi.advanceTimersByTime(400));
-    fireEvent.click(remove());
+  it("deletes with one tap and closes: the bar offers to undo it (M-9)", () => {
+    const { onRemove, onClose, onSave } = renderSheet();
+    fireEvent.click(screen.getByRole("button", { name: t.remove }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
     expect(onRemove).toHaveBeenCalledWith(
       expect.objectContaining({ id: "milk" }),
     );
     expect(onClose).toHaveBeenCalled();
-  });
-
-  it("drops the confirmation after a few seconds", () => {
-    vi.useFakeTimers();
-    renderSheet();
-    const remove = () => screen.getByRole("button", { name: /Borrar|borrar/ });
-    fireEvent.click(remove());
-    act(() => vi.advanceTimersByTime(4100));
-    expect(remove()).toHaveTextContent(t.remove);
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("starts a fresh form when another item opens", () => {
@@ -591,5 +574,73 @@ describe("EditItemSheet", () => {
         expect(radio(dollars)).toHaveFocus();
       });
     });
+  });
+});
+
+describe("where the focus goes once the row is gone (M-9)", () => {
+  /** What the page has around the sheet: the field, the notice, the list. */
+  function surroundings({ notice }: { notice: boolean }) {
+    const page = document.createElement("div");
+    page.innerHTML = `
+      <h2 id="pending-heading">Pendientes</h2>
+      ${notice ? '<button id="notice-undo">Deshacer</button>' : ""}
+      <input id="add-item-name" />
+    `;
+    document.body.append(page);
+    return page;
+  }
+
+  function pointer(coarse: boolean) {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: coarse && query === "(pointer: coarse)",
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  async function closeAfterDelete() {
+    const view = renderSheet();
+    fireEvent.click(screen.getByRole("button", { name: t.remove }));
+    view.rerender(
+      <EditItemSheet
+        item={undefined}
+        categories={CATEGORIES}
+        onSave={view.onSave}
+        onRemove={view.onRemove}
+        onClose={view.onClose}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  }
+
+  it("goes to the notice's Deshacer, not to the field", async () => {
+    pointer(true);
+    const page = surroundings({ notice: true });
+    await closeAfterDelete();
+    expect(page.querySelector("#notice-undo")).toHaveFocus();
+  });
+
+  it("with a finger and no notice, to the Pendientes heading, never the field", async () => {
+    pointer(true);
+    const page = surroundings({ notice: false });
+    await closeAfterDelete();
+    expect(page.querySelector("#pending-heading")).toHaveFocus();
+  });
+
+  it("with a mouse and no notice, to the field, as before", async () => {
+    pointer(false);
+    const page = surroundings({ notice: false });
+    await closeAfterDelete();
+    expect(page.querySelector("#add-item-name")).toHaveFocus();
   });
 });
