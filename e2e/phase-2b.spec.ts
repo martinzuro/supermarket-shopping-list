@@ -19,6 +19,7 @@ import {
   reloadJoined,
   reportSteps,
   row,
+  expectOwnRows,
   rowEventsFor,
   rowName,
   removeButton,
@@ -118,8 +119,8 @@ for (const colorScheme of ["light", "dark"] as const) {
           b,
           a,
           ["Leche"],
-          // It is marked where it stands (strike and check play for 320 ms),
-          // then travels: the row in #pending leaves and the one in #cart
+          // It is marked where it stands, waits for the checks to stop (A-5)
+          // and then travels: the row in #pending leaves and the one in #cart
           // enters in the same commit (shared layoutId), and no row comes
           // back.
           [
@@ -280,13 +281,19 @@ for (const colorScheme of ["light", "dark"] as const) {
         ]);
         expect(await pulsedNames(a), "queued: A pulsed").toEqual(["Yerba"]);
         expect(await pulsedNames(b), "queued: B pulsed").toEqual(["Huevos"]);
-        // A's row: the add, the check where it stands, then the move.
-        expect(await rowEventsFor(a, "Huevos"), "queued: A's Huevos").toEqual([
-          "mount Huevos pending",
-          "checked Huevos false>true",
-          "unmount Huevos pending",
-          "mount Huevos cart",
-        ]);
+        // A's row: the add, the check where it stands, then the move (once
+        // the checks stop, A-5).
+        await expectOwnRows(
+          a,
+          "queued: A's Huevos",
+          () => rowEventsFor(a, "Huevos"),
+          [
+            "mount Huevos pending",
+            "checked Huevos false>true",
+            "unmount Huevos pending",
+            "mount Huevos cart",
+          ],
+        );
         expect(await rowEventsFor(b, "Yerba"), "queued: B's Yerba").toEqual([
           "mount Yerba pending",
         ]);

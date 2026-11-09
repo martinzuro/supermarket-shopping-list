@@ -7,6 +7,7 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
+import { REFLOW_IDLE_MS } from "../src/components/list/deferred-reflow";
 import { texts } from "../src/lib/texts";
 
 /**
@@ -606,8 +607,31 @@ export function stepper(steps: Step[]) {
       [...(await pulsedNames(other))].sort(),
       `${label}: observer pulsed`,
     ).toEqual(pulses.length > 1 ? [...pulses].sort() : pulses);
-    expect(await rowEventsOf(actor), `${label}: actor's rows`).toEqual(ownRows);
+    await expectOwnRows(actor, label, () => rowEventsOf(actor), ownRows);
   };
+}
+
+/**
+ * The actor's own row log is exactly `rows`. A row the actor checks waits in
+ * place until the checks stop (A-5, REFLOW_IDLE_MS) and only then goes down
+ * to the cart, so the log is read once it has got there: polled up to the
+ * end of that wait, then once more after a beat, so that a flicker after it
+ * would still fail.
+ */
+export async function expectOwnRows(
+  actor: Page,
+  label: string,
+  read: () => Promise<string[]>,
+  rows: string[],
+) {
+  await expect
+    .poll(read, {
+      message: `${label}: actor's rows`,
+      timeout: REFLOW_IDLE_MS + CHANGE_MS,
+    })
+    .toEqual(rows);
+  await actor.waitForTimeout(300);
+  expect(await read(), `${label}: actor's rows, later`).toEqual(rows);
 }
 
 /** Annotates the test with every step's time and prints them, whatever happened. */
