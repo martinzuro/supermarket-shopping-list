@@ -177,6 +177,38 @@ si el sistema no la da la app sigue sin ella, sin avisar.
       el estimado y lo que falta) y la pantalla de siempre; "Deshacer" vuelve
       al carro y al modo compra.
 
+## 11. Invitar a instalar la app (F-8, agregado el 2026-11-09)
+
+Lo que el navegador de un teléfono real decide y los e2e no pueden: ahí el
+evento `beforeinstallprompt` se simula. Con la app **sin instalar** y
+habiendo terminado una compra antes (o con `lista:install` en el
+almacenamiento del navegador en `{"trips":1,"dismissals":0,"dismissedAt":0}`).
+
+Android (Chrome):
+- [ ] En la visita siguiente a una compra terminada aparece el aviso "Tené
+      Lista en el inicio" arriba de la lista, nunca en la primera visita ni
+      encima de "Buena compra".
+- [ ] "Instalar" abre el diálogo de instalación de Chrome con el nombre y el
+      ícono; al aceptar, la app queda en el cajón de apps y el aviso se va.
+- [ ] Abierta desde el ícono, el aviso y "Instalar la app" del menú no
+      aparecen.
+- [ ] Cancelar el diálogo de Chrome cuenta como "Ahora no": el aviso no
+      vuelve en la visita siguiente.
+- [ ] "Ahora no" lo calla; "Instalar la app" sigue en el menú y funciona.
+
+iPhone (Safari):
+- [ ] El aviso dice "Cómo instalarla" y abre la hoja con los tres pasos; los
+      pasos coinciden con Safari de verdad (dónde está Compartir, cómo se
+      llama "Agregar a inicio") y los iconos se entienden.
+- [ ] Siguiendo los pasos, la app queda en el inicio y abierta desde ahí no
+      muestra el aviso ni la entrada del menú.
+- [ ] En el menú, "Instalar la app" › "Ver cómo" despliega los pasos en el
+      lugar, sin abrir otra hoja.
+- [ ] En Chrome de iPhone no aparece ninguna invitación.
+
+Los dos:
+- [ ] En modo compra no aparece el aviso, ni al volver de otra app.
+
 ## Resultado
 
 | Punto | iPhone | Android | Notas |
@@ -191,6 +223,7 @@ si el sistema no la da la app sigue sin ella, sin avisar.
 | 8. Compartir | | | |
 | 9. Accesibilidad | | | |
 | 10. Modo compra | | | |
+| 11. Instalar la app | | | |
 
 Fecha y quién lo hizo: iPhone, puntos 1 a 6, Martin Zuro, informado el
 2026-11-03. Pendientes: 7 a 10 en iPhone y todo en Android.

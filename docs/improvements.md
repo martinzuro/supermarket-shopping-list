@@ -56,6 +56,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | F-5 | "Está comprando"                                    | Nada en la base       | Después        |
 | F-6 | Presupuesto por compra                              | Migración             | Después        |
 | F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | Hecho          |
+| F-8 | Invitar a instalar la app                           | Nada                  | Hecho          |
 
 ---
 
@@ -1072,6 +1073,65 @@ la compra) deja de contar sola. El cliente la lee junto al catálogo
 (`useCatalog`), el ritmo va en funciones puras de `src/lib/domain/` como
 `usualsOf`, la hoja de repaso gana el grupo plegado y la línea secundaria, y
 los textos van en `texts.ts`.
+
+### F-8. Invitar a instalar la app
+
+**Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
+después de la auditoría de usabilidad a 375 px (rama
+`claude/feat-install-prompt-594a16`, PR pendiente de número).
+
+**Qué pasa.** La app es una PWA (`manifest.ts` con `display: standalone`,
+service worker con Serwist), pero nada invita a instalarla: no se maneja
+`beforeinstallprompt` y en iOS no hay pista de dónde está "Agregar a
+inicio". Instalada ocupa la pantalla completa, queda en el inicio del
+teléfono y es la base de un futuro `share_target`.
+
+**Propuesta, y lo decidido.**
+
+- **Cuándo.** Un aviso callado arriba de la lista, en la visita siguiente a
+  una compra terminada en ese dispositivo. En la primera visita la persona
+  no sabe todavía si la app le sirve; en la visita de la compra compite con
+  "Buena compra", que es el cierre de lo que acaba de hacer; una compra
+  terminada ya prueba que la usa para lo que sirve. Una "visita" es una
+  carga de la página o volver a la app después de media hora. Nunca en modo
+  compra, ni con el momento en pantalla, ni encima de otro aviso (sin
+  conexión, lo que pasó con la lista, "traer lo de otra lista").
+- **Android/Chrome.** `beforeinstallprompt` se captura desde que carga el
+  módulo (puede llegar antes de que React monte) y se guarda; "Instalar"
+  llama a `prompt()`. Un "no" del diálogo del navegador cuenta como "Ahora
+  no". `appinstalled` quita el aviso y la entrada del menú.
+- **iOS Safari.** Sin API: "Cómo instalarla" abre una hoja con tres pasos
+  (Compartir, "Agregar a inicio", "Agregar") y dos iconos propios del
+  sistema (`install-icons.tsx`: un cuenco con una flecha y una pantalla con
+  un más; no copian el glifo de Apple). Solo Safari: en los otros
+  navegadores de iOS y en las vistas web de otras apps los pasos pueden no
+  estar donde decimos.
+- **Cuándo no.** Instalada (`display-mode` standalone, fullscreen o
+  minimal-ui, `navigator.standalone`) o en un navegador sin forma de
+  instalar (escritorio sin el evento, Firefox).
+- **Descartes.** "Ahora no" calla el aviso 14 días en ese dispositivo
+  (`localStorage`, `lista:install`, con try/catch); al segundo descarte no
+  vuelve solo.
+- **Menú.** "Instalar la app" queda en el menú mientras se pueda instalar y
+  no esté instalada, haya salido el aviso o no. En iOS los pasos se
+  despliegan en el menú mismo: nunca una hoja sobre otra.
+- **Manifest.** Se agregó `id: "/"`. Las `screenshots` quedan fuera por
+  ahora: habilitan el diálogo de instalación enriquecido en Android, pero
+  exigen capturas reales de la app que se desactualizan con cada cambio
+  visual y hay que mantener a mano; el diálogo común con nombre e icono
+  alcanza. Se retoma si el uso muestra que hace falta convencer más.
+- **Sin dependencias nuevas.** `Banner`, `Sheet` y `Collapse` existentes;
+  ningún token ni componente nuevo en `ui`.
+
+**Límites.** Quien ya había terminado compras antes de esta versión empieza
+a contar desde la próxima (el recuento es del dispositivo, no de la lista).
+Si Chrome no entrega el evento (no cumple el criterio de instalable o el
+usuario lo bloqueó) no hay aviso ni entrada en Android: no hay a qué
+invitar. Después de que el diálogo del navegador se cierra con "no", la
+entrada del menú desaparece hasta la próxima carga, cuando Chrome puede
+volver a ofrecerlo.
+
+**Requiere.** Nada fuera del cliente.
 
 ---
 

@@ -14,7 +14,9 @@ el 2026-10-20 con la Fase 3 (selector de categoría y hoja "Recorrido", precio
 y totales, combobox, frecuentes y "Lo de siempre", guarda del doble toque y
 alto medido de la barra). Todo lo de la Fase 3 se armó con tokens y
 componentes existentes, sin tokens nuevos. El 2026-11-04, el modo compra
-(F-1, con M-2 y M-3), también sin tokens nuevos: `Moment` ganó `details`.
+(F-1, con M-2 y M-3), también sin tokens nuevos: `Moment` ganó `details`. El
+2026-11-09, invitar a instalar la app (F-8): dos iconos propios y ningún
+token ni componente nuevo en `ui`.
 
 ---
 
@@ -31,6 +33,8 @@ componentes existentes, sin tokens nuevos. El 2026-11-04, el modo compra
 | Primitivas de motion | `src/components/motion/index.tsx` |
 | Componentes base | `src/components/ui/*.tsx` |
 | Iconos de categoría | `src/components/icons/category-icons.tsx` |
+| Iconos de las instrucciones de iOS | `src/components/icons/install-icons.tsx` |
+| Invitar a instalar la app | `src/components/install/`, `src/lib/install.ts` |
 | Ilustraciones | `src/components/illustrations/index.tsx` |
 | Bienvenida del primer uso | `src/components/welcome/` |
 | Textos visibles | `src/lib/texts.ts` |
@@ -251,6 +255,11 @@ interfaz: todo texto viene de `src/lib/texts.ts`.
 - `CategoryIcon` (`src/components/icons/category-icons.tsx`): diez
   glifos monolínea en grilla de 24, trazo 1.5px, `currentColor`. Leen a
   14px en un chip y a 20px en una sección.
+- `ShareHintIcon` y `AddToHomeIcon` (`src/components/icons/install-icons.tsx`):
+  los dos pasos de Safari para instalar la app, en la misma grilla de 24 y
+  trazo 1.5px. A propósito no copian el glifo de Apple: un cuenco con una
+  flecha que sale hacia arriba (Compartir) y una pantalla de teléfono con un
+  más (Agregar a inicio).
 - Iconos de interfaz: `lucide-react` con `strokeWidth={1.5}` (2 o 2.5 solo
   para el check y el más de la acción principal).
 - Ilustraciones (`src/components/illustrations`): `EmptyBagIllustration`,
@@ -744,6 +753,42 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
   tener un botón propio (sus hijos son presentacionales, y axe lo marca
   como `nested-interactive`).
 
+### Instalar la app (menú y lista)
+
+`docs/improvements.md` F-8. Se arma con `Banner`, `Sheet` y `Collapse`
+existentes, sin tokens ni componentes nuevos en `ui`. La lógica de cuándo
+mostrarla es pura y está probada (`src/lib/install.ts`); el navegador entra
+por `src/components/install/use-install.ts`, un store fuera de React que
+escucha `beforeinstallprompt` y `appinstalled` desde que carga el módulo (el
+evento puede llegar antes de que React monte) y que la interfaz lee con
+`useSyncExternalStore`. El reloj se lee en el store, nunca en un render (el
+prerender no lo admite).
+
+- **El aviso** (`InstallNotice`, arriba de la lista, después de los avisos de
+  miembros y de "traer lo de otra lista"): un `Banner` `info` con el icono
+  `Smartphone`, el título "Tené Lista en el inicio", una línea y, en el
+  `footer`, el botón primario y "Ahora no" en `outline` (el mismo par que
+  "Traerlas acá" y "Descartarlas"). Entra y sale con `Collapse`, sin región
+  `aria-live`: es una invitación, no una novedad. Sale en la visita siguiente
+  a una compra terminada en el dispositivo, nunca en la primera ni en la de
+  la compra. No sale en modo compra, con el momento en pantalla, sin
+  conexión ni con otro aviso a la vista; tampoco instalada ni donde no hay
+  forma de instalar.
+- **Descartes.** "Ahora no" lo calla 14 días por dispositivo
+  (`lista:install` en `localStorage`, con try/catch); al segundo no vuelve
+  solo. Cancelar el diálogo del navegador cuenta igual.
+- **Android.** "Instalar" llama a `prompt()` del evento guardado.
+- **iOS.** "Cómo instalarla" abre una `Sheet` `bottom` con `InstallSteps`:
+  una lista numerada de tres pasos, cada uno con su icono en un círculo
+  `bg-paper-2` con hilo `border-rule`, y "Entendido" como único botón (el
+  primario, como en las otras hojas). Solo Safari de iPhone y iPad.
+- **La entrada del menú** (`InstallEntry`, la última sección de la hoja del
+  menú): "Instalar la app", una línea y un botón `outline`; está mientras se
+  pueda instalar, haya salido el aviso o no. En iOS el botón despliega los
+  mismos pasos en el lugar (`aria-expanded`): el menú ya es una hoja y no se
+  abre otra encima.
+- Muestras en `/design`, en "Estados": el aviso y los pasos.
+
 ## 9. Accesibilidad
 
 - Contraste AA garantizado por test para cada par de tokens.
@@ -785,6 +830,11 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
   de la lista. No compara píxeles: las fuentes se rasterizan distinto en
   cada sistema. Las capturas quedan en `test-results/` y suben como
   artefacto en CI.
+- `src/lib/install.test.ts`: cuándo se invita a instalar (plataforma,
+  instalada, descartes y pausa, modo compra) y la memoria del dispositivo.
+  `e2e/f8-install.spec.ts` simula `beforeinstallprompt` y `appinstalled`
+  (Chromium nunca los dispara en un test) y una huella de iPhone Safari, a
+  375px en claro y oscuro; necesita `E2E_SUPABASE=1`.
 - `e2e/list.spec.ts`, `e2e/phase-2a.spec.ts` y `e2e/phase-2b.spec.ts`
   ejercitan la lista contra el Supabase local y necesitan `E2E_SUPABASE=1`
   y `npm run db:start`; sin eso se saltean. En CI corren siempre: el job
