@@ -562,7 +562,7 @@ invitar primero y pedir la cuenta después.
 ### M-9. Borrar con un toque y deshacer
 
 **Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
-(rama `feat/m9-delete-undo`, PR pendiente). Lo decidido al implementarlo:
+(rama `feat/m9-delete-undo`, PR #66). Lo decidido al implementarlo:
 
 - El deshacer reusa el borrado lógico que ya existía (`deleted_at`, plan
   3.2), sin migración: "Deshacer" limpia la marca en la misma fila, con el
