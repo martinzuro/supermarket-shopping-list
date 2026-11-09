@@ -2,7 +2,6 @@
 
 import { useIsMutating } from "@tanstack/react-query";
 import { ArrowUpDown, CircleAlert } from "lucide-react";
-import { useReducedMotion } from "motion/react";
 import {
   useEffect,
   useLayoutEffect,
@@ -12,6 +11,11 @@ import {
 } from "react";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
 import { BringOver } from "@/components/list/bring-over";
+import {
+  placeRows,
+  placesOf,
+  useDeferredReflow,
+} from "@/components/list/deferred-reflow";
 import { EditItemSheet } from "@/components/list/edit-item-sheet";
 import { EstimateLine } from "@/components/list/estimate-line";
 import { MembershipNotices } from "@/components/list/membership-notice";
@@ -39,7 +43,6 @@ import { Button } from "@/components/ui/button";
 import { ListRow } from "@/components/ui/list-row";
 import { Moment } from "@/components/ui/moment";
 import { Section } from "@/components/ui/section";
-import { motionTokens } from "@/lib/design/motion";
 import {
   DEFAULT_CURRENCY,
   categoryKind,
@@ -53,6 +56,7 @@ import {
   type ItemGroup,
 } from "@/lib/domain";
 import {
+  itemMutationKeys,
   queryKeys,
   useCategories,
   useCurrentList,
@@ -70,8 +74,6 @@ import {
 } from "@/lib/queries";
 import { texts } from "@/lib/texts";
 
-type Place = "pending" | "cart";
-
 /** An emptying of the cart: when, and the trip it makes for the history. */
 type Emptying = Pick<EmptyCart, "deletedAt" | "tripId">;
 
@@ -86,6 +88,12 @@ const NO_CATEGORY = "none";
 const EMPTY_CART_BUTTON_ID = "empty-cart";
 
 const groupKey = (group: ItemGroup) => group.category?.id ?? NO_CATEGORY;
+
+/** How many of a group's rows are still to buy (none: no number). */
+function pendingCount(items: readonly Item[]) {
+  const count = items.filter((item) => !item.checked).length;
+  return count > 0 ? count : undefined;
+}
 
 /**
  * Ids that appeared since the previous render with data (items, or the
@@ -126,48 +134,6 @@ function useFreshIds(currentIds: readonly string[] | undefined) {
 }
 
 const EMPTY: ReadonlySet<string> = new Set();
-
-/**
- * Marking choreography (DESIGN_DIRECTION.md, section 8): the row stays where
- * it was while the strike and the check play (they are transitions of the
- * row, and a row that moves is a new element), then travels to the other
- * section. With reduced motion there is nothing to watch, so it moves at
- * once.
- */
-function useLingering() {
-  const reduced = useReducedMotion();
-  const [lingering, setLingering] = useState<ReadonlyMap<string, Place>>(
-    () => new Map(),
-  );
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-
-  useEffect(() => {
-    const pending = timers.current;
-    return () => pending.forEach(clearTimeout);
-  }, []);
-
-  function hold(id: string, place: Place) {
-    if (reduced) return;
-    clearTimeout(timers.current.get(id));
-    // A second tap during the hold keeps the row where it was first.
-    setLingering((current) =>
-      new Map(current).set(id, current.get(id) ?? place),
-    );
-    timers.current.set(
-      id,
-      setTimeout(() => {
-        timers.current.delete(id);
-        setLingering((current) => {
-          const next = new Map(current);
-          next.delete(id);
-          return next;
-        });
-      }, motionTokens.duration.base * 1000),
-    );
-  }
-
-  return { lingering, hold };
-}
 
 /**
  * The list screen body. Reads the session and makes sure the user has a list
@@ -213,12 +179,25 @@ export function ListView() {
   // that fills up again after that ends the moment.
   const [cartCleared, setCartCleared] = useState(false);
   const fresh = useFreshIds(items.data?.map((item) => item.id));
-  const { lingering, hold } = useLingering();
-  // A second tap at the same spot right after a check lands on what moved
-  // there (the next row, once the checked one left or its group closed), or
-  // on the same row, still in its place: either way, not a second request
-  // (docs/improvements.md, A-4).
+  // The rows stay where they are shown while the user goes on checking, and
+  // reflow together once the checks stop (docs/improvements.md, A-5).
+  const { held, hold, flush } = useDeferredReflow();
+  // A second tap at the same spot right after a check lands on the same row,
+  // still in its place: a hurried thumb, not a request to uncheck it (A-4).
   const doubleTap = useDoubleTap();
+  // Adding something (the field, a pill, "Lo de siempre") is something else
+  // than checking: the held rows go to their sections first.
+  const adding =
+    useIsMutating({
+      mutationKey: itemMutationKeys.add(userId ?? "", listId ?? ""),
+    }) +
+    useIsMutating({
+      mutationKey: itemMutationKeys.addMany(userId ?? "", listId ?? ""),
+    });
+  // Before the paint: the new row and the reflow show in one frame.
+  useLayoutEffect(() => {
+    if (adding > 0) flush();
+  }, [adding, flush]);
   // While the first list is being created the add bar waits too (the server
   // does not know the list yet): nothing below the titles until both are in.
   // "Has data", not isSuccess: a failed background refetch keeps the data but
@@ -235,8 +214,9 @@ export function ListView() {
   const refocus = useRef<string | null>(null);
   useLayoutEffect(() => {
     const id = refocus.current;
-    if (id === null || lingering.has(id)) return;
-    // The hold is over: the row moved, or stayed (a rejected toggle).
+    if (id === null || held.has(id)) return;
+    // The hold is over: the row moved, or stayed (unchecked in its place, or
+    // a rejected toggle).
     refocus.current = null;
     const checkbox = document.querySelector<HTMLElement>(
       `[data-item-id="${id}"] [role="checkbox"]`,
@@ -256,14 +236,11 @@ export function ListView() {
   const { pending: unchecked, cart: checked } = splitByChecked(
     items.data ?? [],
   );
-  const placeOf = (item: Item): Place =>
-    lingering.get(item.id) ?? (item.checked ? "cart" : "pending");
-  const byPosition = (a: Item, b: Item) => a.position - b.position;
   const all = [...unchecked, ...checked];
-  const pending = all
-    .filter((item) => placeOf(item) === "pending")
-    .sort(byPosition);
-  const cart = all.filter((item) => placeOf(item) === "cart").sort(byPosition);
+  // What the rows show: a held row stays where it was (A-5). The counters,
+  // the estimates and the progress read the data instead, so they move on
+  // the tap, as the row's check does.
+  const { pending, cart } = placeRows(all, held);
   const ready = userId !== null && listId !== null;
   // The groups need the categories: until they are in, nothing under the
   // "Pendientes" title (a failed load falls back to one "Otros" group).
@@ -334,21 +311,20 @@ export function ListView() {
    * to empty.
    */
   function handleEmptyCart(fromShopping = false) {
-    // Only what is really in the cart: a row unchecked a moment ago is still
-    // held there while it leaves, and must not be archived with the rest. A
-    // row checked a moment ago is still held in Pendientes, unseen in the
-    // cart: it stays out, lands in the cart afterwards and ends the moment.
-    // Not for "Terminé" (F-1): tapped right after the last check, the usual
-    // last gesture of a trip, it would leave that product behind and end the
-    // trip with something in the cart. It takes what the data has checked.
-    const rows = fromShopping ? checked : cart.filter((item) => item.checked);
+    // What the data has checked, also a row checked a moment ago and still
+    // held in Pendientes (A-5): it was checked to be bought, and "Terminé"
+    // (F-1) comes right after the last check, the usual last gesture of a
+    // trip. A row unchecked a moment ago and still held in the cart is
+    // pending already, and stays. The held rows go to their sections first.
+    flush();
+    const rows = checked;
     const ids = rows.map((item) => item.id);
     if (ids.length === 0) return false;
     const emptying = { deletedAt: new Date().toISOString(), tripId: newId() };
     setEmptied(emptying);
     setEmptiedRows(rows);
     // What stays pending is what the data says: a row unchecked a moment ago
-    // is pending already, though it still lingers in the cart.
+    // is pending already, though it may still be held in the cart.
     setSummary({
       count: rows.length,
       estimate: estimateOf(rows),
@@ -428,7 +404,9 @@ export function ListView() {
     freshGroups.settle();
     // Something is in the cart again: the emptying is over.
     if (next) setEmptied(null);
-    hold(item.id, placeOf(item));
+    // Every row stays where it is shown, this one struck (or not) in place,
+    // until the checks stop (A-5). The write goes out now.
+    hold(placesOf(all, held));
     refocus.current = item.id;
     toggle.mutate({ id: item.id, name: item.name, checked: next });
   }
@@ -468,7 +446,10 @@ export function ListView() {
           onCheckedChange={(next, event) =>
             handleCheckedChange(item, next, event)
           }
-          onPress={() => setEditingId(item.id)}
+          onPress={() => {
+            flush();
+            setEditingId(item.id);
+          }}
         />
       </Enter>
     );
@@ -497,7 +478,9 @@ export function ListView() {
           id={`pending-${key}`}
           level={3}
           title={group.category?.name ?? texts.list.pending.uncategorized}
-          count={group.items.length}
+          // What is still to buy: a row checked a moment ago is struck in
+          // place, but no longer counts (A-5).
+          count={pendingCount(group.items)}
           thread={kind}
           icon={<CategoryIcon category={kind} />}
           className="py-2"
@@ -574,10 +557,11 @@ export function ListView() {
         id="pending"
         title={texts.list.pending.title}
         emptyText={texts.list.pending.empty}
-        count={ready ? pending.length : 0}
+        count={ready ? unchecked.length : 0}
+        rows={ready ? pending.length : 0}
         loading={groupsLoading}
         grouped
-        footer={<EstimateLine estimate={estimateOf(pending)} />}
+        footer={<EstimateLine estimate={estimateOf(unchecked)} />}
         action={
           ready && !groupsLoading ? (
             // Side by side, their 44px touching: the icons sit 24px apart.
@@ -598,7 +582,10 @@ export function ListView() {
                   size="icon-touch"
                   aria-label={texts.route.open}
                   aria-haspopup="dialog"
-                  onClick={() => setRouteOpen(true)}
+                  onClick={() => {
+                    flush();
+                    setRouteOpen(true);
+                  }}
                 >
                   <ArrowUpDown aria-hidden strokeWidth={1.5} />
                 </Button>
@@ -669,13 +656,19 @@ export function ListView() {
           id="cart"
           title={texts.list.cart.title}
           emptyText={texts.list.cart.empty}
-          count={ready ? cart.length : 0}
+          count={ready ? checked.length : 0}
+          rows={ready ? cart.length : 0}
           loading={loading}
           surface="cart"
-          footer={<EstimateLine estimate={estimateOf(cart)} />}
+          footer={<EstimateLine estimate={estimateOf(checked)} />}
           action={
-            // While shopping, "Terminé" in the bar empties it (F-1).
-            ready && !loading && cart.length > 0 && !shopping.on ? (
+            // While shopping, "Terminé" in the bar empties it (F-1). Only
+            // over something checked: a row unchecked a moment ago may still
+            // be held here (A-5).
+            ready &&
+            !loading &&
+            cart.some((item) => item.checked) &&
+            !shopping.on ? (
               // Outline: el carro es pistacho y "secondary" se perdería.
               <Button
                 id={EMPTY_CART_BUTTON_ID}
