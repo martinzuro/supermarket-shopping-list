@@ -196,12 +196,23 @@ Implementadas en `src/components/list/list-view.tsx`:
   cambia de sección conserva su id y no vuelve a entrar. Un grupo entra
   (fundido y desplazamiento) solo si es nuevo y contiene algo recién
   añadido; sus filas no entran por su cuenta.
-- **Marcar.** La fila se queda 320 ms (`duration-base`) en su sección
-  mientras se juega el tachado y el check, y después viaja a la otra. El
-  viaje es un `layoutId` compartido (el id del ítem) con
-  `layout="position"`, que mueve solo con `transform` y no escala la fila
-  entre secciones de distinto ancho. Con movimiento reducido no hay espera:
-  la fila se mueve de inmediato.
+- **Marcar: reflujo diferido** (A-5, `deferred-reflow.ts`). La fila se
+  queda en su sección, tachada y con el check, mientras la persona sigue
+  marcando: en una ráfaga ninguna fila se corre bajo el dedo. Cada marca
+  propia reinicia una espera de `REFLOW_IDLE_MS` (1,5 s, más que el hueco
+  entre dos toques de una ráfaga); al cumplirse, las filas retenidas viajan
+  juntas a su sección. Bajan antes con un scroll de la persona (el dedo que
+  arrastra más de `TAP_SLOP_PX`, la rueda o las teclas; no el evento
+  `scroll`, que la barra también provoca), con el foco que va a otra cosa
+  que el checkbox de una fila (una hoja, el campo de agregar), al editar, al
+  agregar o al vaciar el carro. Tocar de nuevo una fila que
+  espera la desmarca en su lugar. Solo espera el movimiento: la escritura
+  sale en el toque y los contadores, los estimados y el progreso del modo
+  compra cuentan al marcar. El viaje es un `layoutId` compartido (el id del
+  ítem) con `layout="position"`, que mueve solo con `transform` y no escala
+  la fila entre secciones de distinto ancho. Con movimiento reducido
+  también se espera (el problema es el blanco que se corre), y al bajar las
+  filas saltan sin viaje.
 - **Grupos.** Cada categoría de Pendientes es un `Enter` con
   `layout="position"`: cuando un grupo aparece o desaparece, los de abajo
   se deslizan. No se anima la altura de nada.
@@ -214,9 +225,10 @@ Implementadas en `src/components/list/list-view.tsx`:
   fundido de color sin desplazamiento, así que con
   movimiento reducido se queda tal cual (las transiciones CSS no dependen
   de `useReducedMotion`). `ListRow` expone `data-highlighted` para las
-  pruebas. Una fila que otro miembro marca viaja por el mismo `layoutId`,
-  sin la espera de 320 ms (esa es solo de los toques propios), y una que
-  añade entra con el `Enter` de siempre y con el pulso.
+  pruebas. Una fila que otro miembro marca viaja por el mismo `layoutId`
+  en el momento, salvo durante una ráfaga propia: entonces espera con las
+  demás y no reinicia la espera. Una que añade entra con el `Enter` de
+  siempre y con el pulso.
 
 - **Deslizar para borrar** (M-9). Una fila de Pendientes va envuelta en
   `SwipeToRemove`: se arrastra solo hacia la izquierda (`drag="x"`,
@@ -237,8 +249,11 @@ Implementadas en `src/components/list/list-view.tsx`:
   desplazada: en reposo el objetivo de 44px del check sobresale a la
   izquierda y un recorte lo achicaría. Con movimiento reducido sigue al dedo
   (es manipulación directa) pero no vuela ni rebota. En el carro el
-  envoltorio queda con `disabled`: no se desliza (borrar algo comprado lo
-  saca de la compra) y la fila no se vuelve a montar al cambiar de sección.
+  envoltorio (y en una fila marcada que el reflujo diferido de A-5 todavía
+  retiene en Pendientes) queda con `disabled`: no se desliza (borrar algo
+  comprado lo saca de la compra) y la fila no se vuelve a montar al cambiar
+  de sección. Pasados 10 px el gesto suelta las filas retenidas
+  (`deferred-reflow.ts`): la lista se acomoda al empezar, antes del umbral.
   No es la única forma de borrar: la hoja tiene "Borrar", de un toque, y los
   dos caminos terminan en el aviso con "Deshacer" de la barra.
 
@@ -508,8 +523,8 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   sugerencias, en la fila de frecuentes y en los círculos de marcar de la
   lista (A-4), un segundo toque casi en el mismo lugar (menos de 24px) antes
   de 350 ms no hace nada: lo que quedó bajo el dedo después del primero puede
-  ser otra opción, otra píldora, la fila siguiente (la marcada se fue al carro
-  o su grupo se cerró) o la misma fila todavía en su lugar. El teclado
+  ser otra opción, otra píldora o, en la lista, la misma fila, que con el
+  reflujo diferido (A-5) se queda en su lugar y se desmarcaría. El teclado
   (Enter, Espacio, o `event.detail === 0`) no tiene doble toque.
 - **"Al carro" con deshacer** (A-4). Marcar algo deja en la barra "“Tomates”
   al carro" (`Banner` info) con "Deshacer" (`outline`, nombre accesible
@@ -592,7 +607,7 @@ piezas existentes, sin tokens ni componentes nuevos en `ui`.
   pierde). La regla de la cabecera se llena: una línea de 2px en el par de
   "hecho" (`bg-action-bg`: tinta en claro, lima en oscuro) que crece por
   `scaleX` con `transitions.base` al marcar (lo dicen los datos, no la fila
-  que todavía se queda 320 ms). Cambiar de estado entra con `Enter`; una
+  que espera en su lugar hasta que bajan, A-5). Cambiar de estado entra con `Enter`; una
   recarga no anima nada. Con movimiento reducido la cabecera solo funde y la
   línea salta a su lugar.
 - **La barra de abajo se pliega.** Sin campo ni frecuentes: un botón "+"
@@ -781,8 +796,8 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
   `aria-describedby`, hojas con `role="dialog"` de Radix, filas con
   `role="checkbox"` y `aria-checked`.
 - Foco que no se pierde cuando el elemento que lo tenía desaparece: tras
-  marcar, el foco sigue a la fila hasta su checkbox en la nueva sección (si
-  no se había movido a otro lado); la hoja de edición lo devuelve al nombre
+  marcar, el foco sigue a la fila hasta su checkbox en la nueva sección
+  cuando baja con el reflujo diferido (si no se había movido a otro lado); la hoja de edición lo devuelve al nombre
   de la fila y, si la fila se borró, al "Deshacer" del aviso (sin aviso, al
   campo de añadir con mouse y al título de Pendientes con puntero táctil,
   para no abrir el teclado); "Deshacer" lo lleva a la fila que vuelve; el momento de carro
