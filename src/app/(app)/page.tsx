@@ -1,9 +1,9 @@
 import { ConnectionBanner } from "@/components/connection-banner";
 import { AddItemBar } from "@/components/list/add-item-bar";
+import { ListMasthead } from "@/components/list/list-masthead";
 import { ListView } from "@/components/list/list-view";
 import { HeaderActions } from "@/components/menu/header-actions";
 import { Welcome } from "@/components/welcome/welcome";
-import { texts } from "@/lib/texts";
 
 export default function ListPage() {
   return (
@@ -13,8 +13,8 @@ export default function ListPage() {
         className="bg-paper pt-safe border-rule sticky top-0 z-10 border-b"
       >
         <div className="px-safe mx-auto flex h-14 w-full max-w-xl items-center justify-between">
-          <h1 className="text-title font-serif">{texts.app.name}</h1>
-          <HeaderActions />
+          {/* The wordmark, or the shopping masthead (F-1). */}
+          <ListMasthead actions={<HeaderActions />} />
         </div>
         <ConnectionBanner />
       </header>

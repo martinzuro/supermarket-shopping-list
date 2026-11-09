@@ -827,6 +827,15 @@ compras en el menú, con "Agregar de nuevo"; migración `trips`, ya aplicada
 en staging el 2026-10-21) están hechas, a pedido del usuario, antes de
 empezar la Fase 4; el detalle de lo decidido está en sus entradas.
 
+Estado al 2026-11-04: además están hechas A-1 y F-7 (2026-11-03) y el modo
+compra, F-1 con M-2 y M-3 adentro (2026-11-04, solo en el cliente, sin
+migración ni ADR): "Empezar a comprar" cambia la pantalla de este dispositivo
+para el súper (la cuenta de lo que va al carro en la cabecera, la barra de
+agregar plegada en "+" y "Terminé" con los totales del carro y de lo que
+falta, la pantalla encendida con Screen Wake Lock) y "Terminé" vacía el carro
+con el resumen de la compra en el momento "Buena compra". F-5 ("Está
+comprando") sigue sin asignar.
+
 ---
 
 ## 5. Infraestructura y costes estimados

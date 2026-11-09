@@ -1,6 +1,13 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { palette, type Mode } from "../src/lib/design/tokens";
 import { texts } from "../src/lib/texts";
+import {
+  checkbox,
+  field,
+  openAndCreateList,
+  pending,
+  row,
+} from "./two-members";
 
 /**
  * Capturas automáticas a 375px (proyecto Pixel 7) en claro, oscuro y con
@@ -34,6 +41,27 @@ async function cutSupabase(page: Page) {
   await page.route("**/auth/v1/**", (route) =>
     route.abort("internetdisconnected"),
   );
+}
+
+/**
+ * Una lista con tres productos, uno ya en el carro: lo justo para el modo
+ * compra (F-1). Necesita el stack local.
+ */
+async function shoppingScene(page: Page) {
+  await openAndCreateList(page);
+  for (const name of ["Tomates", "Leche", "Pan"]) {
+    await field(page).fill(name);
+    await field(page).press("Enter");
+    await expect(row(pending(page), name)).toBeVisible();
+  }
+  await field(page).blur();
+  const saved = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/rest/v1/items" &&
+      response.request().method() === "PATCH",
+  );
+  await checkbox(page, "Tomates").click();
+  await saved;
 }
 
 async function settle(page: Page) {
@@ -215,6 +243,41 @@ for (const mode of modes) {
       expect(sheetBackground).toBe(rgb(palette[mode].paper));
       await capture(page, testInfo, `menu-${mode}`);
     });
+
+    // El modo compra (F-1): la cabecera con la cuenta en serif y la barra
+    // plegada. Con datos, así que necesita el stack local.
+    test(`lista en modo compra: masthead, folded bar and touch targets`, async ({
+      page,
+    }, testInfo) => {
+      test.skip(
+        process.env.E2E_SUPABASE !== "1",
+        "Needs `npm run db:start`. Run with E2E_SUPABASE=1.",
+      );
+      await shoppingScene(page);
+      await page
+        .getByRole("button", { name: texts.shopping.start, exact: true })
+        .click();
+      await expect(
+        page.locator('[data-slot="shopping-masthead"]'),
+      ).toBeVisible();
+      await settle(page);
+      await expectSystemInvariants(page, mode);
+      await expectTouchTargets(page);
+      // La cuenta va en el serif de la marca, al tamaño del título.
+      const count = await typography(page, '[data-slot="shopping-count"]');
+      expect(count.fontFamily).toContain("Instrument Serif");
+      expect(count.fontSize).toBeGreaterThanOrEqual(28);
+      // El botón principal de la barra, lima sobre tinta o tinta sobre lima:
+      // el par de acción del modo.
+      const finish = page.getByRole("button", {
+        name: texts.shopping.finish,
+        exact: true,
+      });
+      expect(
+        await finish.evaluate((e) => getComputedStyle(e).backgroundColor),
+      ).toBe(rgb(palette[mode][mode === "light" ? "ink" : "lime"]));
+      await capture(page, testInfo, `lista-compra-${mode}`);
+    });
   });
 }
 
@@ -255,6 +318,57 @@ test.describe("first use with reduced motion", () => {
     await expect(welcome).toBeVisible();
     await welcome.getByRole("button", { name: texts.welcome.cta }).click();
     await expect(welcome).toHaveCount(0);
+  });
+});
+
+test.describe("shopping mode with reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("the masthead fades in without a translate and the line does not grow", async ({
+    page,
+  }) => {
+    test.skip(
+      process.env.E2E_SUPABASE !== "1",
+      "Needs `npm run db:start`. Run with E2E_SUPABASE=1.",
+    );
+    await shoppingScene(page);
+    // Every frame of the entrance, from the tap: the masthead never moves
+    // and the line is at its share (one of three) from the start.
+    const frames = await page.evaluate(async (label) => {
+      const start = [...document.querySelectorAll("button")].find(
+        (button) => button.textContent?.trim() === label,
+      );
+      start?.click();
+      const seen: { masthead: string; line: number }[] = [];
+      const end = performance.now() + 500;
+      await new Promise<void>((resolve) => {
+        const tick = () => {
+          const masthead = document.querySelector(
+            '[data-slot="shopping-masthead"]',
+          );
+          const line = document.querySelector(
+            '[data-slot="shopping-progress"]',
+          );
+          if (masthead && line) {
+            seen.push({
+              masthead: getComputedStyle(masthead).transform,
+              line: new DOMMatrix(getComputedStyle(line).transform).a,
+            });
+          }
+          if (performance.now() < end) requestAnimationFrame(tick);
+          else resolve();
+        };
+        requestAnimationFrame(tick);
+      });
+      return seen;
+    }, texts.shopping.start);
+    // The first frame may still be the one the tap painted; the entrance
+    // would be visible in the ones after it.
+    expect(frames.length).toBeGreaterThan(2);
+    for (const frame of frames.slice(1)) {
+      expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(frame.masthead);
+      expect(frame.line).toBeCloseTo(1 / 3, 2);
+    }
   });
 });
 

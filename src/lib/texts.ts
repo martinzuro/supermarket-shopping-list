@@ -219,6 +219,37 @@ export const texts = {
    * Mandar lo que falta como texto (docs/improvements.md, F-3): el botón de
    * la cabecera de Pendientes, el mensaje que arma y lo que se avisa.
    */
+  /**
+   * El modo compra (docs/improvements.md, F-1): la pantalla en el súper. La
+   * cabecera muestra cuánto va al carro, la barra de agregar se pliega en un
+   * botón con "Terminé" y la pantalla no se apaga.
+   */
+  shopping: {
+    start: "Empezar a comprar",
+    /** Sale sin vaciar el carro: la compra puede seguir en otro momento. */
+    exit: "Salir",
+    exitAria: "Salir del modo compra",
+    /** Sobre la cuenta de la cabecera, en lugar del nombre de la app. */
+    eyebrow: "Comprando",
+    /** "7 de 18": lo que ya está en el carro, de todo lo de la lista. */
+    progress: (done: number, total: number) => `${done} de ${total}`,
+    /** Después de la cuenta, para quien la oye. */
+    progressTail: " en el carro",
+    /** El botón que despliega el campo de agregar. */
+    add: "Agregar un producto",
+    /** Vacía el carro (el momento "Buena compra") y sale del modo. */
+    finish: "Terminé",
+    /**
+     * La línea de totales sobre la barra (M-2): lo del carro y lo que falta,
+     * por moneda. "~" porque lo que falta todavía puede cambiar.
+     */
+    totals: {
+      cart: "Carro",
+      remaining: "Falta",
+      about: "~",
+      aboutSpoken: "cerca de ",
+    },
+  },
   sendPending: {
     /** Nombre accesible del botón: abre la hoja de compartir del sistema. */
     share: "Mandar lo que falta",
@@ -551,9 +582,24 @@ export const texts = {
       lead: "Buena",
       em: "compra",
       body: "El carro quedó vacío. Lo que faltó sigue en tu lista.",
+      /** Sin nada pendiente después de vaciar. */
+      bodyDone: "El carro quedó vacío y no falta nada.",
       action: "Volver a la lista",
       /** Vuelve todo al carro, por si se vació antes de tiempo (A-4). */
       undo: "Deshacer",
+      /**
+       * El resumen de la compra (M-3), como un ticket: cuánto pasó por caja,
+       * lo que se estimaba que costaba y cuánto quedó pendiente.
+       */
+      summary: {
+        label: "Resumen de la compra",
+        checkout: "Pasó por caja",
+        estimate: "Estimado",
+        remaining: "Falta",
+        /** Después de la cuenta, que va en mono: "12 productos". */
+        products: (count: number) => (count === 1 ? "producto" : "productos"),
+        nothing: "Nada",
+      },
     },
   },
   welcome: {
@@ -718,6 +764,8 @@ export const texts = {
     brand: {
       note: "Instrument Serif, pensado para reemplazarse sin tocar el sistema.",
       headerSample: "Como se ve en la cabecera",
+      shoppingSample:
+        "En modo compra (F-1): lo que va al carro en lugar del nombre, en el serif de la marca, y la regla de la cabecera que se llena",
     },
     type: {
       display: {
@@ -800,7 +848,8 @@ export const texts = {
       paper: "Papel · base",
       paper2: "Pistacho · carro, hojas, agrupaciones",
       inverse: "Tinta · momentos editoriales",
-      moment: "Momento editorial · entra escalonado · se usa pocas veces",
+      moment:
+        "Momento editorial · entra escalonado · se usa pocas veces · al vaciar el carro, con el resumen de la compra como un ticket (M-3)",
       sheet: "Hoja · la única sombra del sistema",
       invitation:
         "Invitación · el objeto de compartir: pistacho, línea de corte, enlace legible. Listo y preparando",
@@ -904,6 +953,9 @@ export const texts = {
       ],
       empty: "Estados vacíos",
       rows: "Filas de la lista",
+      shoppingBar: "Barra en modo compra",
+      shoppingBarNote:
+        "F-1 y M-2: el campo plegado en un botón, “Terminé” y los totales del carro y de lo que falta, por moneda",
       rowItems: [
         {
           name: "Tomates perita",
