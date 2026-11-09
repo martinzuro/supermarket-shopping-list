@@ -1078,7 +1078,7 @@ los textos van en `texts.ts`.
 
 **Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
 después de la auditoría de usabilidad a 375 px (rama
-`claude/feat-install-prompt-594a16`, PR pendiente de número).
+`claude/feat-install-prompt-594a16`, PR #64).
 
 **Qué pasa.** La app es una PWA (`manifest.ts` con `display: standalone`,
 service worker con Serwist), pero nada invita a instalarla: no se maneja
