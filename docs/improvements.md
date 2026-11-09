@@ -41,6 +41,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | A-2 | Duplicados sin aviso                                | Nada                  | Hecho          |
 | A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
 | A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
+| A-5 | Las filas se corren bajo el dedo al marcar seguido  | Nada                  | Hecho          |
 | M-1 | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
 | M-2 | Totales a la vista mientras se compra               | Nada                  | Hecho          |
 | M-3 | "Buena compra" con resumen                          | Nada                  | Hecho          |
@@ -321,6 +322,87 @@ Después, `npm run db:reset` y `npm run db:types`.
 carro. Dos toques rápidos en el mismo lugar marcan un solo producto. Una
 vaciada por error se recupera. Todo con los tokens de motion y con
 `prefers-reduced-motion`.
+
+**Requiere.** Nada fuera del cliente.
+
+### A-5. Las filas se corren bajo el dedo al marcar seguido
+
+**Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
+después de la auditoría de usabilidad a 375 px (rama
+`fix/a5-deferred-reflow`, PR 65). Lo decidido al implementarlo:
+
+- Reflujo diferido (`src/components/list/deferred-reflow.ts`, que reemplaza
+  a `useLingering`): al marcar o desmarcar, todas las filas se quedan donde
+  se ven, la marcada tachada y con el check en su lugar. Cada marca propia
+  reinicia la espera; cuando pasan `REFLOW_IDLE_MS` (1,5 s) sin marcar, las
+  retenidas van juntas a su sección, en un solo movimiento de layout.
+- 1,5 s: en una ráfaga se marca cada 300 ms a 1 s (el ojo busca la fila
+  siguiente, el pulgar va), así que la espera es más larga que ese hueco y
+  ninguna ráfaga ve moverse una fila bajo el dedo; y es lo bastante corta
+  para que la lista se ordene antes de que la vista vuelva a buscar lo que
+  falta. Es una constante con nombre junto al hook, no un token de motion:
+  durante la espera no se anima nada (como `DOUBLE_TAP_MS`).
+- Bajan antes si la persona hace otra cosa: scroll, el foco que va a
+  cualquier lado que no sea el checkbox de una fila (una hoja que se abre,
+  el campo de agregar), tocar un nombre para editar, el botón del
+  recorrido, agregar algo (también con una píldora o "Lo de siempre", por
+  las mutaciones de agregar) y "Vaciar el carro" o "Terminé".
+- El scroll es el gesto de la persona (el dedo que arrastra más de
+  `TAP_SLOP_PX`, 10 px, la rueda o las teclas de desplazamiento; Espacio
+  no, que marca), no el evento `scroll`: la página también se desplaza sola,
+  por ejemplo cuando la barra crece con el aviso "al carro" y acompaña el
+  final de la página (`use-bar-height.ts`).
+- Tocar de nuevo una fila que espera la desmarca en su lugar, sin viaje.
+  El "Deshacer" del aviso "al carro" también.
+- Solo se difiere el movimiento: la marca sigue siendo optimista y sale al
+  servidor en el toque.
+- Los cambios de otros miembros (Realtime) no reinician la espera, y
+  mientras hay una ráfaga tampoco mueven filas: la retención congela dónde
+  se ve cada fila, y lo que otro marcó espera con el resto (con su pulso).
+  Sin ráfaga se mueven como antes. Lo que otro agrega o borra aparece o se
+  va en el momento.
+- Los contadores cuentan al marcar, no al bajar: "Pendientes N", el número
+  de cada categoría, los estimados de Pendientes y del carro, el número del
+  carro y el progreso del modo compra leen los datos, no las filas. Así
+  coinciden entre sí y con el check. `ListSection` recibe aparte las filas en
+  pantalla (`rows`) para no mostrar el estado vacío sobre filas tachadas que
+  esperan.
+- "Vaciar el carro" y "Terminé" se llevan todo lo marcado según los datos,
+  también lo marcado hace un momento que espera en Pendientes (antes
+  "Vaciar el carro" lo dejaba afuera durante los 320 ms). El botón aparece
+  solo si en el carro se ve algo marcado.
+- Con movimiento reducido también se espera: el problema es el blanco que
+  se corre, no la animación. Al bajar, las filas saltan sin viaje
+  (`MotionConfig reducedMotion="user"`).
+- El foco vuelve al checkbox de la última fila tocada cuando baja, si se
+  había perdido con ella. Los avisos aria-live no cambian: el checkbox dice
+  "marcada" en el toque.
+- `use-double-tap` sigue haciendo falta: con la fila quieta, un segundo
+  toque a menos de 350 ms y 24 px cae en la misma fila y la desmarcaría. Ya
+  no protege de la fila siguiente que sube, porque no sube.
+- Pruebas en `src/components/list/deferred-reflow.test.tsx` (temporizador y
+  agrupado, con la escritura que llega con demora) y `e2e/a5-burst.spec.ts`
+  (tres toques por posición, en claro y oscuro). Las dos fallan con el
+  código anterior.
+- Queda abierto: si la página está al final (una lista corta, o marcando
+  lo último), el primer marcado de la ráfaga hace aparecer el aviso "al
+  carro", la barra crece y `use-bar-height.ts` desplaza la página para que
+  las últimas filas no queden debajo. Todo sube lo que crece la barra (36
+  px en la prueba) y el segundo toque puede caer en la fila siguiente. No
+  es el reflujo: es la barra, y se resuelve aparte (reservar el alto del
+  aviso, o no acompañar el final mientras hay filas retenidas).
+
+**Qué pasaba.** Al marcar un pendiente, la fila se quedaba en su lugar 320
+ms (`duration-base`) y después viajaba al carro, y todo lo de abajo subía
+una fila (56 px). Un toque menos de 1 s después donde estaba la fila
+siguiente caía en lo que había subido (otro producto o el encabezado de una
+categoría): en el súper se marca en ráfagas, y se perdían toques o se
+marcaba el producto equivocado.
+
+**Propuesta.** Reflujo diferido: la fila marcada queda en su lugar, tachada,
+mientras la persona sigue marcando, y las marcadas bajan juntas al carro
+cuando pasan unos 1,5 s sin marcar, o antes si hace scroll, abre una hoja o
+agrega algo.
 
 **Requiere.** Nada fuera del cliente.
 

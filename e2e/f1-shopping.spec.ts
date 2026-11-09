@@ -369,7 +369,7 @@ for (const scheme of SCHEMES) {
       }
       const emptied = rpcAnswered(page, "empty_cart");
       // The last product and "Terminé" in one go, while its row still
-      // lingers in Pendientes (320 ms).
+      // waits in Pendientes (A-5).
       await checkbox(page, "Pan").click();
       await finishButton(page).click();
       await expect(moment(page)).toBeVisible();

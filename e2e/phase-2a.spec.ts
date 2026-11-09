@@ -5,6 +5,7 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
+import { REFLOW_IDLE_MS } from "../src/components/list/deferred-reflow";
 import { texts } from "../src/lib/texts";
 
 /**
@@ -154,7 +155,8 @@ const KINDS: Kind[] = ["add", "check", "edit", "delete", "empty"];
 /**
  * Mide una acción: desde justo antes del gesto (clic o tecla) hasta que las
  * aserciones de la interfaz pasan. Incluye la espera de actionability de
- * Playwright y la pausa de 320 ms de la fila al marcar.
+ * Playwright. Al marcar, hasta el check y el contador: el viaje al carro
+ * espera a que paren las marcas (A-5).
  */
 function timer() {
   const samples = new Map<Kind, { label: string; ms: number }[]>();
@@ -281,20 +283,16 @@ test.describe("phase 2a exit criterion", () => {
       await expect(count(pending(page))).toHaveText("10");
       await expect(cart(page).locator("li")).toHaveCount(0);
 
-      // 2. Check six: each lands in the cart within the budget, the 320 ms
-      // hold of the strike included.
+      // 2. Check six: each is checked within the budget, and the Pendientes
+      // count with it. The row goes down to the cart afterwards, once the
+      // checks stop (A-5, REFLOW_IDLE_MS): that wait is on purpose, and not
+      // part of the action.
       for (const [index, name] of CHECKED.entries()) {
         await measure(
           "check",
           name,
           () => checkbox(page, name).click(),
           async () => {
-            await expect(row(cart(page), name)).toBeVisible({
-              timeout: ACTION_MS,
-            });
-            await expect(row(pending(page), name)).toHaveCount(0, {
-              timeout: ACTION_MS,
-            });
             await expect(checkbox(page, name)).toHaveAttribute(
               "aria-checked",
               "true",
@@ -304,11 +302,12 @@ test.describe("phase 2a exit criterion", () => {
               String(10 - (index + 1)),
               { timeout: ACTION_MS },
             );
-            await expect(count(cart(page))).toHaveText(String(index + 1), {
-              timeout: ACTION_MS,
-            });
           },
         );
+        const reflow = { timeout: REFLOW_IDLE_MS + ACTION_MS };
+        await expect(row(cart(page), name)).toBeVisible(reflow);
+        await expect(row(pending(page), name)).toHaveCount(0, reflow);
+        await expect(count(cart(page))).toHaveText(String(index + 1), reflow);
       }
       await expect(count(pending(page))).toHaveText("4");
       await expect(count(cart(page))).toHaveText("6");

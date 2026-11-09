@@ -284,9 +284,8 @@ test.describe("A-4, the other member sees the cart come back", () => {
         await checkbox(a, name).tap();
         expect((await answered).ok()).toBe(true);
         // In A's cart too, not only in B's: a checked row stays in Pendientes
-        // for 320 ms before it travels (useLingering), and "Vaciar el carro"
-        // empties what is shown in the cart. Tapped in between, it would leave
-        // Pan out, and B's cart would rightly keep it.
+        // until the checks stop (A-5, useDeferredReflow), and the scene is
+        // the cart as A sees it before emptying it.
         await expect(row(cart(a), name)).toBeVisible();
         // Setup: what is measured is the undo, below.
         await expect(row(cart(b), name)).toBeVisible({ timeout: SETUP_MS });
