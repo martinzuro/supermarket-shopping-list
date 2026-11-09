@@ -346,6 +346,37 @@ export const texts = {
     title: "Menú",
   },
   /**
+   * Invitar a instalar la app (F-8): el aviso de la lista, la entrada del
+   * menú y los pasos para iOS, donde no hay botón que lo haga.
+   */
+  install: {
+    notice: {
+      title: "Tené Lista en el inicio",
+      body: "Se abre a pantalla completa y queda en el teléfono, como cualquier app.",
+      install: "Instalar",
+      /** iOS: no hay botón, se muestran los pasos. */
+      how: "Cómo instalarla",
+      later: "Ahora no",
+    },
+    menu: {
+      title: "Instalar la app",
+      description:
+        "Queda en el inicio del teléfono y se abre a pantalla completa.",
+      install: "Instalar",
+      how: "Ver cómo",
+      hide: "Ocultar los pasos",
+    },
+    steps: {
+      label: "Cómo instalar la app",
+      title: "Instalá Lista",
+      description: "En Safari, en tres toques.",
+      share: "Tocá Compartir, en la barra de Safari.",
+      add: "Elegí «Agregar a inicio».",
+      confirm: "Tocá «Agregar». Lista aparece en tu inicio.",
+      close: "Entendido",
+    },
+  },
+  /**
    * Compartir (dueño): la hoja de la cabecera. Un invitado sin cuenta
    * convierte primero la suya (account.*); con cuenta ve la invitación.
    */
@@ -1063,6 +1094,7 @@ export const texts = {
         ],
       },
       banners: "Avisos",
+      install: "Instalar la app: el aviso y los pasos de iOS",
       banner: {
         info: {
           title: "Sin conexión",

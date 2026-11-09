@@ -2,6 +2,7 @@
 
 import { Menu } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { InstallEntry } from "@/components/install/install-entry";
 import {
   AccountSection,
   type MenuNotice,
@@ -157,6 +158,7 @@ export function AppMenu({
             />
             <TripsSection onOpen={openTrip} />
             <ProductsSection />
+            <InstallEntry />
           </SheetBody>
         </SheetContent>
       </Sheet>

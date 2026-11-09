@@ -5,10 +5,12 @@ import {
   CircleAlert,
   Menu,
   Plus,
+  Smartphone,
   Users,
   WifiOff,
 } from "lucide-react";
 import { CategoryIcon } from "@/components/icons/category-icons";
+import { InstallSteps } from "@/components/install/install-steps";
 import { ShoppingTotals } from "@/components/list/shopping-totals";
 import { TripSummary } from "@/components/list/trip-summary";
 import {
@@ -776,6 +778,25 @@ export default function DesignPage() {
               </>
             }
           />
+        </div>
+
+        <p className="eyebrow mt-10">{t.states.install}</p>
+        <div className="mt-3 grid gap-3">
+          <Banner
+            tone="info"
+            icon={Smartphone}
+            title={texts.install.notice.title}
+            body={texts.install.notice.body}
+            footer={
+              <>
+                <Button type="button">{texts.install.notice.install}</Button>
+                <Button type="button" variant="outline">
+                  {texts.install.notice.later}
+                </Button>
+              </>
+            }
+          />
+          <InstallSteps />
         </div>
       </Section>
     </main>

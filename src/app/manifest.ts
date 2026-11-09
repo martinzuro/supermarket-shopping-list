@@ -6,6 +6,9 @@ const BACKGROUND_COLOR = "#f6f3ec";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    // The app's identity for the browser, apart from start_url: it stays the
+    // same if the start URL ever changes, so installed copies keep updating.
+    id: "/",
     name: "Lista",
     short_name: "Lista",
     description: "Listas de compras de supermercado.",

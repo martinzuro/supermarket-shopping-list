@@ -10,6 +10,11 @@ import {
   type MouseEvent,
   type ReactElement,
 } from "react";
+import { InstallNotice } from "@/components/install/install-notice";
+import {
+  noteTripFinished,
+  noteTripUndone,
+} from "@/components/install/use-install";
 import { ADD_ITEM_INPUT_ID } from "@/components/list/add-item-bar";
 import { BringOver } from "@/components/list/bring-over";
 import {
@@ -322,6 +327,8 @@ export function ListView() {
     const rows = checked;
     const ids = rows.map((item) => item.id);
     if (ids.length === 0) return false;
+    // A finished trip: the invitation to install the app waits for it (F-8).
+    noteTripFinished();
     const emptying = { deletedAt: new Date().toISOString(), tripId: newId() };
     setEmptied(emptying);
     setEmptiedRows(rows);
@@ -339,7 +346,13 @@ export function ListView() {
     // as far as the list knows.
     emptyCart.mutate(
       { ids, ...emptying },
-      { onError: () => (fromShopping ? shopping.start() : undefined) },
+      {
+        onError: () => {
+          // Nothing was emptied: not a trip.
+          noteTripUndone();
+          if (fromShopping) shopping.start();
+        },
+      },
     );
     return true;
   }
@@ -379,6 +392,8 @@ export function ListView() {
     const emptying = emptied;
     const rows = emptiedRows;
     const told = summary;
+    // Put back: that was no trip (F-8).
+    noteTripUndone();
     if (told?.shopping) shopping.start();
     restoreCart.mutate(
       { ids: rows.map((item) => item.id), rows, ...emptying },
@@ -568,6 +583,9 @@ export function ListView() {
           bring over from another one: above the list, never inside it. */}
       <MembershipNotices />
       {user ? <BringOver user={user} listId={listId} /> : null}
+      {/* Last of the notices, and only when no other one is up: never over
+          the moment, never while shopping (F-8). */}
+      <InstallNotice blocked={shopping.on || emptied !== null} />
       {/* The focus lands on the moment's action, whose name alone would not
           say what happened: the moment is read out once as it appears. */}
       <div aria-live="polite" className="sr-only">

@@ -1,4 +1,5 @@
 import type { Viewport } from "next";
+import { InstallCapture } from "@/components/install/use-install";
 import { SessionProvider } from "@/components/session-provider";
 import {
   WELCOME_PENDING_PROPERTY,
@@ -32,6 +33,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <SessionProvider>
       <QueryProvider>
+        <InstallCapture />
         <script dangerouslySetInnerHTML={{ __html: WELCOME_FLAG_SCRIPT }} />
         <div className="flex flex-1 flex-col">{children}</div>
       </QueryProvider>
