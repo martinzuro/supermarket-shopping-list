@@ -217,8 +217,6 @@ for (const scheme of SCHEMES) {
       await openEditor(page, "Yerba");
       const remove = removeButton(page);
       await remove.click();
-      await expect(remove).toHaveAttribute("data-armed", "true");
-      await remove.click();
       await expect(row(pending(page), "Yerba")).toHaveCount(0);
       await expect(estimate(pending(page))).toHaveCount(0);
       await add(page, "yerba", "Yerba");

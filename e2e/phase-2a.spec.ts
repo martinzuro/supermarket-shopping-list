@@ -5,6 +5,7 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
+import { REFLOW_IDLE_MS } from "../src/components/list/deferred-reflow";
 import { texts } from "../src/lib/texts";
 
 /**
@@ -58,9 +59,8 @@ function editorField(page: Page, label: string) {
 
 function removeButton(page: Page) {
   return editor(page).getByRole("button", {
-    name: new RegExp(
-      `^(${texts.editItem.remove}|${texts.editItem.confirmRemove})$`,
-    ),
+    name: texts.editItem.remove,
+    exact: true,
   });
 }
 
@@ -154,7 +154,8 @@ const KINDS: Kind[] = ["add", "check", "edit", "delete", "empty"];
 /**
  * Mide una acción: desde justo antes del gesto (clic o tecla) hasta que las
  * aserciones de la interfaz pasan. Incluye la espera de actionability de
- * Playwright y la pausa de 320 ms de la fila al marcar.
+ * Playwright. Al marcar, hasta el check y el contador: el viaje al carro
+ * espera a que paren las marcas (A-5).
  */
 function timer() {
   const samples = new Map<Kind, { label: string; ms: number }[]>();
@@ -281,20 +282,16 @@ test.describe("phase 2a exit criterion", () => {
       await expect(count(pending(page))).toHaveText("10");
       await expect(cart(page).locator("li")).toHaveCount(0);
 
-      // 2. Check six: each lands in the cart within the budget, the 320 ms
-      // hold of the strike included.
+      // 2. Check six: each is checked within the budget, and the Pendientes
+      // count with it. The row goes down to the cart afterwards, once the
+      // checks stop (A-5, REFLOW_IDLE_MS): that wait is on purpose, and not
+      // part of the action.
       for (const [index, name] of CHECKED.entries()) {
         await measure(
           "check",
           name,
           () => checkbox(page, name).click(),
           async () => {
-            await expect(row(cart(page), name)).toBeVisible({
-              timeout: ACTION_MS,
-            });
-            await expect(row(pending(page), name)).toHaveCount(0, {
-              timeout: ACTION_MS,
-            });
             await expect(checkbox(page, name)).toHaveAttribute(
               "aria-checked",
               "true",
@@ -304,11 +301,12 @@ test.describe("phase 2a exit criterion", () => {
               String(10 - (index + 1)),
               { timeout: ACTION_MS },
             );
-            await expect(count(cart(page))).toHaveText(String(index + 1), {
-              timeout: ACTION_MS,
-            });
           },
         );
+        const reflow = { timeout: REFLOW_IDLE_MS + ACTION_MS };
+        await expect(row(cart(page), name)).toBeVisible(reflow);
+        await expect(row(pending(page), name)).toHaveCount(0, reflow);
+        await expect(count(cart(page))).toHaveText(String(index + 1), reflow);
       }
       await expect(count(pending(page))).toHaveText("4");
       await expect(count(cart(page))).toHaveText("6");
@@ -367,14 +365,10 @@ test.describe("phase 2a exit criterion", () => {
       );
       await expect(count(pending(page))).toHaveText("4");
 
-      // 4. Delete one: two taps, the second once the button is armed.
+      // 4. Delete one: one tap, and the bar offers to undo it (M-9).
       await rowName(pending(page), "Lavandina").click();
       await expect(editor(page)).toBeVisible();
       const remove = removeButton(page);
-      await remove.click();
-      await expect(remove).toHaveText(texts.editItem.confirmRemove);
-      // Un segundo toque inmediato es un doble toque: se espera al botón armado.
-      await expect(remove).toHaveAttribute("data-armed", "true");
       await measure(
         "delete",
         "Lavandina",
@@ -384,7 +378,13 @@ test.describe("phase 2a exit criterion", () => {
           await expect(row(pending(page), "Lavandina")).toHaveCount(0, {
             timeout: ACTION_MS,
           });
-          await expect(field(page)).toBeFocused({ timeout: ACTION_MS });
+          // The focus goes to Deshacer, not to the field: on a phone the
+          // field would open the keyboard.
+          await expect(
+            page.getByRole("button", {
+              name: texts.list.removed.undoAria(["Lavandina"]),
+            }),
+          ).toBeFocused({ timeout: ACTION_MS });
           await expect(count(pending(page))).toHaveText("3", {
             timeout: ACTION_MS,
           });

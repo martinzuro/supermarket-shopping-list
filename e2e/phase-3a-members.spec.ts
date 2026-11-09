@@ -304,8 +304,6 @@ for (const colorScheme of ["light", "dark"] as const) {
         await expect(editor(a)).toBeVisible();
         const remove = removeButton(a);
         await remove.click();
-        await expect(remove).toHaveAttribute("data-armed", "true");
-        await remove.click();
         await expect(row(pending(a), "Yerba")).toHaveCount(0);
         await field(a).fill("Yerba");
         await field(a).press("Enter");

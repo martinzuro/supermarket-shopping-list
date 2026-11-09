@@ -173,13 +173,10 @@ for (const colorScheme of ["light", "dark"] as const) {
           () => row(pending(a), "Pan").waitFor({ timeout: CHANGE_MS }),
         );
 
-        // 5. A deletes "Pan" (two taps): it leaves B's list, and nothing pulses.
+        // 5. A deletes "Pan" (one tap): it leaves B's list, and nothing pulses.
         await rowName(pending(a), "Pan").click();
         await expect(editor(a)).toBeVisible();
         const remove = removeButton(a);
-        await remove.click();
-        await expect(remove).toHaveText(texts.editItem.confirmRemove);
-        await expect(remove).toHaveAttribute("data-armed", "true");
         await step(
           "5 A deletes Pan",
           a,

@@ -58,9 +58,8 @@ export function editorField(page: Page, label: string) {
 
 export function removeButton(page: Page) {
   return editor(page).getByRole("button", {
-    name: new RegExp(
-      `^(${texts.editItem.remove}|${texts.editItem.confirmRemove})$`,
-    ),
+    name: texts.editItem.remove,
+    exact: true,
   });
 }
 

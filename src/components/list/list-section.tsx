@@ -14,6 +14,13 @@ type ListSectionProps = {
   /** Cantidad de filas. Con 0 se muestra el estado vacío. */
   count?: number;
   /**
+   * Filas en pantalla, cuando no coinciden con `count`: una fila recién
+   * marcada espera tachada en su lugar y ya no cuenta (A-5). El estado vacío
+   * sale con 0 filas, y el número, solo si `count` no es 0. Por defecto,
+   * `count`.
+   */
+  rows?: number;
+  /**
    * Mientras las filas no llegaron no se muestra nada debajo del título: el
    * estado vacío diría "nada pendiente" antes de saberlo.
    */
@@ -42,6 +49,7 @@ export function ListSection({
   title,
   emptyText,
   count = 0,
+  rows = count,
   loading = false,
   surface = "paper",
   action,
@@ -50,7 +58,7 @@ export function ListSection({
   className,
   children,
 }: ListSectionProps) {
-  const hasItems = count > 0;
+  const hasItems = rows > 0;
 
   return (
     <div
@@ -62,7 +70,7 @@ export function ListSection({
       <Section
         id={id}
         title={title}
-        count={hasItems ? count : undefined}
+        count={hasItems && count > 0 ? count : undefined}
         action={action}
       >
         {loading ? null : hasItems ? (

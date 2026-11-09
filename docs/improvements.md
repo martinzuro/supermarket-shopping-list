@@ -41,6 +41,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | A-2 | Duplicados sin aviso                                | Nada                  | Hecho          |
 | A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
 | A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
+| A-5 | Las filas se corren bajo el dedo al marcar seguido  | Nada                  | Hecho          |
 | M-1 | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
 | M-2 | Totales a la vista mientras se compra               | Nada                  | Hecho          |
 | M-3 | "Buena compra" con resumen                          | Nada                  | Hecho          |
@@ -49,6 +50,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | M-6 | Nombres con mayúscula inicial                       | Nada                  | Hecho          |
 | M-7 | Quién agregó cada producto                          | Migración             | Después        |
 | M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
+| M-9 | Borrar con un toque y deshacer                      | Nada                  | Hecho          |
 | F-1 | Modo compra                                         | Nada                  | Hecho          |
 | F-2 | Pegar una lista                                     | Nada                  | Hecho          |
 | F-3 | Mandar lo que falta como texto                      | Nada                  | Hecho          |
@@ -325,6 +327,87 @@ vaciada por error se recupera. Todo con los tokens de motion y con
 
 **Requiere.** Nada fuera del cliente.
 
+### A-5. Las filas se corren bajo el dedo al marcar seguido
+
+**Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
+después de la auditoría de usabilidad a 375 px (rama
+`fix/a5-deferred-reflow`, PR 65). Lo decidido al implementarlo:
+
+- Reflujo diferido (`src/components/list/deferred-reflow.ts`, que reemplaza
+  a `useLingering`): al marcar o desmarcar, todas las filas se quedan donde
+  se ven, la marcada tachada y con el check en su lugar. Cada marca propia
+  reinicia la espera; cuando pasan `REFLOW_IDLE_MS` (1,5 s) sin marcar, las
+  retenidas van juntas a su sección, en un solo movimiento de layout.
+- 1,5 s: en una ráfaga se marca cada 300 ms a 1 s (el ojo busca la fila
+  siguiente, el pulgar va), así que la espera es más larga que ese hueco y
+  ninguna ráfaga ve moverse una fila bajo el dedo; y es lo bastante corta
+  para que la lista se ordene antes de que la vista vuelva a buscar lo que
+  falta. Es una constante con nombre junto al hook, no un token de motion:
+  durante la espera no se anima nada (como `DOUBLE_TAP_MS`).
+- Bajan antes si la persona hace otra cosa: scroll, el foco que va a
+  cualquier lado que no sea el checkbox de una fila (una hoja que se abre,
+  el campo de agregar), tocar un nombre para editar, el botón del
+  recorrido, agregar algo (también con una píldora o "Lo de siempre", por
+  las mutaciones de agregar) y "Vaciar el carro" o "Terminé".
+- El scroll es el gesto de la persona (el dedo que arrastra más de
+  `TAP_SLOP_PX`, 10 px, la rueda o las teclas de desplazamiento; Espacio
+  no, que marca), no el evento `scroll`: la página también se desplaza sola,
+  por ejemplo cuando la barra crece con el aviso "al carro" y acompaña el
+  final de la página (`use-bar-height.ts`).
+- Tocar de nuevo una fila que espera la desmarca en su lugar, sin viaje.
+  El "Deshacer" del aviso "al carro" también.
+- Solo se difiere el movimiento: la marca sigue siendo optimista y sale al
+  servidor en el toque.
+- Los cambios de otros miembros (Realtime) no reinician la espera, y
+  mientras hay una ráfaga tampoco mueven filas: la retención congela dónde
+  se ve cada fila, y lo que otro marcó espera con el resto (con su pulso).
+  Sin ráfaga se mueven como antes. Lo que otro agrega o borra aparece o se
+  va en el momento.
+- Los contadores cuentan al marcar, no al bajar: "Pendientes N", el número
+  de cada categoría, los estimados de Pendientes y del carro, el número del
+  carro y el progreso del modo compra leen los datos, no las filas. Así
+  coinciden entre sí y con el check. `ListSection` recibe aparte las filas en
+  pantalla (`rows`) para no mostrar el estado vacío sobre filas tachadas que
+  esperan.
+- "Vaciar el carro" y "Terminé" se llevan todo lo marcado según los datos,
+  también lo marcado hace un momento que espera en Pendientes (antes
+  "Vaciar el carro" lo dejaba afuera durante los 320 ms). El botón aparece
+  solo si en el carro se ve algo marcado.
+- Con movimiento reducido también se espera: el problema es el blanco que
+  se corre, no la animación. Al bajar, las filas saltan sin viaje
+  (`MotionConfig reducedMotion="user"`).
+- El foco vuelve al checkbox de la última fila tocada cuando baja, si se
+  había perdido con ella. Los avisos aria-live no cambian: el checkbox dice
+  "marcada" en el toque.
+- `use-double-tap` sigue haciendo falta: con la fila quieta, un segundo
+  toque a menos de 350 ms y 24 px cae en la misma fila y la desmarcaría. Ya
+  no protege de la fila siguiente que sube, porque no sube.
+- Pruebas en `src/components/list/deferred-reflow.test.tsx` (temporizador y
+  agrupado, con la escritura que llega con demora) y `e2e/a5-burst.spec.ts`
+  (tres toques por posición, en claro y oscuro). Las dos fallan con el
+  código anterior.
+- Queda abierto: si la página está al final (una lista corta, o marcando
+  lo último), el primer marcado de la ráfaga hace aparecer el aviso "al
+  carro", la barra crece y `use-bar-height.ts` desplaza la página para que
+  las últimas filas no queden debajo. Todo sube lo que crece la barra (36
+  px en la prueba) y el segundo toque puede caer en la fila siguiente. No
+  es el reflujo: es la barra, y se resuelve aparte (reservar el alto del
+  aviso, o no acompañar el final mientras hay filas retenidas).
+
+**Qué pasaba.** Al marcar un pendiente, la fila se quedaba en su lugar 320
+ms (`duration-base`) y después viajaba al carro, y todo lo de abajo subía
+una fila (56 px). Un toque menos de 1 s después donde estaba la fila
+siguiente caía en lo que había subido (otro producto o el encabezado de una
+categoría): en el súper se marca en ráfagas, y se perdían toques o se
+marcaba el producto equivocado.
+
+**Propuesta.** Reflujo diferido: la fila marcada queda en su lugar, tachada,
+mientras la persona sigue marcando, y las marcadas bajan juntas al carro
+cuando pasan unos 1,5 s sin marcar, o antes si hace scroll, abre una hoja o
+agrega algo.
+
+**Requiere.** Nada fuera del cliente.
+
 ---
 
 ## Mejoras de lo que existe
@@ -558,6 +641,90 @@ sin eventos, así que no hay medición automática. Si duele, ADR nuevo para
 invitar primero y pedir la cuenta después.
 
 **Requiere.** Nada ahora; un ADR si se cambia.
+
+### M-9. Borrar con un toque y deshacer
+
+**Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
+(rama `feat/m9-delete-undo`, PR #66). Lo decidido al implementarlo:
+
+- El deshacer reusa el borrado lógico que ya existía (`deleted_at`, plan
+  3.2), sin migración: "Deshacer" limpia la marca en la misma fila, con el
+  mismo id, así que vuelve todo (nombre, cantidad, unidad, precio, moneda,
+  nota, categoría, posición y estado). Es un solo `PATCH` para todo lo
+  borrado mientras el aviso estaba abierto, solo sobre filas que siguen
+  borradas y no están en una compra (`trip_id is null`): lo que archivó
+  "Vaciar el carro" es de `restore_trip`, y la restricción
+  `items_trip_id_archived` lo rechazaría igual. Un producto borrado nunca
+  entra en `trips` (allí solo van los que tienen `trip_id`), así que reusar
+  la marca no mezcla borrados con compras ni con el ritmo de F-7.
+  `useRestoreItems` (`src/lib/queries/items.ts`) sigue el patrón optimista:
+  la fila vuelve al instante en su lugar, también si la lectura posterior al
+  borrado ya la había sacado del caché (el aviso guarda la fila), y un
+  rechazo la vuelve a ocultar con su propio aviso.
+- Se descartaron reinsertar la fila con el mismo id (exige un `DELETE` real
+  antes, y el trigger del catálogo contaría la reinserción como un alta
+  nueva) y demorar el borrado hasta que venza el aviso (los demás miembros
+  la seguirían viendo, y cerrar la pestaña la dejaría viva).
+- Un deshacer tocado antes de que el borrado salga de la cola de la lista no
+  manda nada: `useRemoveItem` no envía el borrado si hay un deshacer de esa
+  fila en la cola. Lo decide la cola, no el caché: una lectura en el medio
+  trae la fila viva y el borrado igual se tiene que mandar. La hora del
+  borrado la pone quien borra y sobrevive a los reintentos.
+- Los otros miembros ven por Realtime que la fila se va y que vuelve (con el
+  pulso y el aviso para lectores de pantalla de un alta). Mientras está
+  borrada no la pueden editar: su hoja se cierra sola. Si una edición suya
+  llegó al servidor antes del borrado, el deshacer la conserva, porque solo
+  toca `deleted_at`.
+- Dos borrados seguidos: el aviso junta todo lo borrado desde que se abrió
+  ("Borraste 2 productos") y "Deshacer" lo devuelve junto. Un aviso
+  informativo más nuevo que ocupe su lugar (marcar, "ya está", copiar, "Lo
+  de siempre") lo cierra para siempre: un "Deshacer" que reaparece más tarde
+  desharía algo que ya no está a la vista. Un rechazo solo lo tapa. Se va solo a
+  los 8 s (`NOTICE_MS`), como el del marcado.
+- En la hoja de edición, "Borrar" borra con un toque y cierra la hoja. Al
+  cerrarse, el foco va al "Deshacer" del aviso (`NOTICE_UNDO_ID`), no al
+  campo de agregar, que en el teléfono abría el teclado. Si no hay aviso (la
+  borró otro miembro), con puntero táctil va al título de Pendientes y con
+  mouse sigue yendo al campo. "Deshacer" lleva el foco a la fila que vuelve.
+- Deslizar una fila de Pendientes hacia la izquierda la borra, con el mismo
+  aviso: `SwipeToRemove` (`src/components/ui/swipe-to-remove.tsx`), con
+  Motion (`drag="x"`, sin librerías de gestos). Umbral: 35% del ancho, o un
+  tirón de 56 px a 700 px/s. El scroll vertical queda del navegador
+  (`touch-action: pan-y` y `dragDirectionLock`), y un arrastre no dispara el
+  toque de marcar ni el de editar. Detrás asoma `--danger-bg` con la
+  papelera; pasado el umbral el disco se llena de tomate (y el teléfono
+  vibra 8 ms donde puede). Con movimiento reducido la fila sigue al dedo
+  pero no vuela ni rebota. Patrón en DESIGN_SYSTEM.md, muestra en `/design`.
+- En el carro no se desliza: una fila del carro es algo comprado, borrarla
+  la saca de la compra, y un tirón de costado comprando con una mano es el
+  accidente más probable. La hoja la sigue borrando.
+- Límite conocido: si otro miembro vacía el carro con una fila borrada
+  desde el carro antes del deshacer, esa fila queda en la compra y el
+  deshacer no la trae, sin aviso. Es raro (solo una fila del carro, borrada
+  desde la hoja) y no tiene prueba entre dos miembros.
+- `use-confirm` (dos toques) queda donde estaba: sacar a un miembro y
+  olvidar un producto guardado no tienen deshacer (uno echa a alguien de la
+  lista y el otro borra la fila del catálogo de verdad), así que la
+  confirmación sigue siendo la protección.
+- Pruebas: `src/lib/queries/items.test.tsx` (mutación y deshacer, con
+  respuestas demoradas), `src/components/list/remove-undo.test.tsx` (el
+  aviso con las mutaciones reales), `src/components/list/edit-item-sheet.test.tsx`
+  (un toque y el foco), `src/components/ui/swipe-to-remove.test.tsx` y
+  `e2e/m9-remove-undo.spec.ts` (hoja + deshacer, deslizar, deslizar corto,
+  scroll, dos seguidos y el carro, a 375 px en claro y oscuro, con toques
+  reales). Los e2e que borraban con dos toques pasaron a uno.
+
+**Qué pasaba** (antes de M-9). Borrar costaba tres toques: abrir la hoja
+tocando el nombre, "Borrar" y otra vez dentro de 4 s ("Tocá otra vez para
+borrar"). Después no había forma de deshacer, y al cerrarse la hoja el foco
+volvía al campo de agregar, que en el teléfono podía abrir el teclado.
+
+**Propuesta original** (cumplida). "Borrar" borra con un toque y el aviso de
+la barra ofrece "Deshacer", que restaura el producto completo. Deslizar la
+fila hacia la izquierda también borra, con Motion, umbral claro, el color de
+peligro, movimiento reducido respetado y la hoja como alternativa accesible.
+
+**Requiere.** Nada: sin migración.
 
 ---
 

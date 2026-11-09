@@ -285,8 +285,6 @@ for (const scheme of SCHEMES) {
       );
       const remove = removeButton(page);
       await remove.click();
-      await expect(remove).toHaveAttribute("data-armed", "true");
-      await remove.click();
       await expect(row(pending(page), "Pilas")).toHaveCount(0);
       await add(page, "Pilas");
       await expect(group(page, "Almacén")).toContainText("Pilas");

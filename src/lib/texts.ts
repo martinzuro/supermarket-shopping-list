@@ -51,6 +51,22 @@ export const texts = {
       undoAria: (name: string) => `Deshacer: devolver “${name}” a pendientes`,
     },
     /**
+     * Borrar con un toque o deslizando la fila (M-9): el aviso de la barra
+     * dice lo borrado desde que se abrió, y "Deshacer" lo devuelve todo.
+     */
+    removed: {
+      notice: (names: readonly string[]) =>
+        names.length === 1
+          ? `Borraste “${names[0]}”`
+          : `Borraste ${names.length} productos`,
+      undoAria: (names: readonly string[]) =>
+        names.length === 1
+          ? `Deshacer: volver a poner “${names[0]}” en la lista`
+          : `Deshacer: volver a poner los ${names.length} productos en la lista`,
+      /** Lo que asoma detrás de la fila al deslizarla hacia la izquierda. */
+      swipe: "Borrar",
+    },
+    /**
      * Lo que se estima gastar en una sección: el total por moneda y, si a
      * algún producto le falta el precio, a cuántos cubre.
      */
@@ -183,7 +199,6 @@ export const texts = {
     },
     save: "Guardar",
     remove: "Borrar",
-    confirmRemove: "Tocá otra vez para borrar",
     errors: {
       name: "Escribí el nombre del producto.",
       quantity: "Usá un número mayor que 0, como 2, 1,5 o 500.",
@@ -293,6 +308,11 @@ export const texts = {
     undoAddBody: "Los productos siguen en la lista. Probá de nuevo.",
     restoreCart: "No volvió lo del carro",
     restoreCartBody: "El carro sigue vacío. Probá de nuevo.",
+    restoreItems: "No se pudo deshacer el borrado",
+    restoreItemsBody: (count: number) =>
+      count === 1
+        ? "El producto sigue borrado. Agregalo de nuevo."
+        : "Los productos siguen borrados. Agregalos de nuevo.",
     dismiss: "Cerrar aviso",
   },
   /**
@@ -1022,6 +1042,13 @@ export const texts = {
         groupTitle: "Fiambres y lácteos",
         groupCount: 1,
         groupItem: "Yogur natural",
+      },
+      /** M-9: la fila de Pendientes que se borra deslizándola. */
+      swipe: {
+        title: "Deslizar para borrar",
+        note: "M-9: hacia la izquierda; pasado el 35% el disco se llena y soltar borra. En la app, el aviso de la barra ofrece deshacer",
+        items: ["Leche descremada", "Yerba", "Papel higiénico"],
+        reset: "Volver a ponerlas",
       },
       sheets: "Hoja",
       sheet: {

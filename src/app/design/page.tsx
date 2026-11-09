@@ -41,6 +41,7 @@ import {
 import { formatMoney } from "@/lib/domain";
 import { texts } from "@/lib/texts";
 import { MotionDemo } from "./motion-demo";
+import { SwipeDemo } from "./swipe-demo";
 import {
   ChipPickerDemo,
   ReviewSheetDemo,
@@ -720,6 +721,12 @@ export default function DesignPage() {
             </UiSection>
           </div>
         </div>
+
+        <p className="eyebrow mt-10">{t.states.swipe.title}</p>
+        <div className="mt-3">
+          <SwipeDemo />
+        </div>
+        <Meta>{t.states.swipe.note}</Meta>
 
         <p className="eyebrow mt-10">{t.states.sheets}</p>
         <div className="mt-3 flex flex-wrap gap-3">
