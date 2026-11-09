@@ -218,6 +218,30 @@ Implementadas en `src/components/list/list-view.tsx`:
   sin la espera de 320 ms (esa es solo de los toques propios), y una que
   añade entra con el `Enter` de siempre y con el pulso.
 
+- **Deslizar para borrar** (M-9). Una fila de Pendientes va envuelta en
+  `SwipeToRemove`: se arrastra solo hacia la izquierda (`drag="x"`,
+  `dragElastic` 1 a la izquierda y 0 a la derecha), sigue al dedo y deja ver
+  detrás `--danger-bg` con "Borrar" en tinta y la papelera en un disco de
+  borde `tomato-text`. El fondo funde con los primeros 8 a 32 px, así que
+  un toque no muestra nada. Pasado el umbral (35% del ancho) el disco se
+  llena de `--tomato` con la papelera en papel y crece a 110%: solo
+  `opacity` y `transform`, en `duration-instant`, y el teléfono vibra 8 ms
+  donde puede. Soltar ahí la hace salir hacia la izquierda en
+  `transitions.fast` y recién entonces se borra; un tirón rápido (56 px a
+  700 px/s) también borra. Soltar antes la devuelve a 0 en
+  `transitions.fast`. El eje lo decide el primer movimiento
+  (`dragDirectionLock`) y el navegador conserva el scroll vertical
+  (`touch-action: pan-y`); un arrastre horizontal se traga el clic, así que
+  no marca ni abre la hoja, y un toque que se corre unos píxeles sigue
+  siendo un toque. La fila solo recorta (`overflow-hidden`) mientras está
+  desplazada: en reposo el objetivo de 44px del check sobresale a la
+  izquierda y un recorte lo achicaría. Con movimiento reducido sigue al dedo
+  (es manipulación directa) pero no vuela ni rebota. En el carro el
+  envoltorio queda con `disabled`: no se desliza (borrar algo comprado lo
+  saca de la compra) y la fila no se vuelve a montar al cambiar de sección.
+  No es la única forma de borrar: la hoja tiene "Borrar", de un toque, y los
+  dos caminos terminan en el aviso con "Deshacer" de la barra.
+
 Aviso aprendido en la bienvenida: cuando una raíz con `AnimatePresence`
 tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 `exit={undefined}` o la salida nunca termina.
@@ -232,6 +256,7 @@ tiene hijos `Enter` o `Stagger` con retrasos, los hijos llevan
 | `Chip` / `CategoryChip` | Etiquetas cortas / categoría con tinte e icono | `CategoryChip interactive` es un botón con `aria-pressed` y un área táctil de 44px alrededor de sus 28px visibles; `hideIcon` quita el icono |
 | `CheckCircle` | Marca visual de "hecho" | Disco con el par de acción: tinta con check lima en claro, lima con check tinta en oscuro. Solo presentación; el control accesible lo pone `ListRow` |
 | `ListRow` | Fila de la lista | 56px, tachado animado, `note`, `quantity` en mono, `total` (lo que cuesta la línea, en mono, tinta 2, bajo la cantidad y alineado a la derecha como una columna de ticket; el nombre sigue recortándose y nada empuja el check de 44px), `highlighted` para el pulso remoto. El checkbox mide 44px y su etiqueta accesible es solo el nombre del ítem (el rol y `aria-checked` dicen el resto). Con `onPress` el nombre es un botón de 44px con `aria-haspopup="dialog"` (abre la hoja de edición); sin él es texto. `as` elige la raíz: `li` por defecto, `div` cuando el `li` lo pone un envoltorio de motion |
+| `SwipeToRemove` | Deslizar una fila para borrarla (M-9) | Envuelve una `ListRow` con `as="div"`. `label` es lo que asoma detrás ("Borrar"), oculto a lectores de pantalla: el camino accesible es la hoja de edición. `onRemove` se llama una vez, cuando la fila ya salió. `disabled` la deja quieta sin desmontarla. `swipeRemoves(offset, velocity, width)` es la decisión, pura y probada. Expone `data-armed` pasado el umbral. Coreografía en la sección 5; muestra en `/design` |
 | `Section` + `SectionEmpty` | Agrupación | `thread` pone el hilo de categoría, `icon` el icono junto al título, `count` en mono. `level` 2 (por defecto, `h2` en `text-heading`) o 3 (`h3` en `text-row font-medium`): el nivel 3 es el grupo de categoría dentro de Pendientes y no lleva nombre accesible, para que diez grupos no llenen la lista de landmarks (el `h3` sigue en la navegación por encabezados) |
 | `EmptyState` | Estado vacío de una sección | Ilustración en tinta 2 a la izquierda, texto a la derecha. Es una invitación a actuar |
 | `Banner` | Aviso persistente | Tonos `info`, `attention`, `error`. El texto siempre en tinta; el color en icono e hilo izquierdo. Esquinas izquierdas rectas. `action` va al costado (un botón); `footer` en una línea propia debajo del texto, alineada con él, para dos botones o una pregunta (muestra en `/design`) |
@@ -758,7 +783,9 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
 - Foco que no se pierde cuando el elemento que lo tenía desaparece: tras
   marcar, el foco sigue a la fila hasta su checkbox en la nueva sección (si
   no se había movido a otro lado); la hoja de edición lo devuelve al nombre
-  de la fila, o al campo de añadir si la fila se borró; el momento de carro
+  de la fila y, si la fila se borró, al "Deshacer" del aviso (sin aviso, al
+  campo de añadir con mouse y al título de Pendientes con puntero táctil,
+  para no abrir el teclado); "Deshacer" lo lleva a la fila que vuelve; el momento de carro
   vaciado lleva el foco a su acción y, si se cierra porque algo vuelve al
   carro, lo devuelve a "Vaciar el carro".
 - Los avisos de escrituras rechazadas son banners `role="alert"` (el tono
@@ -888,6 +915,14 @@ que el catálogo de la lista recuerda de cada producto agregado alguna vez.
   Deshacer del momento de carro vaciado (lo vaciado vuelve, también tras
   recargar; rechazado, el momento vuelve), y entre dos miembros que lo que vuelve le llega al otro en menos
   de 1 s. Con capturas a 375px en claro y oscuro.
+- `e2e/m9-remove-undo.spec.ts`: "Borrar" de un toque en la hoja, con el
+  foco en el "Deshacer" del aviso y no en el campo; deshacer devuelve la
+  fila entera a su lugar (un PATCH para borrar y uno para volver, también
+  tras recargar). Deslizar con toques reales (CDP): uno corto vuelve a 0 sin
+  borrar, uno vertical es scroll, pasado el umbral la fila se arma
+  (`data-armed`) y al soltar se borra sin marcar ni abrir la hoja; dos
+  seguidos son un aviso y un solo deshacer; en el carro no se desliza. Con
+  capturas a 375px en claro y oscuro.
 - `e2e/f4-history.spec.ts`: dos vaciadas son dos compras en "Compras
   anteriores" (la más nueva primero, con la cuenta, el estimado y la hora),
   el menú se cierra antes de que se abra la compra (nunca dos hojas), su

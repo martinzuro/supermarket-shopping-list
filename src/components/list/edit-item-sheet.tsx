@@ -1,10 +1,13 @@
 "use client";
 
 import { RadioGroup } from "radix-ui";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import {
   ADD_ITEM_INPUT_ID,
   MAX_NAME_LENGTH,
+  NOTICE_UNDO_ID,
+  coarsePointer,
+  focusPendingHeading,
 } from "@/components/list/add-item-bar";
 import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -46,14 +49,6 @@ const MAX_NOTE_LENGTH = 200;
 /** Mismo límite que la columna `items.unit`. */
 const MAX_UNIT_LENGTH = 30;
 
-/** La confirmación de borrar se apaga sola si no llega el segundo toque. */
-const CONFIRM_MS = 4000;
-/**
- * Un segundo toque antes de esto es un doble toque accidental, no una
- * confirmación: se ignora, y el botón queda "armado" recién después.
- */
-const ARM_MS = 350;
-
 const NO_CATEGORIES: readonly Category[] = [];
 
 const CURRENCIES = [
@@ -76,13 +71,16 @@ type EditItemSheetProps = {
   /** Solo los campos que cambiaron. No se llama si no cambió nada. */
   onSave: (item: Item, changes: Partial<EditableFields>) => void;
   onRemove: (item: Item) => void;
-  /** Cerrar la hoja: con Guardar, con Borrar, con la X, Escape o el velo. */
+  /**
+   * Cerrar la hoja: con Guardar, con Borrar (un toque: el aviso de la barra
+   * ofrece deshacerlo, M-9), con la X, Escape o el velo.
+   */
   onClose: () => void;
 };
 
 /**
  * Hoja de edición de un ítem (nombre, cantidad, unidad, nota, categoría) con el borrado
- * en dos toques. Los cambios son optimistas: la hoja se cierra al instante y
+ * de un toque, que se deshace desde el aviso de la barra (M-9). Los cambios son optimistas: la hoja se cierra al instante y
  * no espera al servidor. Mientras anima la salida sigue mostrando el último
  * ítem, y cada vez que se abre se arma un formulario nuevo.
  */
@@ -115,7 +113,10 @@ export function EditItemSheet({
 
   function returnFocus(event: Event) {
     // Radix no tiene un disparador al que devolver el foco: va al nombre de
-    // la fila editada, o al campo de agregar si la fila ya no está.
+    // la fila editada. Si la fila ya no está (se borró), al "Deshacer" del
+    // aviso, que es lo que se puede querer ahora; sin aviso (la borró otro),
+    // al campo de agregar. Con un dedo, nunca al campo: abriría el teclado
+    // sin que nadie lo pida. Ahí, sin aviso, al título de Pendientes.
     event.preventDefault();
     const row =
       editedId === null
@@ -123,9 +124,13 @@ export function EditItemSheet({
         : document.querySelector<HTMLElement>(
             `[data-item-id="${CSS.escape(editedId)}"] [data-slot="list-row-name"]`,
           );
-    (row ?? document.getElementById(ADD_ITEM_INPUT_ID))?.focus({
-      preventScroll: true,
-    });
+    const target = row ?? document.getElementById(NOTICE_UNDO_ID);
+    if (target) target.focus({ preventScroll: true });
+    else if (coarsePointer()) focusPendingHeading();
+    else
+      document
+        .getElementById(ADD_ITEM_INPUT_ID)
+        ?.focus({ preventScroll: true });
   }
 
   return (
@@ -230,8 +235,6 @@ function EditForm({
     quantity: false,
     price: false,
   });
-  const [confirming, setConfirming] = useState(false);
-  const [armed, setArmed] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
@@ -248,19 +251,6 @@ function EditForm({
           unit: canonicalUnit(unit),
         })
       : null;
-
-  useEffect(() => {
-    if (!confirming) return;
-    const arm = setTimeout(() => setArmed(true), ARM_MS);
-    const reset = setTimeout(() => {
-      setConfirming(false);
-      setArmed(false);
-    }, CONFIRM_MS);
-    return () => {
-      clearTimeout(arm);
-      clearTimeout(reset);
-    };
-  }, [confirming]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -342,11 +332,6 @@ function EditForm({
   }
 
   function handleRemove() {
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
-    if (!armed) return;
     onRemove(item);
     onClose();
   }
@@ -515,16 +500,11 @@ function EditForm({
         <Button
           type="button"
           variant="danger"
-          data-armed={armed}
-          // Texto en tinta sobre el fondo de peligro, como en Banner.
-          className={cn("w-full", confirming && "bg-danger-bg text-ink")}
+          className="w-full"
           onClick={handleRemove}
         >
-          {confirming ? texts.editItem.confirmRemove : texts.editItem.remove}
+          {texts.editItem.remove}
         </Button>
-        <p aria-live="polite" className="sr-only">
-          {confirming ? texts.editItem.confirmRemove : ""}
-        </p>
       </SheetFooter>
     </form>
   );

@@ -59,6 +59,11 @@ export function makeTable(handlers: {
         return chain;
       });
     }
+    // .not("deleted_at", "is", null) is recorded as its PostgREST filter.
+    chain.not = vi.fn((column: string, operator: string, value: unknown) => {
+      filters.push([column, `not.${operator}.${String(value)}`]);
+      return chain;
+    });
     chain.insert = vi.fn((row: unknown) => {
       payload = row;
       operation = "insert";

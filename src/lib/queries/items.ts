@@ -342,6 +342,9 @@ export const itemMutationKeys = {
   /** Taking back the items of an add of several. */
   undoAdd: (userId: string, listId: string) =>
     [...queryKeys.items(userId, listId), "undo-add"] as const,
+  /** Bringing back what "Borrar" took out of the list (M-9). */
+  restore: (userId: string, listId: string) =>
+    [...queryKeys.items(userId, listId), "restore"] as const,
   /** Bringing back what an emptying of the cart archived (A-4). */
   restoreCart: (userId: string, listId: string) =>
     [...queryKeys.items(userId, listId), "restore-cart"] as const,
@@ -689,12 +692,40 @@ export type RemoveItem = {
   id: string;
   /** For the notice if the server rejects it. */
   name: string;
+  /**
+   * The row as the user saw it when deleting it: "Deshacer" (M-9) brings it
+   * back from this if the refetch after the delete dropped it from the cache.
+   */
+  row: Item;
+  /** One delete time, kept across retries. */
+  deletedAt: string;
 };
+
+/** True when a "Deshacer" (M-9) of this item waits in the list's queue. */
+function undoQueued(
+  queryClient: QueryClient,
+  userId: string,
+  listId: string,
+  id: string,
+) {
+  return (
+    queryClient.getMutationCache().findAll({
+      mutationKey: itemMutationKeys.restore(userId, listId),
+      status: "pending",
+      predicate: (mutation) =>
+        (mutation.state.variables as RestoreItems | undefined)?.ids.includes(
+          id,
+        ) === true,
+    }).length > 0
+  );
+}
 
 /**
  * Deletes an item. It is a soft delete (deleted_at, plan 3.2): the row stays
  * in the cache marked as deleted, so every view drops it at once, and a
- * rejection only has to clear the mark to bring it back in its place.
+ * rejection only has to clear the mark to bring it back in its place. The
+ * same mark is what "Deshacer" clears (useRestoreItems, M-9): the row keeps
+ * its id and every field. One undone before it left the queue is not sent.
  */
 export function useRemoveItem(userId: string, listId: string) {
   const queryClient = useQueryClient();
@@ -703,17 +734,18 @@ export function useRemoveItem(userId: string, listId: string) {
   return useMutation({
     mutationKey: itemMutationKeys.remove(userId, listId),
     scope: listScope(listId),
-    mutationFn: async ({ id }: RemoveItem) => {
-      const item = findItem(queryClient, key, id);
-      if (!item) return null;
-      return updateItem(id, {
-        deleted_at: item.deleted_at ?? new Date().toISOString(),
-      });
+    mutationFn: async ({ id, deletedAt }: RemoveItem) => {
+      // Gone (its insert was rejected): nothing to delete. Undone before it
+      // left the queue: the undo that follows would find nothing. Told by
+      // the queued undo, not by the cache: a read in between brings the row
+      // back live, and the delete must still be sent.
+      if (!findItem(queryClient, key, id)) return null;
+      if (undoQueued(queryClient, userId, listId, id)) return null;
+      return updateItem(id, { deleted_at: deletedAt });
     },
-    onMutate: async ({ id }) => {
+    onMutate: async ({ id, deletedAt }) => {
       await queryClient.cancelQueries({ queryKey: key });
       if (!findItem(queryClient, key, id)) return { deletedAt: null };
-      const deletedAt = new Date().toISOString();
       patchItem(queryClient, key, id, (item) => ({
         ...item,
         deleted_at: deletedAt,
@@ -731,6 +763,94 @@ export function useRemoveItem(userId: string, listId: string) {
       rememberOwn(queryClient, listId, [removed]);
       if (!removed || !isLastWriteTo(queryClient, listId, removed.id)) return;
       patchItem(queryClient, key, removed.id, () => removed);
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+export type RestoreItems = {
+  /** The items the deletes being undone took out of the list. */
+  ids: readonly string[];
+  /** Those items as they were, for the ones the cache no longer has. */
+  rows: readonly Item[];
+};
+
+/**
+ * "Deshacer" after deleting (docs/improvements.md, M-9): the deleted rows
+ * come back, same id, every field as it is on the server (name, amount,
+ * price, note, category, position, checked), in one request that only
+ * clears deleted_at. Only rows still deleted and not in a trip: a row the
+ * emptying of the cart archived is restore_trip's (the check constraint
+ * items_trip_id_archived would refuse it anyway), and one whose delete was
+ * rejected is already back. It runs after the deletes in the list's queue.
+ * Other members see each row leave and come back by Realtime. A rejection
+ * hides the rows again until the refetch of settle.
+ */
+export function useRestoreItems(userId: string, listId: string) {
+  const queryClient = useQueryClient();
+  const key = queryKeys.items(userId, listId);
+
+  return useMutation({
+    mutationKey: itemMutationKeys.restore(userId, listId),
+    scope: listScope(listId),
+    mutationFn: async ({ ids }: RestoreItems) =>
+      unwrap(
+        await createClient()
+          .from("items")
+          .update({ deleted_at: null })
+          .in("id", [...ids])
+          .not("deleted_at", "is", null)
+          .is("trip_id", null)
+          .select()
+          .abortSignal(writeSignal()),
+      ),
+    onMutate: async ({ ids, rows }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const hidden = new Map<string, string>();
+      setItems(queryClient, key, (items) => {
+        const back = items.map((item) => {
+          if (
+            !ids.includes(item.id) ||
+            item.deleted_at === null ||
+            item.trip_id !== null
+          ) {
+            return item;
+          }
+          hidden.set(item.id, item.deleted_at);
+          return { ...item, deleted_at: null };
+        });
+        const missing = rows
+          .filter(
+            (row) =>
+              ids.includes(row.id) && !items.some((item) => item.id === row.id),
+          )
+          .map((row) => {
+            hidden.set(row.id, new Date().toISOString());
+            return { ...row, deleted_at: null, trip_id: null };
+          });
+        return insertInOrder(back, missing);
+      });
+      return { hidden };
+    },
+    onError: (_error, _variables, context) => {
+      const hidden = context?.hidden;
+      if (!hidden) return;
+      setItems(queryClient, key, (items) =>
+        items.map((item) => {
+          const deletedAt = hidden.get(item.id);
+          return deletedAt !== undefined && item.deleted_at === null
+            ? { ...item, deleted_at: deletedAt }
+            : item;
+        }),
+      );
+    },
+    onSuccess: (restored) => {
+      rememberOwn(queryClient, listId, restored);
+      for (const row of restored) {
+        if (isLastWriteTo(queryClient, listId, row.id)) {
+          patchItem(queryClient, key, row.id, () => row);
+        }
+      }
     },
     onSettled: () => settle(queryClient, key),
   });

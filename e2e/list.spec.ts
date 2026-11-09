@@ -140,9 +140,16 @@ async function save(page: Page) {
 
 function removeButton(page: Page) {
   return editor(page).getByRole("button", {
-    name: new RegExp(
-      `^(${texts.editItem.remove}|${texts.editItem.confirmRemove})$`,
-    ),
+    name: texts.editItem.remove,
+    exact: true,
+  });
+}
+
+/** El "Deshacer" del aviso de lo borrado (M-9). */
+function undoRemove(page: Page, names: string[]) {
+  return page.getByRole("button", {
+    name: texts.list.removed.undoAria(names),
+    exact: true,
   });
 }
 
@@ -565,7 +572,7 @@ test.describe("list with the local Supabase stack", () => {
       ).toHaveText("2 kg");
     });
 
-    test("deleting needs a second tap, then the row is gone for good", async ({
+    test("deleting takes one tap, and the row is gone for good", async ({
       page,
     }) => {
       await openList(page);
@@ -573,21 +580,13 @@ test.describe("list with the local Supabase stack", () => {
       await addAndSync(page, "Pan", "Pan");
 
       await openEditor(page, "Leche");
-      const remove = removeButton(page);
-      await expect(remove).toHaveText(texts.editItem.remove);
-      await remove.click();
-      await expect(remove).toHaveText(texts.editItem.confirmRemove);
-      await expect(editor(page)).toBeVisible();
-      await expect(rowBehind(pending(page), "Leche")).toBeVisible();
-
       const saved = nextWrite(page, "PATCH");
-      // Un segundo toque inmediato es un doble toque: se espera al botón armado.
-      await expect(remove).toHaveAttribute("data-armed", "true");
-      await remove.click();
+      await removeButton(page).click();
 
       await expect(editor(page)).toBeHidden({ timeout: ACTION_MS });
       await expect(row(pending(page), "Leche")).toHaveCount(0);
-      await expect(field(page)).toBeFocused();
+      // Deshacer, not the field: on a phone the field opens the keyboard.
+      await expect(undoRemove(page, ["Leche"])).toBeFocused();
       await expect(count(pending(page))).toHaveText("1");
 
       await saved;
@@ -595,22 +594,6 @@ test.describe("list with the local Supabase stack", () => {
       await expect(row(pending(page), "Pan")).toBeVisible();
       await expect(row(pending(page), "Leche")).toHaveCount(0);
       await expect(pending(page).locator("li")).toHaveCount(1);
-    });
-
-    test("the delete confirmation resets after a few seconds", async ({
-      page,
-    }) => {
-      await openList(page);
-      await addAndSync(page, "Pan", "Pan");
-
-      await openEditor(page, "Pan");
-      const remove = removeButton(page);
-      await remove.click();
-      await expect(remove).toHaveText(texts.editItem.confirmRemove);
-
-      await expect(remove).toHaveText(texts.editItem.remove, { timeout: 6000 });
-      await expect(editor(page)).toBeVisible();
-      await expect(rowBehind(pending(page), "Pan")).toBeVisible();
     });
 
     test("a rejected edit restores the old name and warns", async ({
@@ -648,8 +631,6 @@ test.describe("list with the local Supabase stack", () => {
       await rejectItems(page, "PATCH");
 
       await openEditor(page, "Leche");
-      await removeButton(page).click();
-      await expect(removeButton(page)).toHaveAttribute("data-armed", "true");
       await removeButton(page).click();
 
       const notice = banner(page);
@@ -1111,13 +1092,13 @@ test.describe("list with the local Supabase stack", () => {
         await expectNoHorizontalOverflow(page);
         await capture(page, testInfo, `edit-sheet-${mode}`);
 
+        // One tap deletes (M-9): the bar tells it and offers to undo it.
         await removeButton(page).click();
-        await expect(removeButton(page)).toHaveText(
-          texts.editItem.confirmRemove,
-        );
+        await expect(editor(page)).toBeHidden();
+        await expect(undoRemove(page, ["Aceite de girasol"])).toBeVisible();
         await settle(page);
         await expectNoHorizontalOverflow(page);
-        await capture(page, testInfo, `edit-sheet-confirm-${mode}`);
+        await capture(page, testInfo, `removed-notice-${mode}`);
       });
     });
   }

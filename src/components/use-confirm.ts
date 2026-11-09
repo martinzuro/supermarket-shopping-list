@@ -6,16 +6,17 @@ import { useEffect, useState } from "react";
 const CONFIRM_MS = 4000;
 /**
  * A second tap sooner than this is an accidental double tap, not a
- * confirmation: ignored. The same two numbers as the edit sheet's delete.
+ * confirmation: ignored.
  */
 const ARM_MS = 350;
 
 /**
- * The light confirmation of the system (the delete of the edit sheet): the
- * first tap on a target asks, a second one a moment later does it. One
- * target at a time, so asking about another one replaces the first. Used to
- * take a member out (members-section.tsx) and to forget a product
- * (products-section.tsx).
+ * The light confirmation of the system: the first tap on a target asks, a
+ * second one a moment later does it. One target at a time, so asking about
+ * another one replaces the first. Used to take a member out
+ * (members-section.tsx) and to forget a product (products-section.tsx),
+ * which have no undo. Deleting an item no longer asks (M-9): it is one tap,
+ * and the bar's notice offers "Deshacer".
  */
 export function useConfirm() {
   const [target, setTarget] = useState<string | null>(null);
