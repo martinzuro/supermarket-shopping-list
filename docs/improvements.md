@@ -329,7 +329,7 @@ vaciada por error se recupera. Todo con los tokens de motion y con
 
 **Estado: hecho el 2026-11-09**, asignado el 2026-11-09 por el usuario
 después de la auditoría de usabilidad a 375 px (rama
-`fix/a5-deferred-reflow`, PR PENDIENTE). Lo decidido al implementarlo:
+`fix/a5-deferred-reflow`, PR 65). Lo decidido al implementarlo:
 
 - Reflujo diferido (`src/components/list/deferred-reflow.ts`, que reemplaza
   a `useLingering`): al marcar o desmarcar, todas las filas se quedan donde
