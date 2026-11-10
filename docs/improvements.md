@@ -6,6 +6,10 @@ lista de 11 productos a 375 px, marcarlos en el súper, vaciar el carro y
 volver a la semana siguiente con cuatro semanas de historial simuladas en el
 catálogo.
 
+A-6 a A-9 y M-11 a M-18 salieron de un segundo recorrido (2026-11-10),
+con `main` después de F-1, F-8, A-5 y M-9, centrado en cómo se siente
+usarla con una mano: alcance del pulgar, transiciones, confianza y tacto.
+
 Estado: **propuestas sin fase asignada.** Ninguna entrada se implementa
 hasta que el usuario la asigne a una fase: el plan dice que nada del backlog
 entra antes de la Fase 5 salvo decisión explícita
@@ -35,31 +39,43 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 
 ## Resumen
 
-| Id   | Qué                                                 | Requiere              | Orden sugerido |
-| ---- | --------------------------------------------------- | --------------------- | -------------- |
-| A-1  | Los productos nuevos caen en "Otros"                | Nada                  | Hecho          |
-| A-2  | Duplicados sin aviso                                | Nada                  | Hecho          |
-| A-3  | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
-| A-4  | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
-| A-5  | Las filas se corren bajo el dedo al marcar seguido  | Nada                  | Hecho          |
-| M-1  | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
-| M-2  | Totales a la vista mientras se compra               | Nada                  | Hecho          |
-| M-3  | "Buena compra" con resumen                          | Nada                  | Hecho          |
-| M-4  | Categorías propias: crear, renombrar, borrar        | Migración             | Después        |
-| M-5  | Olvidar una sugerencia del catálogo                 | Migración             | Hecho          |
-| M-6  | Nombres con mayúscula inicial                       | Nada                  | Hecho          |
-| M-7  | Quién agregó cada producto                          | Migración             | Después        |
-| M-8  | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
-| M-9  | Borrar con un toque y deshacer                      | Nada                  | Hecho          |
-| M-10 | Agregar desde "Productos guardados"                 | Nada                  | Con la beta    |
-| F-1  | Modo compra                                         | Nada                  | Hecho          |
-| F-2  | Pegar una lista                                     | Nada                  | Hecho          |
-| F-3  | Mandar lo que falta como texto                      | Nada                  | Hecho          |
-| F-4  | Historial de compras                                | Migración             | Hecho          |
-| F-5  | "Está comprando"                                    | Nada en la base       | Después        |
-| F-6  | Presupuesto por compra                              | Migración             | Después        |
-| F-7  | Ritmo por producto en "Lo de siempre"               | Migración             | Hecho          |
-| F-8  | Invitar a instalar la app                           | Nada                  | Hecho          |
+| Id   | Qué                                                     | Requiere                    | Orden sugerido   |
+| ---- | ------------------------------------------------------- | --------------------------- | ---------------- |
+| A-1  | Los productos nuevos caen en "Otros"                    | Nada                        | Hecho            |
+| A-2  | Duplicados sin aviso                                    | Nada                        | Hecho            |
+| A-3  | "Lo de siempre" a ciegas y sin cantidades               | Migración                   | Hecho            |
+| A-4  | Errores de pulgar al marcar y al vaciar el carro        | Nada                        | Hecho            |
+| A-5  | Las filas se corren bajo el dedo al marcar seguido      | Nada                        | Hecho            |
+| A-6  | Una marca que se deshace sola, sin aviso previo         | Nada (ADR para no revertir) | Antes de la beta |
+| A-7  | Una lista escrita o dictada queda como un solo producto | Nada                        | Antes de la beta |
+| A-8  | La bienvenida se cierra antes de poder leerla           | Nada                        | Antes de la beta |
+| A-9  | "Atrás" en Android no cierra la hoja                    | Nada                        | Antes de la beta |
+| M-1  | Hoja de edición: categoría arriba, cantidad con +/−     | Nada                        | Con la beta      |
+| M-2  | Totales a la vista mientras se compra                   | Nada                        | Hecho            |
+| M-3  | "Buena compra" con resumen                              | Nada                        | Hecho            |
+| M-4  | Categorías propias: crear, renombrar, borrar            | Migración                   | Después          |
+| M-5  | Olvidar una sugerencia del catálogo                     | Migración                   | Hecho            |
+| M-6  | Nombres con mayúscula inicial                           | Nada                        | Hecho            |
+| M-7  | Quién agregó cada producto                              | Migración                   | Después          |
+| M-8  | Medir la fricción de compartir                          | Nada (ADR si cambia)        | Con la beta      |
+| M-9  | Borrar con un toque y deshacer                          | Nada                        | Hecho            |
+| M-10 | Agregar desde "Productos guardados"                     | Nada                        | Con la beta      |
+| M-11 | Las acciones frecuentes, al alcance del pulgar          | Nada                        | Con la beta      |
+| M-12 | Todas las hojas desde abajo, con asa y arrastre         | Nada                        | Antes de la beta |
+| M-13 | Hoja de edición a media altura                          | Nada                        | Con la beta      |
+| M-14 | Transiciones de vista: modo compra y "Buena compra"     | Nada                        | Con la beta      |
+| M-15 | Mostrar adónde va lo que se agrega y lo que se marca    | Nada                        | Con la beta      |
+| M-16 | Títulos de categoría compactos en el modo compra        | Nada                        | Con la beta      |
+| M-17 | Carga y cifras: filas fantasma y números que giran      | Nada                        | Con la beta      |
+| M-18 | Tacto: toque, vibración y sin recarga por tirón         | Nada                        | Antes de la beta |
+| F-1  | Modo compra                                             | Nada                        | Hecho            |
+| F-2  | Pegar una lista                                         | Nada                        | Hecho            |
+| F-3  | Mandar lo que falta como texto                          | Nada                        | Hecho            |
+| F-4  | Historial de compras                                    | Migración                   | Hecho            |
+| F-5  | "Está comprando"                                        | Nada en la base             | Después          |
+| F-6  | Presupuesto por compra                                  | Migración                   | Después          |
+| F-7  | Ritmo por producto en "Lo de siempre"                   | Migración                   | Hecho            |
+| F-8  | Invitar a instalar la app                               | Nada                        | Hecho            |
 
 ---
 
@@ -406,6 +422,83 @@ marcaba el producto equivocado.
 mientras la persona sigue marcando, y las marcadas bajan juntas al carro
 cuando pasan unos 1,5 s sin marcar, o antes si hace scroll, abre una hoja o
 agrega algo.
+
+**Requiere.** Nada fuera del cliente.
+
+### A-6. Una marca que se deshace sola, sin aviso previo
+
+**Qué pasa.** Con una red que acepta lecturas pero rechaza escrituras
+(simulado en la pestaña el 2026-11-10), marcar "Fideos" en el modo compra
+lo baja al carro y sube el progreso a "3 de 7" al instante, y nada indica
+que todavía no se guardó. A los 7 s, agotados los reintentos
+(`src/lib/queries/errors.ts`), la fila vuelve sola a Pendientes y aparece
+"No se marcó “Fideos”", que se va a los 8 s. Para entonces la persona ya
+siguió con otra cosa: lo que ve es una fila que se desmarca sola. Con la
+señal a medias de un súper, es lo que más erosiona la confianza.
+
+**Propuesta.**
+
+- Estado de guardado visible y callado: si una escritura tarda más de
+  ~1 s, el check de la fila se ve pendiente (por ejemplo, tinta al 50%) y
+  la cabecera muestra un punto que pulsa con "Guardando…"; al confirmarse,
+  se apaga. `DESIGN_DIRECTION.md` (sección 8) ya admite un indicador de
+  sincronización que pulse.
+- El aviso de un fallo no se va solo mientras haya algo sin guardar: queda
+  hasta que se lo cierra o se reintenta.
+- No revertir ante un error de red (solo ante un rechazo del servidor) y
+  reintentar al volver la conexión cambia el modelo "solo online": se
+  decide aparte, con el uso sin señal
+  ([ADR 0003](decisions/0003-online-only.md)).
+
+**Requiere.** Nada fuera del cliente para el indicador y el aviso; un ADR
+nuevo para no revertir.
+
+### A-7. Una lista escrita o dictada queda como un solo producto
+
+**Qué pasa.** El placeholder del campo de agregar es "Leche, pan,
+tomates…", pero escribir eso y confirmar guarda un solo producto, "Leche,
+pan, tomates", en Fiambres y lácteos (por "leche"). La separación de F-2
+solo corre al pegar (`handlePaste` en `add-item-bar.tsx`); `handleSubmit`
+no la usa. Lo mismo pasa con el dictado del teclado del teléfono, que
+escribe "leche, pan y tomates": la forma más rápida de cargar una lista
+desde el celular.
+
+**Propuesta.** Al confirmar, si `splitPastedList` encuentra dos productos o
+más, abrir el mismo repaso de F-2 en lugar de agregar uno. Se decide al
+abordarla si " y " separa el último par de una enumeración dictada y cómo
+se protegen los nombres que lo llevan ("tarta de jamón y queso"); el
+repaso los muestra antes de agregar.
+
+**Requiere.** Nada fuera del cliente.
+
+### A-8. La bienvenida se cierra antes de poder leerla
+
+**Qué pasa.** La bienvenida (`src/components/welcome/welcome.tsx`) muestra
+el texto de uso a los 1,25 s y el botón "Empezar" a los 1,45 s, y se cierra
+sola a los 2,6 s si nadie la toca. El texto ("Agregá lo que falta, marcá lo
+que ya está en el carro y compartí la lista…") no llega a leerse, y un
+botón que desaparece antes de tocarlo transmite que la app decide por uno.
+
+**Propuesta.** Una de dos: que espere el toque (la coreografía queda igual
+y "Empezar" es el cierre, como ya pasa con movimiento reducido), o que sea
+una intro de menos de 2 s sin texto de uso ni botón, y ese texto pase al
+estado vacío de la lista.
+
+**Requiere.** Nada fuera del cliente.
+
+### A-9. "Atrás" en Android no cierra la hoja
+
+**Qué pasa.** Ninguna hoja se integra con el historial (no hay `pushState`
+ni `popstate` en `src`). En Android, con una hoja abierta, el gesto o el
+botón "atrás" no la cierra: en la app instalada cierra la app, y en el
+navegador vuelve a la página anterior. Es el gesto que se usa sin pensar
+para cerrar algo.
+
+**Propuesta.** Al abrir una hoja, agregar una entrada al historial: "atrás"
+la cierra, y cerrarla de otra forma consume esa entrada. Un hook en
+`src/components/ui/sheet.tsx` cubre todas. Cuidar las hojas que abren otra
+(la compra anterior y su repaso) y la limpieza de URL que ya hace
+`app-menu.tsx`. Va con M-12.
 
 **Requiere.** Nada fuera del cliente.
 
@@ -764,6 +857,161 @@ F-7, o `last_added_at` si nunca se compró) o por categoría, para usarla como
   no en la sugerencia.
 
 **Requiere.** Nada fuera del cliente: el catálogo y el ritmo ya se leen.
+
+### M-11. Las acciones frecuentes, al alcance del pulgar
+
+**Qué pasa.** Fuera del campo de agregar, todas las acciones viven en los
+primeros 125 px de la pantalla: "Empezar a comprar", compartir y el menú en
+la cabecera, y "Copiar lo que falta" y "Ordenar el recorrido" en la de
+Pendientes. Con una mano, en un teléfono grande, es la zona más difícil de
+alcanzar. El modo compra ya resolvió su barra abajo ("+" y "Terminé"), pero
+se entra desde arriba. Los dos iconos de Pendientes no se explican solos:
+⇅ se lee como "ordenar la lista" y el de copiar no dice qué copia.
+
+**Propuesta.**
+
+- Una barra inferior que cambia de papel: al planear, el campo de agregar
+  y, cuando no tiene foco y hay pendientes, "Empezar a comprar"; al
+  comprar, "+" y "Terminé", en el mismo lugar. El cambio se anima con un
+  `layoutId` compartido (M-14).
+- Copiar y ordenar con etiqueta, o en un menú "…" de la sección.
+- A evaluar: que la primera marca de una sesión ofrezca entrar al modo
+  compra, con un aviso que se puede rechazar, porque marcar ya dice que se
+  está comprando. En contra: hay quien marca en casa lo que ya tiene.
+
+**Requiere.** Nada fuera del cliente. Es diseño de pantalla: pasa por
+`DESIGN_DIRECTION.md`.
+
+### M-12. Todas las hojas desde abajo, con asa y arrastre
+
+**Qué pasa.** El menú y Compartir entran desde la derecha, con la X arriba
+a la derecha (`side="right"` en `app-menu.tsx` y `share-sheet.tsx`);
+edición, recorrido, repaso, mandar lo que falta e instalar entran desde
+abajo. Ninguna tiene asa ni se cierra arrastrando hacia abajo, el gesto que
+se espera de una hoja en iOS y en Android.
+
+**Propuesta.** Todas las hojas desde abajo, con asa visible y arrastre para
+cerrar: `drag="y"` de Motion en `sheet.tsx`, como `SwipeToRemove` (vaul
+quedó sin mantenimiento en 2025). Pasado un umbral o con un tirón rápido,
+cierra; si no, vuelve a su lugar. Con movimiento reducido sigue al dedo sin
+rebote. Va con A-9.
+
+**Requiere.** Nada fuera del cliente. Las pruebas del arrastre necesitan
+toques de CDP, como las de M-9.
+
+### M-13. Hoja de edición a media altura
+
+**Qué pasa.** La hoja de edición es un formulario de siete campos (nombre,
+cantidad, unidad, precio, moneda, nota y categoría) que ocupa casi toda la
+pantalla, con "Guardar" y "Borrar" abajo. Casi siempre se abre para cambiar
+la cantidad, la nota o la categoría; el precio es lo menos usado.
+
+**Propuesta.** Complementa M-1. La hoja abre a media altura con lo
+frecuente: nombre, cantidad con − y +, categoría y nota. Precio y moneda
+aparecen al arrastrarla hacia arriba o con un "Precio" que la expande
+(alturas fijas, como las hojas de iOS). Depende del arrastre de M-12.
+
+**Requiere.** Nada fuera del cliente.
+
+### M-14. Transiciones de vista: modo compra y "Buena compra"
+
+**Qué pasa.** Los cambios de estado grandes son cortes:
+
+- Entrar y salir del modo compra cambia la cabecera y la barra en un
+  cuadro.
+- "Terminé" salta el scroll hasta el final para mostrar "Buena compra"
+  (`momentGroup.current?.scrollIntoView` en `list-view.tsx`), y "Volver a
+  la lista" vuelve sin transición.
+
+`DESIGN_DIRECTION.md` (sección 8) reserva `duration-slow` para las
+transiciones de vista y `duration-cinematic` para vaciar el carro;
+`transitions.slow` y `transitions.cinematic` están en
+`src/components/motion` y ninguna pantalla las usa todavía.
+
+**Propuesta.**
+
+- Modo compra: la cabecera cruza a "COMPRANDO 0 de 7" con el número
+  entrando desde abajo, la línea de progreso se dibuja desde 0 (`scaleX`) y
+  la barra transforma el campo en "Terminé" (con M-11, el mismo botón).
+- "Buena compra" como capa a pantalla completa que nace del botón
+  "Terminé" (`layoutId` del botón a la superficie tinta) y se contrae al
+  volver: sin salto de scroll, y el único momento cinematográfico del uso
+  diario.
+- Con movimiento reducido, fundidos.
+
+**Requiere.** Nada fuera del cliente.
+
+### M-15. Mostrar adónde va lo que se agrega y lo que se marca
+
+**Qué pasa.** Con la lista arriba, agregar "Shampoo" lo manda a Higiene,
+fuera de pantalla: la única señal es que "Pendientes" pasa a 11 (no hay
+desplazamiento hacia la fila; `scrollIntoView` solo se usa para el
+momento). Al marcar, cuando el reflujo diferido (A-5) suelta las filas, una
+categoría que se vacía desaparece entera y lo de abajo sube de golpe (unos
+240 px con dos categorías), sin pista de adónde fueron los productos.
+
+**Propuesta.**
+
+- Al agregar, una línea breve sobre el campo: "Shampoo → Higiene", con el
+  icono y el color de la categoría. Tocarla lleva a la fila (con el pulso
+  de los cambios remotos) o abre la hoja para corregir la categoría. Se va
+  con el próximo agregado o a los pocos segundos.
+- En el modo compra, un contador del carro en la barra inferior que da un
+  pequeño salto (`scale`) cuando aterrizan las filas.
+
+**Requiere.** Nada fuera del cliente.
+
+### M-16. Títulos de categoría compactos en el modo compra
+
+**Qué pasa.** Cada título de categoría ocupa unos 68 px y cada fila 56.
+Con un producto por categoría, media pantalla son títulos: a 375 × 812
+entran cinco o seis productos. En el pasillo, eso es scroll.
+
+**Propuesta.** En el modo compra, títulos compactos (un eyebrow de una
+línea, unos 32 px) que conservan el icono, el color de la barra lateral y
+el conteo. Fuera del modo compra quedan como hoy.
+
+**Requiere.** Nada fuera del cliente.
+
+### M-17. Carga y cifras: filas fantasma y números que giran
+
+**Qué pasa.** Mientras carga, cada sección dibuja su título y nada debajo
+(`loading ? null` en `list-section.tsx`): con señal lenta se ve la página
+vacía y después salta. Las cifras ("Pendientes 11", "2 de 7", los totales)
+cambian de golpe.
+
+**Propuesta.**
+
+- Filas fantasma con el ritmo real (56 px, regla, círculo y una barra de
+  texto en `paper-2`), sin brillo animado: la lista no tiene bucles.
+- Cifras que cambian con el dígito girando: el viejo sale hacia arriba y el
+  nuevo entra desde abajo, solo `transform` y `opacity`, en
+  `duration-fast`; con movimiento reducido, fundido.
+
+**Requiere.** Nada fuera del cliente.
+
+### M-18. Tacto: toque, vibración y sin recarga por tirón
+
+**Qué pasa.**
+
+- Tocar el nombre de una fila no da respuesta hasta que entra la hoja: el
+  botón no tiene estado presionado (el check sí,
+  `group-active/check:scale-90`).
+- Solo vibra el deslizar para borrar (`navigator.vibrate?.(8)` en
+  `swipe-to-remove.tsx`).
+- No hay `overscroll-behavior`: en Chrome para Android, fuera de la app
+  instalada, tirar hacia abajo arriba de todo recarga la página.
+
+**Propuesta.**
+
+- Fondo `paper-pressed` en `duration-instant` al tocar el nombre.
+- Un vocabulario háptico corto en Android: leve al marcar, doble corto ante
+  un error y uno suave al terminar la compra. En iOS no hay API: el truco
+  de `ios-haptics` con `<input switch>` dejó de funcionar en iOS 26.5,
+  según su README.
+- `overscroll-behavior-y: none` en el documento.
+
+**Requiere.** Nada fuera del cliente.
 
 ---
 
@@ -1355,9 +1603,11 @@ Pendiente de decisión del usuario.
 - **Antes de la beta** (baratas, definen la primera impresión): A-1 (hecha
   el 2026-11-03), A-2 (hecha el 2026-10-20), A-4 (hecha el 2026-10-21) y M-6 (hecha el
   2026-10-22). F-3 (hecha el 2026-10-21) cubre "exportar lista como texto"
-  de la Fase 4.
+  de la Fase 4. Del segundo recorrido: A-6 (el indicador; no revertir pide
+  un ADR), A-7, A-8, A-9 junto con M-12, y M-18.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2 y M-3
   (hechas el 2026-11-04), M-8, M-10, F-1 (hecha el 2026-11-04) y F-2
-  (hecha el 2026-10-21).
+  (hecha el 2026-10-21). Del segundo recorrido: M-11, M-13 (con M-1),
+  M-14, M-15, M-16 y M-17.
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
   2026-10-21), F-5, F-6 y F-7 (hecha el 2026-11-03).
