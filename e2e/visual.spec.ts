@@ -20,6 +20,7 @@ import {
 const pages = [
   { name: "lista", path: "/" },
   { name: "design", path: "/design" },
+  { name: "design-linea", path: "/design/linea" },
   { name: "offline", path: "/offline" },
 ] as const;
 
@@ -191,6 +192,13 @@ for (const mode of modes) {
       await expect(page.getByRole("dialog")).toBeVisible();
       await settle(page);
       await expectTypographyRoles(page);
+      await expectTouchTargets(page);
+    });
+
+    // El prototipo de la línea (/design/linea): datos de muestra, sin stack.
+    test(`design linea: touch targets`, async ({ page }) => {
+      await page.goto("/design/linea");
+      await settle(page);
       await expectTouchTargets(page);
     });
 

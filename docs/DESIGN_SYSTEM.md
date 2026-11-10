@@ -39,6 +39,7 @@ token ni componente nuevo en `ui`.
 | Bienvenida del primer uso | `src/components/welcome/` |
 | Textos visibles | `src/lib/texts.ts` |
 | Página de muestra | `src/app/design/` |
+| Prototipos (pantallas con datos de muestra) | `src/app/design/<idea>/`, hoy `linea/` |
 | Capturas e invariantes visuales | `e2e/visual.spec.ts` |
 
 ## 2. Color
@@ -828,6 +829,63 @@ prerender no lo admite).
   mismos pasos en el lugar (`aria-expanded`): el menú ya es una hoja y no se
   abre otra encima.
 - Muestras en `/design`, en "Estados": el aviso y los pasos.
+
+### Prototipos (`/design/linea`)
+
+Ideas que se prueban enteras, con una mano y datos de muestra, antes de
+pasar al backlog. No son parte de la interfaz: viven en `src/app/design/<idea>/`,
+no guardan nada, no añaden tokens ni componentes a `ui` y no se usan desde la
+app hasta que el usuario las asigne a una fase. `/design` las lista en
+"Prototipos". Sus textos van en `texts.design.<idea>`.
+
+**La línea del súper** (`src/app/design/linea/`): el modo compra como una
+línea de metro, una estación por categoría con algo en la lista.
+
+- **Orden aprendido.** `learnRoute` (`learn-route.ts`, con test) ordena las
+  categorías por cómo se marcaron las compras anteriores (`checked_at`): en
+  cada compra, la mediana de las posiciones de sus productos entre 0 y 1, y
+  la media de esas medianas entre compras. Un producto tomado al final no
+  arrastra su categoría. Hacen falta dos compras con al menos dos marcas; las
+  categorías que nunca aparecieron van después, en el orden de la lista. La
+  muestra (`sample.ts`) trae tres compras con la panadería primero y los
+  lácteos al fondo.
+- **Estaciones.** La actual abre con sus filas (`ListRow`), un eyebrow
+  "Estás acá · 3 de 7" y un `h2` con su icono; el tramo de la línea que la
+  recorre toma el hilo de su categoría. Las próximas se pliegan a una fila de
+  56px con nombre, lo pendiente en `text-label` y el conteo en mono; las
+  pasadas, a 44px con "2 de 2" en el carro. Una pasada con algo pendiente
+  lleva el nodo y la cuenta en cítrico. Tocar una estación lleva ahí: hacia
+  adelante, lo que se saltó queda atrás; hacia atrás, la actual vuelve a
+  esperar adelante.
+- **La línea.** Columna de 24px, trazo de 2px en `rule-strong`; lo
+  recorrido se llena en el par de "hecho" (`action-bg`) por `scaleY`. Nodos:
+  disco de 10px (pasada), anillo de 12px en el hilo de la categoría
+  (próxima), anillo de 24px (actual) y una barra al final, "Caja". Un solo
+  punto de 10px, fuera de las estaciones, marca dónde estás: su altura sale
+  de los altos fijos de las cabeceras, sin medir, y viaja con
+  `duration-slow` y `ease-in-out` mientras las estaciones se cierran con
+  `layout="position"`. Con movimiento reducido salta.
+- **Seguir.** Con todo marcado, la estación espera `REFLOW_IDLE_MS` (la
+  misma pausa de A-5; marcar o desmarcar la reinicia) y dice "Listo ·
+  próxima: Almacén"; después se pliega, el punto baja, la cabecera cambia y
+  una región `role="status"` dice "Llegaste a Almacén, estación 4 de 7.". El
+  foco va al `h2` de la estación nueva si se había perdido o quedaba en las
+  filas que se van.
+- **La cabecera** es el cartel del andén: "Comprando · 7 de 19" como eyebrow y
+  la estación en `text-title` serif, que entra desde abajo y sale hacia
+  arriba (`--motion-shift`); la regla de abajo se llena con el carro como en
+  el modo compra.
+- **Lo que llega tarde.** Un producto sumado a una estación ya pasada (el pan
+  de Ana, o el "+") enciende esa estación con el pulso remoto y muestra en la
+  actual un `Banner` de atención: "Pan de campo quedó atrás · Ana lo sumó en
+  Panadería, que ya pasaste.", con "Volver" y "Después".
+- **Caja.** "Terminé" (o la última estación) lleva al final de la línea; si
+  quedó algo, lo dice por estaciones: "Quedaron 12 productos atrás, en 5
+  estaciones. Tocá una para volver.". Ahí "Terminé" queda con `aria-disabled`,
+  sin perder el foco.
+- **Para probar**, al pie: simular el pan de Ana, empezar con el orden de la
+  lista o el aprendido, reiniciar. Pruebas en `e2e/line-prototype.spec.ts` y
+  en las capturas de `e2e/visual.spec.ts`.
 
 ## 9. Accesibilidad
 
