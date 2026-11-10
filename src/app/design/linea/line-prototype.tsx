@@ -67,6 +67,11 @@ type State = {
   announcement: string;
   /** Bumped by every check, so the wait before leaving starts over. */
   checks: number;
+  /**
+   * `checks` when you got to this stop. A station is left only after a check
+   * made there: one revisited with everything checked waits for you.
+   */
+  arrivedChecks: number;
   /** The station someone else just changed. */
   pulse: CategoryId | null;
   /** False until something happens: a first render animates nothing. */
@@ -94,6 +99,13 @@ const fill = {
 };
 
 const CURRENT_HEADING_ID = "line-current";
+
+/**
+ * The look of `disabled` for a button that only says it (`aria-disabled`),
+ * so the focus does not drop to the page when it runs out.
+ */
+const inert =
+  "aria-disabled:border-rule aria-disabled:bg-paper-hover aria-disabled:text-ink-3 aria-disabled:hover:bg-paper-hover dark:aria-disabled:hover:bg-paper-hover aria-disabled:cursor-default aria-disabled:active:scale-100";
 /**
  * The header row of a stop, its node at half of it: a row's height, and the
  * least a tap needs for the stations behind, which say the least.
@@ -141,13 +153,14 @@ function nameOf(stop: Stop) {
 /**
  * Going forward passes the station left and every one walked through on the
  * way. Going back leaves the station left ahead again: it was not finished.
+ * The checkout is past every station.
  */
 function moveTo(state: State, to: Stop): State {
   if (to === state.at) return state;
   const stations = stationsOf(state.order, state.items);
   const from = indexOf(stations, state.at);
   const target = indexOf(stations, to);
-  const passed = new Set(state.passed);
+  const passed = new Set(to === CHECKOUT ? stations : state.passed);
   if (to !== CHECKOUT) passed.delete(to);
   for (let i = Math.max(from, 0); i < Math.min(target, stations.length); i++) {
     passed.add(stations[i]);
@@ -156,6 +169,9 @@ function moveTo(state: State, to: Stop): State {
     ...state,
     at: to,
     passed: stations.filter((id) => passed.has(id)),
+    arrivedChecks: state.checks,
+    // Going to where the late product is answers its notice.
+    notice: state.notice?.category === to ? null : state.notice,
     announcement:
       to === CHECKOUT
         ? t.arrivedCheckout
@@ -185,9 +201,19 @@ function initialState(order: Order): State {
     notice: null,
     announcement: "",
     checks: 0,
+    arrivedChecks: 0,
     pulse: null,
     moved: false,
   };
+}
+
+/** Everything checked at this station, by a check made here: time to go. */
+function leaving(state: State) {
+  return (
+    state.at !== CHECKOUT &&
+    pendingIn(state.items, state.at) === 0 &&
+    state.checks > state.arrivedChecks
+  );
 }
 
 function reducer(state: State, action: Action): State {
@@ -203,9 +229,7 @@ function reducer(state: State, action: Action): State {
     case "move":
       return moveTo(state, action.to);
     case "advance": {
-      if (state.at === CHECKOUT || pendingIn(state.items, state.at) > 0) {
-        return state;
-      }
+      if (!leaving(state)) return state;
       const stations = stationsOf(state.order, state.items);
       return moveTo(
         state,
@@ -218,10 +242,32 @@ function reducer(state: State, action: Action): State {
         id: `added-${state.items.length}`,
         checked: false,
       };
-      const behind = state.passed.includes(item.category);
+      const items = [...state.items, item];
+      // A category new to this trip that lands above you is behind you too.
+      const stations = stationsOf(state.order, items);
+      const fresh = !state.items.some(
+        (other) => other.category === item.category,
+      );
+      const passed =
+        fresh && stations.indexOf(item.category) < indexOf(stations, state.at)
+          ? stations.filter(
+              (id) => id === item.category || state.passed.includes(id),
+            )
+          : state.passed;
+      const behind = passed.includes(item.category);
+      const body = action.by
+        ? t.late.byOther(action.by, names[item.category])
+        : t.late.bySelf(names[item.category]);
       return {
         ...state,
-        items: [...state.items, item],
+        items,
+        passed,
+        // At the checkout there is no station to show the notice in: the
+        // status region says it.
+        announcement:
+          behind && state.at === CHECKOUT
+            ? `${t.late.title(item.name)}. ${body}`
+            : state.announcement,
         added: action.by === null ? state.added + 1 : state.added,
         lateAdded: state.lateAdded || action.by !== null,
         notice: behind
@@ -260,7 +306,7 @@ export function LinePrototype() {
   const total = state.items.length;
   const done = state.items.filter((item) => item.checked).length;
   const atCheckout = state.at === CHECKOUT;
-  const ready = state.at !== CHECKOUT && pendingIn(state.items, state.at) === 0;
+  const ready = leaving(state);
   const next = nextStop(stations, state.items, state.passed, state.at);
 
   // Where the dot goes: only the stop you are at has rows, so everything
@@ -375,18 +421,22 @@ export function LinePrototype() {
               {texts.shopping.eyebrow} · {texts.shopping.progress(done, total)}
               <span className="sr-only">{texts.shopping.progressTail}.</span>
             </span>
-            <span className="relative flex min-w-0">
+            {/* One stable name for the reader; the board that rolls is only
+                seen (for a moment it holds two stations). */}
+            <span className="sr-only" data-slot="line-board">
+              {t.hereSpoken}
+              {nameOf(state.at)}
+            </span>
+            <span aria-hidden className="relative flex min-w-0">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.span
                   key={state.at}
-                  data-slot="line-board"
                   className="text-title block truncate font-serif"
                   initial={{ opacity: 0, y: motionTokens.shift }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -motionTokens.shift }}
                   transition={transitions.base}
                 >
-                  <span className="sr-only">{t.hereSpoken}</span>
                   {nameOf(state.at)}
                 </motion.span>
               </AnimatePresence>
@@ -459,7 +509,7 @@ export function LinePrototype() {
                     <span className="relative flex w-5 items-center justify-center">
                       <span
                         className={cn(
-                          "duration-base block h-1 w-5 transition-colors ease-out",
+                          "block h-1 w-5",
                           atCheckout ? "bg-action-bg" : "bg-ink-2",
                         )}
                       />
@@ -524,14 +574,18 @@ export function LinePrototype() {
             <Button
               type="button"
               variant="secondary"
-              disabled={state.lateAdded}
-              onClick={() =>
-                dispatch({
-                  type: "add",
-                  product: t.sample.late,
-                  by: t.sample.lateBy,
-                })
-              }
+              // Not `disabled`, here and below: the focus stays on it.
+              aria-disabled={state.lateAdded || undefined}
+              className={inert}
+              onClick={() => {
+                if (!state.lateAdded) {
+                  dispatch({
+                    type: "add",
+                    product: t.sample.late,
+                    by: t.sample.lateBy,
+                  });
+                }
+              }}
             >
               {t.controls.late}
             </Button>
@@ -580,7 +634,8 @@ export function LinePrototype() {
             variant="outline"
             size="icon-touch-lg"
             aria-label={texts.shopping.add}
-            disabled={nextExtra === null}
+            aria-disabled={nextExtra === null || undefined}
+            className={inert}
             onClick={() => {
               if (nextExtra) {
                 dispatch({ type: "add", product: nextExtra, by: null });
@@ -592,13 +647,8 @@ export function LinePrototype() {
           <Button
             type="button"
             size="touch-lg"
-            // Not `disabled` at the checkout: the focus stays on it.
             aria-disabled={atCheckout || undefined}
-            className={cn(
-              "flex-1",
-              atCheckout &&
-                "bg-paper-hover text-ink-3 hover:bg-paper-hover dark:hover:bg-paper-hover cursor-default active:scale-100",
-            )}
+            className={cn("flex-1", inert)}
             onClick={() => {
               if (!atCheckout) dispatch({ type: "move", to: CHECKOUT });
             }}

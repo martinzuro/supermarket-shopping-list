@@ -95,6 +95,53 @@ describe("learnRoute", () => {
     expect(route.order).toEqual(listOrder);
   });
 
+  it("keeps the list's order with no trips at all", () => {
+    expect(learnRoute([], listOrder).learned).toBe(false);
+  });
+
+  it("does not count a trip with checks in one category only", () => {
+    const route = learnRoute(
+      [trip("almacen", "almacen", "almacen"), trip("carnes", "verduras")],
+      listOrder,
+    );
+    expect(route).toEqual({ order: listOrder, trips: 1, learned: false });
+  });
+
+  it("skips checks without a readable time", () => {
+    const route = learnRoute(
+      [
+        [
+          ...trip("carnes", "verduras"),
+          { categoryId: "almacen", checkedAt: "" },
+        ],
+        trip("carnes", "verduras"),
+      ],
+      listOrder,
+    );
+    expect(route.trips).toBe(2);
+    // The pantry was never placed: it goes after, in the list's order.
+    expect(route.order).toEqual([
+      "carnes",
+      "verduras",
+      "lacteos",
+      "panaderia",
+      "almacen",
+    ]);
+  });
+
+  it("averages a category over the trips it appears in only", () => {
+    // The dairy shows up once, first: that one trip places it.
+    const route = learnRoute(
+      [
+        trip("lacteos", "carnes", "verduras"),
+        trip("carnes", "verduras"),
+        trip("carnes", "verduras"),
+      ],
+      listOrder,
+    );
+    expect(route.order.slice(0, 3)).toEqual(["lacteos", "carnes", "verduras"]);
+  });
+
   it("learns the prototype's sample: bakery first, dairy near the end", () => {
     const route = learnRoute(pastTrips, categoryIds);
     expect(route.trips).toBe(3);

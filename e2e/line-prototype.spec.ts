@@ -48,6 +48,32 @@ test.describe("la línea del súper", () => {
     await expect(stop(page)).toHaveAttribute("data-stop", "carnes");
   });
 
+  test("a finished station you go back to waits for you", async ({ page }) => {
+    await page.goto("/design/linea");
+    await page
+      .getByRole("button", {
+        name: new RegExp(`^${t.goBack}${names.panaderia}`),
+      })
+      .click();
+    await expect(stop(page)).toHaveAttribute("data-stop", "panaderia");
+    // Everything there is checked, but nothing was checked there yet.
+    await page.waitForTimeout(REFLOW_IDLE_MS + 500);
+    await expect(stop(page)).toHaveAttribute("data-stop", "panaderia");
+    await expect(stop(page).getByText(t.here(1, 7))).toBeVisible();
+  });
+
+  test("the list's own order starts the line elsewhere", async ({ page }) => {
+    await page.goto("/design/linea");
+    await page.getByRole("button", { name: t.controls.useList }).click();
+    // Fruit and meat done; the bakery waits after the dairy.
+    await expect(stop(page)).toHaveAttribute("data-stop", "lacteos");
+    await expect(page.getByText(t.listOrder)).toBeVisible();
+    await expect(page.locator("[data-stop=panaderia]")).toHaveAttribute(
+      "data-kind",
+      "upcoming",
+    );
+  });
+
   test("a product added behind you says so, and you can go back", async ({
     page,
   }) => {

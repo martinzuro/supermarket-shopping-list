@@ -845,8 +845,9 @@ línea de metro, una estación por categoría con algo en la lista.
   categorías por cómo se marcaron las compras anteriores (`checked_at`): en
   cada compra, la mediana de las posiciones de sus productos entre 0 y 1, y
   la media de esas medianas entre compras. Un producto tomado al final no
-  arrastra su categoría. Hacen falta dos compras con al menos dos marcas; las
-  categorías que nunca aparecieron van después, en el orden de la lista. La
+  arrastra su categoría. Hacen falta dos compras con marcas en al menos dos
+  categorías (una marca sin hora legible no cuenta); las categorías que nunca
+  aparecieron van después, en el orden de la lista. La
   muestra (`sample.ts`) trae tres compras con la panadería primero y los
   lácteos al fondo.
 - **Estaciones.** La actual abre con sus filas (`ListRow`), un eyebrow
@@ -856,7 +857,7 @@ línea de metro, una estación por categoría con algo en la lista.
   pasadas, a 44px con "2 de 2" en el carro. Una pasada con algo pendiente
   lleva el nodo y la cuenta en cítrico. Tocar una estación lleva ahí: hacia
   adelante, lo que se saltó queda atrás; hacia atrás, la actual vuelve a
-  esperar adelante.
+  esperar adelante. La caja deja atrás todas las estaciones.
 - **La línea.** Columna de 24px, trazo de 2px en `rule-strong`; lo
   recorrido se llena en el par de "hecho" (`action-bg`) por `scaleY`. Nodos:
   disco de 10px (pasada), anillo de 12px en el hilo de la categoría
@@ -865,12 +866,13 @@ línea de metro, una estación por categoría con algo en la lista.
   de los altos fijos de las cabeceras, sin medir, y viaja con
   `duration-slow` y `ease-in-out` mientras las estaciones se cierran con
   `layout="position"`. Con movimiento reducido salta.
-- **Seguir.** Con todo marcado, la estación espera `REFLOW_IDLE_MS` (la
-  misma pausa de A-5; marcar o desmarcar la reinicia) y dice "Listo ·
-  próxima: Almacén"; después se pliega, el punto baja, la cabecera cambia y
+- **Seguir.** Con todo marcado por una marca hecha ahí, la estación espera
+  `REFLOW_IDLE_MS` (la misma pausa de A-5; marcar o desmarcar la reinicia) y
+  dice "Listo · próxima: Almacén"; después se pliega, el punto baja, la cabecera cambia y
   una región `role="status"` dice "Llegaste a Almacén, estación 4 de 7.". El
   foco va al `h2` de la estación nueva si se había perdido o quedaba en las
-  filas que se van.
+  filas que se van. Una estación terminada a la que se vuelve (para revisar o
+  desmarcar) no echa a nadie: espera hasta que se marque algo ahí.
 - **La cabecera** es el cartel del andén: "Comprando · 7 de 19" como eyebrow y
   la estación en `text-title` serif, que entra desde abajo y sale hacia
   arriba (`--motion-shift`); la regla de abajo se llena con el carro como en
@@ -878,11 +880,18 @@ línea de metro, una estación por categoría con algo en la lista.
 - **Lo que llega tarde.** Un producto sumado a una estación ya pasada (el pan
   de Ana, o el "+") enciende esa estación con el pulso remoto y muestra en la
   actual un `Banner` de atención: "Pan de campo quedó atrás · Ana lo sumó en
-  Panadería, que ya pasaste.", con "Volver" y "Después".
+  Panadería, que ya pasaste.", con "Volver" y "Después". Ir a esa estación
+  responde el aviso. En la caja no hay estación donde mostrarlo: lo dice la
+  región de estado. Una categoría nueva en la compra que cae por encima de
+  donde estás también queda atrás.
 - **Caja.** "Terminé" (o la última estación) lleva al final de la línea; si
   quedó algo, lo dice por estaciones: "Quedaron 12 productos atrás, en 5
-  estaciones. Tocá una para volver.". Ahí "Terminé" queda con `aria-disabled`,
-  sin perder el foco.
+  estaciones. Tocá una para volver.". Ahí "Terminé" queda con `aria-disabled`
+  (como el "+" sin más muestras y el pan de Ana ya sumado), así el foco no se
+  pierde.
+- **La cabecera para el lector** es un nombre estable ("Estás en Almacén",
+  sr-only); el cartel que rueda va con `aria-hidden`, porque por un momento
+  muestra dos estaciones.
 - **Para probar**, al pie: simular el pan de Ana, empezar con el orden de la
   lista o el aprendido, reiniciar. Pruebas en `e2e/line-prototype.spec.ts` y
   en las capturas de `e2e/visual.spec.ts`.

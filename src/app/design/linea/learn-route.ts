@@ -7,7 +7,8 @@
  * picked on the way out (the lemons someone forgot) does not drag the whole
  * category to the end. Its score is the mean of those places over the trips
  * it appears in. Categories no trip saw go after the learned ones, and ties
- * keep the list's own order.
+ * keep the list's own order. A trip counts only with checks in two
+ * categories or more: one says nothing about the order between them.
  */
 
 export type CheckedItem = {
@@ -21,7 +22,7 @@ export const LEARN_MIN_TRIPS = 2;
 
 export type LearnedRoute<C extends string> = {
   order: C[];
-  /** Trips that counted: two checks or more in known categories. */
+  /** Trips that counted: checks in two known categories or more. */
   trips: number;
   learned: boolean;
 };
@@ -46,9 +47,10 @@ export function learnRoute<C extends string>(
     const checks = trip
       .filter((item) => known.has(item.categoryId))
       .map((item) => ({ ...item, at: Date.parse(item.checkedAt) }))
+      // A check without a readable time has no place in the order.
+      .filter((item) => Number.isFinite(item.at))
       .sort((a, b) => a.at - b.at);
-    // One check says nothing about an order.
-    if (checks.length < 2) continue;
+    if (new Set(checks.map((item) => item.categoryId)).size < 2) continue;
     counted += 1;
 
     // Ranks come in increasing order, so each list is already sorted.
