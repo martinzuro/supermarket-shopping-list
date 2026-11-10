@@ -551,9 +551,15 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
 - **Alto de la barra.** `useBarHeight` mide la barra con un `ResizeObserver` y
   publica su alto real en `--add-bar-measured`, que lee `pb-add-bar` en la
   página (con el alto nominal de respaldo hasta medirla). También cuenta el
-  teclado de iOS (`visualViewport`, `use-keyboard-inset.ts`). Si la página
-  estaba al final cuando la barra crece, un `window.scrollTo` la desplaza lo
-  mismo: las últimas filas no quedan debajo, con el teclado abierto o cerrado.
+  teclado de iOS (`visualViewport`, `use-keyboard-inset.ts`). Lo que hace la
+  barra no mueve la lista bajo el dedo. Si crece con la página al final, un
+  `window.scrollTo` la acompaña solo si el foco está en la barra (la persona
+  escribe): lo último agregado no queda debajo, con el teclado abierto o
+  cerrado. Si la persona está en la lista (marcando, borrando), la página se
+  queda quieta y el aviso tapa un momento las últimas filas. Si se achica,
+  la reserva baja solo lo que no recorta el scroll, y el resto se libera
+  cuando la persona sube: así un toque que ya empezó no termina en otra
+  fila.
 
 ### Mandar lo que falta
 
