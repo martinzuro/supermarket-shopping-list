@@ -35,30 +35,31 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 
 ## Resumen
 
-| Id  | Qué                                                 | Requiere              | Orden sugerido |
-| --- | --------------------------------------------------- | --------------------- | -------------- |
-| A-1 | Los productos nuevos caen en "Otros"                | Nada                  | Hecho          |
-| A-2 | Duplicados sin aviso                                | Nada                  | Hecho          |
-| A-3 | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
-| A-4 | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
-| A-5 | Las filas se corren bajo el dedo al marcar seguido  | Nada                  | Hecho          |
-| M-1 | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
-| M-2 | Totales a la vista mientras se compra               | Nada                  | Hecho          |
-| M-3 | "Buena compra" con resumen                          | Nada                  | Hecho          |
-| M-4 | Categorías propias: crear, renombrar, borrar        | Migración             | Después        |
-| M-5 | Olvidar una sugerencia del catálogo                 | Migración             | Hecho          |
-| M-6 | Nombres con mayúscula inicial                       | Nada                  | Hecho          |
-| M-7 | Quién agregó cada producto                          | Migración             | Después        |
-| M-8 | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
-| M-9 | Borrar con un toque y deshacer                      | Nada                  | Hecho          |
-| F-1 | Modo compra                                         | Nada                  | Hecho          |
-| F-2 | Pegar una lista                                     | Nada                  | Hecho          |
-| F-3 | Mandar lo que falta como texto                      | Nada                  | Hecho          |
-| F-4 | Historial de compras                                | Migración             | Hecho          |
-| F-5 | "Está comprando"                                    | Nada en la base       | Después        |
-| F-6 | Presupuesto por compra                              | Migración             | Después        |
-| F-7 | Ritmo por producto en "Lo de siempre"               | Migración             | Hecho          |
-| F-8 | Invitar a instalar la app                           | Nada                  | Hecho          |
+| Id   | Qué                                                 | Requiere              | Orden sugerido |
+| ---- | --------------------------------------------------- | --------------------- | -------------- |
+| A-1  | Los productos nuevos caen en "Otros"                | Nada                  | Hecho          |
+| A-2  | Duplicados sin aviso                                | Nada                  | Hecho          |
+| A-3  | "Lo de siempre" a ciegas y sin cantidades           | Migración             | Hecho          |
+| A-4  | Errores de pulgar al marcar y al vaciar el carro    | Nada                  | Hecho          |
+| A-5  | Las filas se corren bajo el dedo al marcar seguido  | Nada                  | Hecho          |
+| M-1  | Hoja de edición: categoría arriba, cantidad con +/− | Nada                  | Con la beta    |
+| M-2  | Totales a la vista mientras se compra               | Nada                  | Hecho          |
+| M-3  | "Buena compra" con resumen                          | Nada                  | Hecho          |
+| M-4  | Categorías propias: crear, renombrar, borrar        | Migración             | Después        |
+| M-5  | Olvidar una sugerencia del catálogo                 | Migración             | Hecho          |
+| M-6  | Nombres con mayúscula inicial                       | Nada                  | Hecho          |
+| M-7  | Quién agregó cada producto                          | Migración             | Después        |
+| M-8  | Medir la fricción de compartir                      | Nada (ADR si cambia)  | Con la beta    |
+| M-9  | Borrar con un toque y deshacer                      | Nada                  | Hecho          |
+| M-10 | Agregar desde "Productos guardados"                 | Nada                  | Con la beta    |
+| F-1  | Modo compra                                         | Nada                  | Hecho          |
+| F-2  | Pegar una lista                                     | Nada                  | Hecho          |
+| F-3  | Mandar lo que falta como texto                      | Nada                  | Hecho          |
+| F-4  | Historial de compras                                | Migración             | Hecho          |
+| F-5  | "Está comprando"                                    | Nada en la base       | Después        |
+| F-6  | Presupuesto por compra                              | Migración             | Después        |
+| F-7  | Ritmo por producto en "Lo de siempre"               | Migración             | Hecho          |
+| F-8  | Invitar a instalar la app                           | Nada                  | Hecho          |
 
 ---
 
@@ -726,6 +727,44 @@ peligro, movimiento reducido respetado y la hoja como alternativa accesible.
 
 **Requiere.** Nada: sin migración.
 
+### M-10. Agregar desde "Productos guardados"
+
+Surgió de una pregunta del usuario (2026-11-10): dónde ver lo que alguna vez
+se compró, para armar una lista cuando no se sabe qué poner.
+
+**Qué pasa.** Lo que se compra de vez en cuando (shampoo, pilas, papel de
+aluminio) queda en el catálogo de la lista desde la primera alta, pero no
+hay dónde recorrerlo y agregarlo:
+
+- Las sugerencias lo traen solo si uno se acuerda y empieza a escribirlo.
+- Los frecuentes piden al menos dos altas y muestran doce
+  (`FREQUENT_MIN_TIMES`, `FREQUENT_LIMIT`).
+- "Lo de siempre" lo trae recién con dos compras, cuando se conoce su ritmo
+  (F-7). Un producto agregado una o dos veces y comprado una sola no aparece.
+- "Compras anteriores" (F-4) obliga a recordar en qué compra estaba y lee
+  las últimas 20.
+- "Productos guardados" (M-5) es justo la lista completa, con búsqueda, pero
+  cada fila solo ofrece "Olvidar".
+
+**Propuesta.** Que "Productos guardados" sirva también para agregar: una
+acción por fila suma el producto con la cantidad y la categoría que recuerda
+el catálogo (`rememberedAmount`, como los frecuentes y el repaso), y lo que
+ya está pendiente se muestra como tal en lugar de ofrecerse de nuevo.
+"Olvidar" queda como acción secundaria. Además del orden alfabético, un
+orden por cuánto hace que no se compra (`last_bought_at` de las vistas de
+F-7, o `last_added_at` si nunca se compró) o por categoría, para usarla como
+"¿qué me estoy olvidando?". Se decide al abordarla:
+
+- Si la sección sigue solo en el menú o se abre también desde la barra de
+  agregar, al planear la compra con el carro vacío.
+- Si cada fila muestra cuándo se compró por última vez (el toque opcional
+  que F-7 dejó anotado para esta sección).
+- Cómo conviven dos acciones en la fila sin que axe la marque como
+  `nested-interactive`, el motivo por el que M-5 puso "Olvidar" en el menú y
+  no en la sugerencia.
+
+**Requiere.** Nada fuera del cliente: el catálogo y el ritmo ya se leen.
+
 ---
 
 ## Funcionalidades nuevas
@@ -1318,7 +1357,7 @@ Pendiente de decisión del usuario.
   2026-10-22). F-3 (hecha el 2026-10-21) cubre "exportar lista como texto"
   de la Fase 4.
 - **Con lo que muestre la beta:** A-3 (hecha el 2026-10-20), M-1, M-2 y M-3
-  (hechas el 2026-11-04), M-8, F-1 (hecha el 2026-11-04) y F-2 (hecha el
-  2026-10-21).
+  (hechas el 2026-11-04), M-8, M-10, F-1 (hecha el 2026-11-04) y F-2
+  (hecha el 2026-10-21).
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
   2026-10-21), F-5, F-6 y F-7 (hecha el 2026-11-03).
