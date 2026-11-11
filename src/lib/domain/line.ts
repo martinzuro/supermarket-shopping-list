@@ -96,7 +96,12 @@ export function moveTo(
   return { at: to, passed: stations.filter((id) => passed.has(id)) };
 }
 
-/** The passed stations with something still to pick, and how much. */
+/**
+ * The passed stations with something still to pick, and how much: what was
+ * left behind. After coming back along the line, a station left earlier may
+ * be ahead of you again and still count: it was passed, and "Siguiente"
+ * will not stop there.
+ */
 export function behindOf(
   stations: readonly string[],
   items: readonly LineItem[],
@@ -114,8 +119,8 @@ export function behindOf(
 /**
  * The position after the line itself changed (someone added to a category
  * that had nothing, the last item of a station was removed, the route was
- * reordered). A station new to the trip that lands above you is behind you
- * too. If your station is gone, you stand at the next one that was ahead of
+ * reordered). A station that lands above you, new to the trip or moved by
+ * the route, is behind you too. If your station is gone, you stand at the next one that was ahead of
  * it, or at the checkout.
  */
 export function reconcileLine(
@@ -130,14 +135,11 @@ export function reconcileLine(
     at = ahead.find((id) => stations.includes(id)) ?? CHECKOUT;
   }
   const here = indexOf(stations, at);
-  const known = new Set(previous);
-  // The checkout is past every station.
+  // Everything above you is behind you: a station new to the trip, or one
+  // the route moved there. Left out, nothing would ever lead to it again
+  // (nextStop only looks ahead). The checkout is past every station.
   const passed = stations.filter(
-    (id, index) =>
-      id !== at &&
-      (at === CHECKOUT ||
-        position.passed.includes(id) ||
-        (!known.has(id) && index < here)),
+    (id, index) => id !== at && (index < here || position.passed.includes(id)),
   );
   if (at === position.at && sameIds(passed, position.passed)) return position;
   return { at, passed };

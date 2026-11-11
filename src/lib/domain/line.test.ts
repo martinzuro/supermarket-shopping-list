@@ -166,8 +166,11 @@ describe("reconcileLine", () => {
   it("leaves behind a station new to the trip that lands above you", () => {
     const now = ["pan", "verduras", "carnes", "almacen", "lacteos"];
     expect(
-      reconcileLine(stations, now, { at: "almacen", passed: ["pan"] }),
-    ).toEqual({ at: "almacen", passed: ["pan", "carnes"] });
+      reconcileLine(stations, now, {
+        at: "almacen",
+        passed: ["pan", "verduras"],
+      }),
+    ).toEqual({ at: "almacen", passed: ["pan", "verduras", "carnes"] });
   });
 
   it("leaves ahead a station new to the trip that lands below you", () => {
@@ -203,13 +206,33 @@ describe("reconcileLine", () => {
     ).toEqual({ at: "almacen", passed: ["verduras"] });
   });
 
-  it("keeps what was passed when the route is reordered", () => {
+  it("leaves behind what a reordered route moves above you", () => {
+    // "lacteos" was ahead and unvisited: above you, nothing would lead to
+    // it again unless it counts as left behind.
+    const now = ["lacteos", "pan", "verduras", "almacen"];
+    const position = reconcileLine(stations, now, {
+      at: "almacen",
+      passed: ["pan"],
+    });
+    expect(position).toEqual({
+      at: "almacen",
+      passed: ["lacteos", "pan", "verduras"],
+    });
+    expect(behindOf(now, items, position)).toEqual(
+      new Map([
+        ["lacteos", 1],
+        ["verduras", 1],
+      ]),
+    );
+  });
+
+  it("keeps what was passed when the route moves it below you", () => {
     expect(
-      reconcileLine(stations, ["lacteos", "pan", "verduras", "almacen"], {
+      reconcileLine(stations, ["verduras", "almacen", "pan", "lacteos"], {
         at: "almacen",
-        passed: ["pan"],
+        passed: ["pan", "verduras"],
       }),
-    ).toEqual({ at: "almacen", passed: ["pan"] });
+    ).toEqual({ at: "almacen", passed: ["verduras", "pan"] });
   });
 
   it("passes a station that appears while at the checkout", () => {
