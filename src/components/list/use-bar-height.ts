@@ -23,6 +23,11 @@ const PROPERTY = "--add-bar-measured";
  *   golpe: un toque que ya empezó termina en otra fila o en un encabezado.
  *   Lo que sobra se libera a medida que la persona sube (el evento
  *   `scroll`), donde ya no mueve nada.
+ * - El teclado de iOS es otra cosa: no es un toque en la lista. Al abrirse
+ *   con la página al final, la página lo acompaña (el foco está en el campo)
+ *   y lo último queda sobre el teclado. Al cerrarse, la reserva baja de una
+ *   al alto de la barra: si esperara a que la persona suba, quedaría un hueco
+ *   del alto del teclado al final de la página.
  */
 export function useBarHeight(
   ref: RefObject<HTMLElement | null>,
@@ -34,15 +39,18 @@ export function useBarHeight(
    */
   keyboardInset = 0,
 ) {
-  // Across the keyboard's measures: the reserve the page has now, and the
-  // bar's last height.
-  const state = useRef({ bar: 0, reserve: 0 });
+  // Across the keyboard's measures: the reserve the page has now, the bar's
+  // last height, and the keyboard inset the last measure saw.
+  const state = useRef({ bar: 0, reserve: 0, inset: 0 });
 
   useEffect(() => {
     const bar = ref.current;
     if (!bar || typeof ResizeObserver === "undefined") return;
     const root = document.documentElement;
     const current = state.current;
+    // The keyboard moved (this run comes from a new inset, not a resize).
+    const keyboardMoved = current.inset !== keyboardInset;
+    current.inset = keyboardInset;
     const reserve = (height: number) => {
       current.reserve = height;
       root.style.setProperty(PROPERTY, `${height}px`);
@@ -53,12 +61,13 @@ export function useBarHeight(
       if (current.reserve <= current.bar) return;
       const room = Math.max(
         0,
-        root.scrollHeight - window.innerHeight - window.scrollY,
+        // A negative scroll (the iOS bounce at the top) is still the top.
+        root.scrollHeight - window.innerHeight - Math.max(0, window.scrollY),
       );
       const next = Math.max(current.bar, current.reserve - Math.floor(room));
       if (next !== current.reserve) reserve(next);
     };
-    const measure = () => {
+    const measure = (release = false) => {
       // Desde el borde de arriba de la barra hasta el fondo de la ventana:
       // la barra y, en iOS, el teclado que la levanta.
       const height = Math.ceil(
@@ -68,7 +77,8 @@ export function useBarHeight(
       const grew = current.bar > 0 && height > current.bar;
       current.bar = height;
       if (height <= current.reserve) {
-        settle();
+        if (release) reserve(height);
+        else settle();
         return;
       }
       // Antes de cambiar la reserva: ¿estaba la página al final?
@@ -82,9 +92,9 @@ export function useBarHeight(
         });
       }
     };
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => measure());
     observer.observe(bar);
-    measure();
+    measure(keyboardMoved);
     window.addEventListener("scroll", settle, { passive: true });
     return () => {
       observer.disconnect();
@@ -94,7 +104,7 @@ export function useBarHeight(
 
   useEffect(
     () => () => {
-      state.current = { bar: 0, reserve: 0 };
+      state.current = { bar: 0, reserve: 0, inset: 0 };
       document.documentElement.style.removeProperty(PROPERTY);
     },
     [],

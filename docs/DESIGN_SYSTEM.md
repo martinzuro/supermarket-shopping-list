@@ -559,7 +559,8 @@ existentes, sin componente nuevo en `ui` (`suggestion-list.tsx` y
   queda quieta y el aviso tapa un momento las últimas filas. Si se achica,
   la reserva baja solo lo que no recorta el scroll, y el resto se libera
   cuando la persona sube: así un toque que ya empezó no termina en otra
-  fila.
+  fila. El teclado de iOS no es un toque en la lista: al cerrarse, la reserva
+  baja de una al alto de la barra, sin dejar un hueco al final de la página.
 
 ### Mandar lo que falta
 

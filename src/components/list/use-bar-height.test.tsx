@@ -88,11 +88,21 @@ describe("useBarHeight", () => {
       const bar = barAt(812 - initial);
       document.body.append(bar);
       const ref = { current: bar };
-      renderHook(() => useBarHeight(ref));
+      const { rerender } = renderHook(
+        ({ inset }: { inset: number }) => useBarHeight(ref, inset),
+        { initialProps: { inset: 0 } },
+      );
       // At the end of the page.
       scrollY = CONTENT + reserved() - 812;
       return {
         bar,
+        // The iOS keyboard: the bar goes up by `bottom`, the window stays.
+        keyboard(inset: number, height: number) {
+          vi.mocked(bar.getBoundingClientRect).mockReturnValue({
+            top: 812 - height - inset,
+          } as DOMRect);
+          rerender({ inset });
+        },
         to(height: number) {
           vi.mocked(bar.getBoundingClientRect).mockReturnValue({
             top: 812 - height,
@@ -146,6 +156,23 @@ describe("useBarHeight", () => {
       to(209);
       expect(reserved()).toBe(209);
       expect(scrollY).toBe(1000 + 209 - 812);
+    });
+
+    it("the iOS keyboard keeps the end in view while open, and leaves no gap when it closes", () => {
+      const { bar, keyboard } = setUp(77);
+      const input = document.createElement("input");
+      bar.append(input);
+      input.focus();
+
+      keyboard(300, 77);
+      expect(reserved()).toBe(377);
+      expect(scrollY).toBe(1000 + 377 - 812);
+
+      // Closed at the end of the page: down to the bar at once, no blank
+      // space the height of the keyboard above it.
+      input.blur();
+      keyboard(0, 77);
+      expect(reserved()).toBe(77);
     });
   });
 });
