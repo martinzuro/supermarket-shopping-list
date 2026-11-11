@@ -76,6 +76,7 @@ fase futura del roadmap ([ADR 0003](decisions/0003-online-only.md)).
 | F-6  | Presupuesto por compra                                  | Migración                   | Después          |
 | F-7  | Ritmo por producto en "Lo de siempre"                   | Migración                   | Hecho            |
 | F-8  | Invitar a instalar la app                               | Nada                        | Hecho            |
+| F-9  | La línea del súper: andén con riel en el modo compra    | Decisiones abiertas (abajo) | Asignada         |
 
 ---
 
@@ -1589,6 +1590,54 @@ volver a ofrecerlo.
 
 ---
 
+### F-9. La línea del súper: andén con riel
+
+Asignada por el usuario el 2026-11-11, después de probar el prototipo de
+`/design/linea` (PR #70; descripción completa en `docs/DESIGN_SYSTEM.md`,
+"Prototipos"). Reemplaza la pantalla del modo compra (F-1) y absorbe M-16.
+
+**Qué es.** En el modo compra se ve una estación (categoría) a la vez, en un
+cartel de tinta con el nombre en serif display que gira letra por letra al
+cambiar. La línea es un riel en el borde derecho, al alcance del pulgar: un
+nodo por estación en el orden en que se recorre el súper; tocar un nodo o
+deslizar por el riel lleva ahí. Marcar hace volar un punto de la casilla al
+riel. El botón principal dice "Siguiente: Almacén" y se llena con la estación
+completa; nada avanza solo. Una estación pasada con algo pendiente queda en
+cítrico con un ramal ("+1"), y un producto que llega tarde a una estación ya
+pasada lo avisa bajo el cartel con "Volver". La caja muestra la compra como
+un ticket con el talón "No conseguido".
+
+**Orden aprendido.** El orden de las estaciones sale de cómo se marcaron las
+compras anteriores (`items.checked_at` por `trip_id`), con `learnRoute`
+(`src/app/design/linea/learn-route.ts`, que al implementarse pasa a
+`src/lib/domain/`). No pide migración: los datos ya existen.
+
+**Lista simple, sin categorías.** Quien no quiera categorías ve una sola
+estación, "Tu lista", y el riel mide el avance del carro.
+
+**Decisiones abiertas, antes de implementar:**
+
+- Qué manda en el orden: el aprendido, el manual de "Ordenar el recorrido", o
+  el aprendido como sugerencia que el manual pisa. Es por lista o por
+  dispositivo, y qué ven los otros miembros.
+- Cómo se elige la lista simple: una preferencia (por lista o por
+  dispositivo) o automática cuando todo cae en una categoría. Hoy cada
+  producto recibe categoría sola (A-1).
+- Dónde vive "dónde estoy" y "qué pasé": como el modo compra, es de este
+  dispositivo (`localStorage`), no de la lista.
+- El ticket de la caja frente al momento "Buena compra" y su resumen (M-3):
+  uno reemplaza al otro o se funden. "No conseguido" se cruza con la idea de
+  un tercer estado ("no había"), que no está en el backlog.
+- Totales por moneda (M-2), el "+" que despliega el campo, el aviso de
+  deshacer (A-4) y deslizar para borrar (M-9) tienen que seguir funcionando
+  dentro de la estación.
+- El fondo de tinta para toda la pantalla pide tokens nuevos (la paleta
+  oscura solo existe bajo `prefers-color-scheme`) y toca ADR 0008.
+
+**Límites conocidos del prototipo:** el riel con más nodos de los que entran
+en pantallas muy bajas; la vibración no existe en iPhone; el ticket en 3D
+con three.js quedó como experimento aparte, sin decidir.
+
 ## Lo que no se propone
 
 - Recetas, despensa, códigos de barras, precios reales de supermercados y
@@ -1611,3 +1660,5 @@ Pendiente de decisión del usuario.
   M-14, M-15, M-16 y M-17.
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
   2026-10-21), F-5, F-6 y F-7 (hecha el 2026-11-03).
+- **Asignada (2026-11-11):** F-9, la línea del súper, tras el prototipo de
+  `/design/linea`. Primero se cierran sus decisiones abiertas.
