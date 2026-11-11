@@ -84,3 +84,17 @@ export {
   tripAgain,
   tripEstimate,
 } from "./trips";
+export { LEARN_MIN_TRIPS, learnRoute } from "./learn-route";
+export type { CheckedItem, LearnedRoute } from "./learn-route";
+export {
+  CHECKOUT,
+  SIMPLE_STATION,
+  behindOf,
+  moveTo,
+  nextStop,
+  pendingIn,
+  reconcileLine,
+  startOf,
+  stationsOf,
+} from "./line";
+export type { LineItem, LinePosition } from "./line";

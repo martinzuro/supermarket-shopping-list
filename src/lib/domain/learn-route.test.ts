@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { categoryIds } from "@/lib/design/tokens";
 import { learnRoute, type CheckedItem } from "./learn-route";
-import { pastTrips } from "./sample";
+import { pastTrips } from "@/app/design/linea/sample";
 
 const listOrder = ["verduras", "carnes", "lacteos", "panaderia", "almacen"];
 
