@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent } from "react";
+import { useCallback, useRef, type MouseEvent } from "react";
 
 /**
  * Un segundo toque antes de esto y casi en el mismo lugar es un doble toque
@@ -31,9 +31,10 @@ export function useDoubleTap() {
     );
   }
 
-  function reset() {
+  // Stable: an effect may depend on it.
+  const reset = useCallback(() => {
     last.current = null;
-  }
+  }, []);
 
   return { isDoubleTap, reset };
 }

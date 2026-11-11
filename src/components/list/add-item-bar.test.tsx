@@ -468,7 +468,7 @@ describe("AddItemBar while shopping (F-1)", () => {
 
   afterEach(() => localStorage.clear());
 
-  it("folds into a button and Terminé, with the totals over them", () => {
+  it("folds into a button and what comes next, with the totals over them", () => {
     renderShopping();
     expect(
       screen.queryByRole("combobox", { name: texts.addItem.label }),
@@ -476,9 +476,20 @@ describe("AddItemBar while shopping (F-1)", () => {
     expect(
       screen.getByRole("button", { name: texts.shopping.add }),
     ).toBeVisible();
+    // One station with something pending: what comes next is the checkout,
+    // and the button waits for the tap (F-9).
+    const next = screen.getByRole("button", { name: texts.line.toCheckout });
+    expect(next).toHaveAttribute("data-ready", "false");
+    expect(
+      screen.queryByRole("button", { name: texts.shopping.finish }),
+    ).toBeNull();
+    fireEvent.click(next);
     expect(
       screen.getByRole("button", { name: texts.shopping.finish }),
     ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: texts.line.toCheckout }),
+    ).toBeNull();
     const totals = document.querySelector('[data-slot="shopping-totals"]');
     expect(totals?.textContent?.replace(/\s/g, " ")).toBe(
       `${texts.shopping.totals.cart}$ 253${texts.shopping.totals.remaining}~${texts.shopping.totals.aboutSpoken}$ 708`,
@@ -523,8 +534,35 @@ describe("AddItemBar while shopping (F-1)", () => {
     ).toBeNull();
   });
 
+  it("a second tap on Ir a la caja does not end the trip", () => {
+    vi.useFakeTimers({ now: new Date("2026-11-11T10:00:00Z") });
+    try {
+      renderShopping();
+      // A tap (detail 1), and another where "Terminé" took its place.
+      fireEvent.click(
+        screen.getByRole("button", { name: texts.line.toCheckout }),
+        { detail: 1 },
+      );
+      const finish = screen.getByRole("button", {
+        name: texts.shopping.finish,
+      });
+      vi.advanceTimersByTime(200);
+      fireEvent.click(finish, { detail: 1 });
+      expect(localStorage.getItem(SHOPPING_KEY)).not.toBeNull();
+      // A tap after that is meant.
+      vi.advanceTimersByTime(400);
+      fireEvent.click(finish, { detail: 1 });
+      expect(localStorage.getItem(SHOPPING_KEY)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("Terminé without the list on screen only ends the trip", () => {
     renderShopping();
+    fireEvent.click(
+      screen.getByRole("button", { name: texts.line.toCheckout }),
+    );
     fireEvent.click(
       screen.getByRole("button", { name: texts.shopping.finish }),
     );

@@ -6,7 +6,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { Check, Plus, XIcon } from "lucide-react";
+import { ArrowRight, Check, Plus, XIcon } from "lucide-react";
 import {
   useEffect,
   useEffectEvent,
@@ -30,17 +30,19 @@ import { FrequentsRow } from "@/components/list/frequents-row";
 import { lastCopyAt, useLastCopy } from "@/components/list/send-pending";
 import {
   SHOPPING_FINISH_ID,
+  SHOPPING_NEXT_ID,
   useFinishShopping,
   useShoppingMode,
 } from "@/components/list/shopping-mode";
 import { ShoppingTotals } from "@/components/list/shopping-totals";
+import { useLine } from "@/components/list/use-line";
 import {
   SuggestionList,
   optionId,
   type Suggestion,
 } from "@/components/list/suggestion-list";
 import { useBarHeight } from "@/components/list/use-bar-height";
-import { useDoubleTap } from "@/components/list/use-double-tap";
+import { DOUBLE_TAP_MS, useDoubleTap } from "@/components/list/use-double-tap";
 import { useKeyboardInset } from "@/components/list/use-keyboard-inset";
 import {
   ReviewSheet,
@@ -54,6 +56,7 @@ import { Input } from "@/components/ui/input";
 import {
   PASTE_LIMIT,
   SUGGESTION_LIMIT,
+  CHECKOUT,
   addedQuantity,
   categoryKind,
   daysSince,
@@ -597,6 +600,13 @@ export function AddItemBar() {
   // text.
   const shopping = useShoppingMode(listId);
   const finishShopping = useFinishShopping();
+  // Where the trip is on the line (F-9): the bar's main button moves on.
+  const line = useLine(userId, listId, shopping.on);
+  // When "Ir a la caja" was tapped: "Terminé" shows where it was.
+  const arrivedAtCheckout = useRef(0);
+  const nextStation = line?.stations.find((one) => one.id === line.next);
+  const nextName =
+    nextStation?.category?.name ?? texts.list.pending.uncategorized;
   const [expanded, setExpanded] = useState(false);
   const [wasShopping, setWasShopping] = useState(shopping.on);
   if (wasShopping !== shopping.on) {
@@ -1626,16 +1636,57 @@ export function AddItemBar() {
             >
               <Plus aria-hidden strokeWidth={2} />
             </Button>
-            <Button
-              id={SHOPPING_FINISH_ID}
-              type="button"
-              size="touch-lg"
-              className="flex-1"
-              onClick={finishShopping}
-            >
-              <Check aria-hidden strokeWidth={2.5} />
-              {texts.shopping.finish}
-            </Button>
+            {line && line.position.at !== CHECKOUT ? (
+              // What comes next on the line (F-9), under the thumb. It
+              // fills when the station is done and waits for the tap:
+              // nothing moves on its own.
+              <Button
+                // Its own element: "Terminé" must not inherit its focus.
+                key="next"
+                id={SHOPPING_NEXT_ID}
+                type="button"
+                variant={line.here?.pending === 0 ? "default" : "secondary"}
+                size="touch-lg"
+                data-ready={line.here?.pending === 0}
+                className="min-w-0 flex-1"
+                onClick={() => {
+                  if (line.next === CHECKOUT)
+                    arrivedAtCheckout.current = Date.now();
+                  line.move(line.next);
+                }}
+              >
+                <span className="truncate">
+                  {line.next === CHECKOUT
+                    ? texts.line.toCheckout
+                    : texts.line.next(nextName)}
+                </span>
+                <ArrowRight aria-hidden strokeWidth={2} />
+              </Button>
+            ) : (
+              // At the checkout, the last stop: the trip ends here.
+              <Button
+                key="finish"
+                id={SHOPPING_FINISH_ID}
+                type="button"
+                size="touch-lg"
+                className="flex-1"
+                onClick={(event) => {
+                  // It took the place of "Ir a la caja" under the thumb: a
+                  // second tap right after that one is a hurried thumb, not
+                  // the end of the trip. The keyboard has no double tap.
+                  if (
+                    event.detail !== 0 &&
+                    Date.now() - arrivedAtCheckout.current < DOUBLE_TAP_MS
+                  ) {
+                    return;
+                  }
+                  finishShopping();
+                }}
+              >
+                <Check aria-hidden strokeWidth={2.5} />
+                {texts.shopping.finish}
+              </Button>
+            )}
           </div>
         </div>
       ) : null}

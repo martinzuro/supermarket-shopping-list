@@ -21,13 +21,27 @@ export const SHOPPING_START_ID = "shopping-start";
 /** "Terminé", in the add bar: the focus lands there when the cart refills. */
 export const SHOPPING_FINISH_ID = "shopping-finish";
 
+/** "Siguiente: …", in the add bar: what moves on along the line (F-9). */
+export const SHOPPING_NEXT_ID = "shopping-next";
+
 /** Where this device keeps the list it is shopping, and since when. */
 export const SHOPPING_KEY = "lista:shopping";
 
 /** Longer than any trip to the supermarket: after this, the mode is off. */
 export const SHOPPING_MAX_MS = 6 * 60 * 60 * 1000;
 
-type Stored = { listId: string; since: number };
+/**
+ * Where this device is on the supermarket line (F-9, ADR 0010): the stop,
+ * the stations left behind, and the stations the line had then (what
+ * `reconcileLine` compares the line of now against).
+ */
+export type StoredLine = {
+  at: string;
+  passed: readonly string[];
+  stations: readonly string[];
+};
+
+type Stored = { listId: string; since: number; line?: StoredLine };
 
 type ShoppingStore = {
   /** The list being shopped, or null. Read from storage on first use. */
@@ -35,6 +49,8 @@ type ShoppingStore = {
   /** When it started: the trip ends after SHOPPING_MAX_MS. */
   since: number;
   loaded: boolean;
+  /** Where the trip is on the line; null until the list places it. */
+  line: StoredLine | null;
   /** What "Terminé" does: the list's (list-view.tsx), set while it shows. */
   finish: (() => void) | null;
   listeners: Set<() => void>;
@@ -51,6 +67,7 @@ function storeOf(queryClient: QueryClient) {
       listId: null,
       since: 0,
       loaded: false,
+      line: null,
       finish: null,
       listeners: new Set(),
     };
@@ -85,13 +102,40 @@ function readStored(): Stored | null | "blocked" {
       typeof value.since === "number" &&
       current(value.since)
     ) {
-      return { listId: value.listId, since: value.since };
+      const line = lineOf(value.line);
+      return {
+        listId: value.listId,
+        since: value.since,
+        ...(line ? { line } : {}),
+      };
     }
   } catch {
     // Not ours to read: dropped below.
   }
   write(null);
   return null;
+}
+
+const strings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((one) => typeof one === "string");
+
+/** The line as kept, or null for anything else (a trip from before F-9). */
+function lineOf(value: unknown): StoredLine | null {
+  const line = value as Partial<StoredLine> | null | undefined;
+  return typeof line?.at === "string" &&
+    strings(line.passed) &&
+    strings(line.stations)
+    ? { at: line.at, passed: line.passed, stations: line.stations }
+    : null;
+}
+
+function sameLine(a: StoredLine | null, b: StoredLine | null) {
+  if (a === null || b === null) return a === b;
+  const same = (x: readonly string[], y: readonly string[]) =>
+    x.length === y.length && x.every((id, index) => id === y[index]);
+  return (
+    a.at === b.at && same(a.passed, b.passed) && same(a.stations, b.stations)
+  );
 }
 
 function write(value: Stored | null) {
@@ -107,8 +151,11 @@ function setShopping(store: ShoppingStore, trip: Stored | null) {
   store.loaded = true;
   store.since = trip?.since ?? 0;
   const listId = trip?.listId ?? null;
-  if (store.listId === listId) return;
+  const line = trip?.line ?? null;
+  if (store.listId === listId && sameLine(store.line, line)) return;
   store.listId = listId;
+  // The same line keeps its object: it is a snapshot of the store.
+  if (!sameLine(store.line, line)) store.line = line;
   store.listeners.forEach((listener) => listener());
 }
 
@@ -134,7 +181,11 @@ function snapshot(store: ShoppingStore) {
 export type ShoppingMode = {
   /** This device is shopping the list on screen. */
   on: boolean;
-  start: () => void;
+  /**
+   * Starts a trip. With a line, the trip goes on from there: the one that
+   * "Terminé" ended, when its emptying is undone or rejected (F-9).
+   */
+  start: (line?: StoredLine | null) => void;
   stop: () => void;
 };
 
@@ -172,17 +223,59 @@ export function useShoppingMode(listId: string | null): ShoppingMode {
     () => null,
   );
   const on = shopping !== null && (listId === null || shopping === listId);
-  const start = useCallback(() => {
-    if (listId === null) return;
-    const trip = { listId, since: Date.now() };
-    write(trip);
-    setShopping(store, trip);
-  }, [store, listId]);
+  const start = useCallback(
+    (line?: StoredLine | null) => {
+      if (listId === null) return;
+      const trip = { listId, since: Date.now(), ...(line ? { line } : {}) };
+      write(trip);
+      setShopping(store, trip);
+    },
+    [store, listId],
+  );
   const stop = useCallback(() => {
     write(null);
     setShopping(store, null);
   }, [store]);
   return { on, start, stop };
+}
+
+/**
+ * Where this device's trip is on the line (F-9), and how to move it. Null
+ * while this device is not shopping `listId`, or until the list has placed
+ * the trip (use-line.ts). It is kept with the trip, so it survives a reload
+ * and ends with it. useShoppingMode, always mounted with it, keeps the store
+ * in step with storage.
+ */
+export function useShoppingLine(
+  listId: string | null,
+): [StoredLine | null, (line: StoredLine) => void] {
+  const store = storeOf(useQueryClient());
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      store.listeners.add(listener);
+      return () => {
+        store.listeners.delete(listener);
+      };
+    },
+    [store],
+  );
+  const line = useSyncExternalStore(
+    subscribe,
+    () =>
+      snapshot(store) !== null && store.listId === listId ? store.line : null,
+    () => null,
+  );
+  const setLine = useCallback(
+    (next: StoredLine) => {
+      if (store.listId === null || store.listId !== listId) return;
+      if (sameLine(store.line, next)) return;
+      const trip = { listId: store.listId, since: store.since, line: next };
+      write(trip);
+      setShopping(store, trip);
+    },
+    [store, listId],
+  );
+  return [line, setLine];
 }
 
 /**

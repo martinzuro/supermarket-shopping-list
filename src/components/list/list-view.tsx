@@ -25,6 +25,7 @@ import {
 import { EditItemSheet } from "@/components/list/edit-item-sheet";
 import { EstimateLine } from "@/components/list/estimate-line";
 import { MembershipNotices } from "@/components/list/membership-notice";
+import { LinePlatform } from "@/components/list/line-platform";
 import { ListSection } from "@/components/list/list-section";
 import { RouteSheet } from "@/components/list/route-sheet";
 import { SendPending } from "@/components/list/send-pending";
@@ -33,6 +34,7 @@ import {
   SHOPPING_START_ID,
   useShoppingFinish,
   useShoppingMode,
+  type StoredLine,
 } from "@/components/list/shopping-mode";
 import {
   TripSummary,
@@ -40,6 +42,7 @@ import {
   type TripSummaryData,
 } from "@/components/list/trip-summary";
 import { useDoubleTap } from "@/components/list/use-double-tap";
+import { useLine } from "@/components/list/use-line";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import { FullBagIllustration } from "@/components/illustrations";
 import { Enter, transitions } from "@/components/motion";
@@ -88,7 +91,11 @@ type Emptying = Pick<EmptyCart, "deletedAt" | "tripId">;
  * What the moment of an emptying tells (M-3), and whether it ended a
  * shopping trip ("Terminé", F-1): its "Deshacer" goes back to the mode.
  */
-type Summary = TripSummaryData & { shopping: boolean };
+type Summary = TripSummaryData & {
+  shopping: boolean;
+  /** Where that trip was on the line (F-9): "Deshacer" goes back there. */
+  line: StoredLine | null;
+};
 
 /** Id of the group of items that have no category (the list has no "Otros"). */
 const NO_CATEGORY = "none";
@@ -181,6 +188,9 @@ export function ListView() {
   // This device in the supermarket (F-1): "Terminé" is its way to empty the
   // cart, so "Vaciar el carro" waits until the trip is over.
   const shopping = useShoppingMode(listId);
+  // And the screen is then the supermarket line (F-9): one station at a
+  // time instead of the two sections. Null until the data is in.
+  const line = useLine(userId, listId, shopping.on);
   // Whether the cart has been seen empty during this moment. The optimistic
   // archive lands a moment after the tap (onMutate awaits), so only a cart
   // that fills up again after that ends the moment.
@@ -192,6 +202,13 @@ export function ListView() {
   // A second tap at the same spot right after a check lands on the same row,
   // still in its place: a hurried thumb, not a request to uncheck it (A-4).
   const doubleTap = useDoubleTap();
+  // On the line (F-9), the first row of the next station lands where the
+  // last check was: moving along the line makes the next tap a new request.
+  const stop = line?.position.at;
+  const resetDoubleTap = doubleTap.reset;
+  useEffect(() => {
+    resetDoubleTap();
+  }, [stop, resetDoubleTap]);
   // Adding something (the field, a pill, "Lo de siempre") is something else
   // than checking: the held rows go to their sections first.
   const adding =
@@ -330,6 +347,15 @@ export function ListView() {
     // A finished trip: the invitation to install the app waits for it (F-8).
     noteTripFinished();
     const emptying = { deletedAt: new Date().toISOString(), tripId: newId() };
+    // Where the trip was, to go on from there if this is undone or rejected.
+    const tripLine: StoredLine | null =
+      fromShopping && line
+        ? {
+            at: line.position.at,
+            passed: line.position.passed,
+            stations: line.stations.map((station) => station.id),
+          }
+        : null;
     setEmptied(emptying);
     setEmptiedRows(rows);
     // What stays pending is what the data says: a row unchecked a moment ago
@@ -339,6 +365,7 @@ export function ListView() {
       estimate: estimateOf(rows),
       remaining: unchecked.length,
       shopping: fromShopping,
+      line: tripLine,
     });
     setCartCleared(false);
     // A rejection brings the rows back, and that ends the moment (above).
@@ -350,7 +377,7 @@ export function ListView() {
         onError: () => {
           // Nothing was emptied: not a trip.
           noteTripUndone();
-          if (fromShopping) shopping.start();
+          if (fromShopping) shopping.start(tripLine);
         },
       },
     );
@@ -394,7 +421,7 @@ export function ListView() {
     const told = summary;
     // Put back: that was no trip (F-8).
     noteTripUndone();
-    if (told?.shopping) shopping.start();
+    if (told?.shopping) shopping.start(told.line);
     restoreCart.mutate(
       { ids: rows.map((item) => item.id), rows, ...emptying },
       {
@@ -422,8 +449,9 @@ export function ListView() {
     // Something is in the cart again: the emptying is over.
     if (next) setEmptied(null);
     // Every row stays where it is shown, this one struck (or not) in place,
-    // until the checks stop (A-5). The write goes out now.
-    hold(placesOf(all, held));
+    // until the checks stop (A-5). The write goes out now. On the line (F-9)
+    // a station's rows never move: there is nothing to hold.
+    if (!shopping.on) hold(placesOf(all, held));
     refocus.current = item.id;
     toggle.mutate({ id: item.id, name: item.name, checked: next });
   }
@@ -611,137 +639,152 @@ export function ListView() {
       >
         <span key={announcement.seq}>{announcement.text}</span>
       </div>
-      <ListSection
-        id="pending"
-        title={texts.list.pending.title}
-        emptyText={texts.list.pending.empty}
-        count={ready ? unchecked.length : 0}
-        rows={ready ? pending.length : 0}
-        loading={groupsLoading}
-        grouped
-        footer={<EstimateLine estimate={estimateOf(unchecked)} />}
-        action={
-          ready && !groupsLoading ? (
-            // Side by side, their 44px touching: the icons sit 24px apart.
-            <div className="flex items-center">
-              {/* What is pending, as a message (F-3). First, so the route
+      {shopping.on ? (
+        line ? (
+          <LinePlatform
+            line={line}
+            remote={remote}
+            fresh={fresh.fresh}
+            onCheckedChange={handleCheckedChange}
+            onPress={(item) => setEditingId(item.id)}
+            onRemove={removeItem}
+          />
+        ) : null
+      ) : (
+        <>
+          <ListSection
+            id="pending"
+            title={texts.list.pending.title}
+            emptyText={texts.list.pending.empty}
+            count={ready ? unchecked.length : 0}
+            rows={ready ? pending.length : 0}
+            loading={groupsLoading}
+            grouped
+            footer={<EstimateLine estimate={estimateOf(unchecked)} />}
+            action={
+              ready && !groupsLoading ? (
+                // Side by side, their 44px touching: the icons sit 24px apart.
+                <div className="flex items-center">
+                  {/* What is pending, as a message (F-3). First, so the route
                   button keeps its place when there is nothing to send. */}
-              <SendPending
-                items={items.data ?? []}
-                categories={categories.data ?? []}
-              />
-              {/* The order of the groups is edited here: Pendientes hides the
+                  <SendPending
+                    items={items.data ?? []}
+                    categories={categories.data ?? []}
+                  />
+                  {/* The order of the groups is edited here: Pendientes hides the
                   empty categories, so the route sheet lists them all. */}
-              {categories.data ? (
-                <Button
-                  ref={routeButton}
-                  type="button"
-                  variant="ghost"
-                  size="icon-touch"
-                  aria-label={texts.route.open}
-                  aria-haspopup="dialog"
-                  onClick={() => {
-                    flush();
-                    setRouteOpen(true);
-                  }}
-                >
-                  <ArrowUpDown aria-hidden strokeWidth={1.5} />
-                </Button>
-              ) : null}
-            </div>
-          ) : undefined
-        }
-      >
-        {ready ? groups.map(renderGroup) : null}
-      </ListSection>
-      {/* El carro va sobre pistacho: arriba lo que falta, abajo lo que ya
-          pasó por caja. Al vaciarlo, el momento ocupa su lugar hasta que se
-          cierra. */}
-      {emptied !== null ? (
-        <div
-          ref={momentGroup}
-          role="group"
-          aria-label={texts.moments.cartEmptied.eyebrow}
-          className="mt-6"
-          // Scrolled into view after "Terminé": the bar stays over the page.
-          style={{
-            scrollMarginBottom:
-              "calc(var(--add-bar-measured, var(--add-bar-height)) + 1rem)",
-          }}
-        >
-          <Moment
-            eyebrow={texts.moments.cartEmptied.eyebrow}
-            lead={texts.moments.cartEmptied.lead}
-            em={texts.moments.cartEmptied.em}
-            body={momentBody}
-            details={
-              summary ? (
-                <TripSummary
-                  count={summary.count}
-                  estimate={summary.estimate}
-                  remaining={summary.remaining}
-                />
+                  {categories.data ? (
+                    <Button
+                      ref={routeButton}
+                      type="button"
+                      variant="ghost"
+                      size="icon-touch"
+                      aria-label={texts.route.open}
+                      aria-haspopup="dialog"
+                      onClick={() => {
+                        flush();
+                        setRouteOpen(true);
+                      }}
+                    >
+                      <ArrowUpDown aria-hidden strokeWidth={1.5} />
+                    </Button>
+                  ) : null}
+                </div>
               ) : undefined
             }
-            illustration={<FullBagIllustration />}
-            action={
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  ref={momentAction}
-                  type="button"
-                  // Lima sobre tinta: el primario del sistema se perdería en
-                  // la superficie inversa.
-                  className="bg-lime text-on-lime hover:bg-lime/90 dark:hover:bg-lime/90"
-                  onClick={dismissMoment}
-                >
-                  {texts.moments.cartEmptied.action}
-                </Button>
-                {/* Callado sobre tinta, como "Ahora no" de la invitación. */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-inverse-fg hover:bg-inverse-fg/10"
-                  onClick={undoEmptying}
-                >
-                  {texts.moments.cartEmptied.undo}
-                </Button>
-              </div>
-            }
-          />
-        </div>
-      ) : (
-        <ListSection
-          id="cart"
-          title={texts.list.cart.title}
-          emptyText={texts.list.cart.empty}
-          count={ready ? checked.length : 0}
-          rows={ready ? cart.length : 0}
-          loading={loading}
-          surface="cart"
-          footer={<EstimateLine estimate={estimateOf(checked)} />}
-          action={
-            // While shopping, "Terminé" in the bar empties it (F-1). Only
-            // over something checked: a row unchecked a moment ago may still
-            // be held here (A-5).
-            ready &&
-            !loading &&
-            cart.some((item) => item.checked) &&
-            !shopping.on ? (
-              // Outline: el carro es pistacho y "secondary" se perdería.
-              <Button
-                id={EMPTY_CART_BUTTON_ID}
-                type="button"
-                variant="outline"
-                size="touch"
-                onClick={() => handleEmptyCart()}
-              >
-                {texts.list.cart.emptyAction}
-              </Button>
-            ) : undefined
-          }
-        >
-          {ready ? cart.map((item) => renderRow(item, false)) : null}
-        </ListSection>
+          >
+            {ready ? groups.map(renderGroup) : null}
+          </ListSection>
+          {/* El carro va sobre pistacho: arriba lo que falta, abajo lo que ya
+          pasó por caja. Al vaciarlo, el momento ocupa su lugar hasta que se
+          cierra. */}
+          {emptied !== null ? (
+            <div
+              ref={momentGroup}
+              role="group"
+              aria-label={texts.moments.cartEmptied.eyebrow}
+              className="mt-6"
+              // Scrolled into view after "Terminé": the bar stays over the page.
+              style={{
+                scrollMarginBottom:
+                  "calc(var(--add-bar-measured, var(--add-bar-height)) + 1rem)",
+              }}
+            >
+              <Moment
+                eyebrow={texts.moments.cartEmptied.eyebrow}
+                lead={texts.moments.cartEmptied.lead}
+                em={texts.moments.cartEmptied.em}
+                body={momentBody}
+                details={
+                  summary ? (
+                    <TripSummary
+                      count={summary.count}
+                      estimate={summary.estimate}
+                      remaining={summary.remaining}
+                    />
+                  ) : undefined
+                }
+                illustration={<FullBagIllustration />}
+                action={
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      ref={momentAction}
+                      type="button"
+                      // Lima sobre tinta: el primario del sistema se perdería en
+                      // la superficie inversa.
+                      className="bg-lime text-on-lime hover:bg-lime/90 dark:hover:bg-lime/90"
+                      onClick={dismissMoment}
+                    >
+                      {texts.moments.cartEmptied.action}
+                    </Button>
+                    {/* Callado sobre tinta, como "Ahora no" de la invitación. */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-inverse-fg hover:bg-inverse-fg/10"
+                      onClick={undoEmptying}
+                    >
+                      {texts.moments.cartEmptied.undo}
+                    </Button>
+                  </div>
+                }
+              />
+            </div>
+          ) : (
+            <ListSection
+              id="cart"
+              title={texts.list.cart.title}
+              emptyText={texts.list.cart.empty}
+              count={ready ? checked.length : 0}
+              rows={ready ? cart.length : 0}
+              loading={loading}
+              surface="cart"
+              footer={<EstimateLine estimate={estimateOf(checked)} />}
+              action={
+                // While shopping, "Terminé" in the bar empties it (F-1). Only
+                // over something checked: a row unchecked a moment ago may still
+                // be held here (A-5).
+                ready &&
+                !loading &&
+                cart.some((item) => item.checked) &&
+                !shopping.on ? (
+                  // Outline: el carro es pistacho y "secondary" se perdería.
+                  <Button
+                    id={EMPTY_CART_BUTTON_ID}
+                    type="button"
+                    variant="outline"
+                    size="touch"
+                    onClick={() => handleEmptyCart()}
+                  >
+                    {texts.list.cart.emptyAction}
+                  </Button>
+                ) : undefined
+              }
+            >
+              {ready ? cart.map((item) => renderRow(item, false)) : null}
+            </ListSection>
+          )}
+        </>
       )}
       {ready && categories.data ? (
         <RouteSheet
