@@ -90,8 +90,8 @@ function inBurst(target: EventTarget | null) {
  *
  * The scroll is the user's gesture (a finger that drags past TAP_SLOP_PX,
  * the wheel, the scroll keys), not the `scroll` event: the page also
- * scrolls on its own, as when the add bar grows with the "al carro" notice
- * of the check and follows the end of the page (use-bar-height.ts).
+ * scrolls on its own, as when the add bar grows while the user types in it
+ * and follows the end of the page (use-bar-height.ts).
  *
  * `hold` gets where every row is shown at the tap (`placesOf`): the rows
  * already held keep their place, and the others are frozen too, so a
