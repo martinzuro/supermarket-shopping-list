@@ -8,6 +8,7 @@ import {
   goToCheckout,
   lineRow,
   nextButton,
+  tapNext,
 } from "./line";
 import { SCHEMES } from "./sharing";
 import { adminClient } from "./supabase-admin";
@@ -327,6 +328,8 @@ for (const scheme of SCHEMES) {
       const emptied = rpcAnswered(page, "empty_cart");
 
       await goToCheckout(page);
+      // Right after a move the bar's button ignores a tap (F-9).
+      await page.waitForTimeout(400);
       await finishButton(page).click();
       // The moment, in view, with the summary of the trip (M-3), and the
       // usual screen back.
@@ -386,7 +389,7 @@ for (const scheme of SCHEMES) {
       // server has the check.
       await findOnLine(page, "Pan");
       await checkbox(page, "Pan").click();
-      await nextButton(page).click();
+      await tapNext(page);
       // "Terminé" takes the place of "Ir a la caja": a second tap right
       // after it would be taken for a hurried thumb (F-9).
       await page.waitForTimeout(400);
@@ -414,6 +417,8 @@ for (const scheme of SCHEMES) {
       const emptyCalls = recordRpc(page, "empty_cart");
       await startButton(page).click();
       await goToCheckout(page);
+      // Right after a move the bar's button ignores a tap (F-9).
+      await page.waitForTimeout(400);
       await finishButton(page).click();
       await expect(masthead(page)).toHaveCount(0);
       await expect(startButton(page)).toBeFocused();
