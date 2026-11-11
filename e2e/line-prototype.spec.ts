@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { REFLOW_IDLE_MS } from "../src/components/list/deferred-reflow";
 import { texts } from "../src/lib/texts";
 
 /**
@@ -11,67 +10,69 @@ import { texts } from "../src/lib/texts";
 const t = texts.design.line;
 const names = texts.design.categories.names;
 
-const stop = (page: Page) =>
-  page.locator("[data-slot=line] > li[aria-current=step]");
+const board = (page: Page) => page.locator("[data-slot=line-board]");
+const next = (page: Page) => page.locator("[data-slot=line-next]");
+const node = (page: Page, stop: string) =>
+  page.locator(`[data-slot=line-rail] button[data-stop=${stop}]`);
 
 test.describe("la línea del súper", () => {
-  test("finishing a station sends you to the next one", async ({ page }) => {
+  test("the button says what comes next and waits for the tap", async ({
+    page,
+  }) => {
     await page.goto("/design/linea");
-    await expect(stop(page)).toHaveAttribute("data-stop", "carnes");
+    await expect(board(page)).toHaveAttribute("data-stop", "carnes");
+    await expect(next(page)).toHaveText(t.next(names.almacen));
+    await expect(next(page)).toHaveAttribute("data-ready", "false");
 
     await page.getByRole("checkbox", { name: "Carne picada" }).click();
     await page.getByRole("checkbox", { name: "Pechugas" }).click();
-    // Everything checked: it says what comes, and waits.
-    await expect(stop(page).getByText(t.ready(names.almacen))).toBeVisible();
+    // Everything checked: it fills, and nothing moves on its own.
+    await expect(next(page)).toHaveAttribute("data-ready", "true");
+    await expect(board(page)).toHaveAttribute("data-stop", "carnes");
 
-    await expect(stop(page)).toHaveAttribute("data-stop", "almacen");
-    await expect(page.locator("[data-slot=line-board]")).toContainText(
+    await next(page).click();
+    await expect(board(page)).toHaveAttribute("data-stop", "almacen");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
       names.almacen,
     );
     await expect(page.locator("[data-slot=line-announcement]")).toHaveText(
       t.arrived(names.almacen, 4, 7),
     );
-    // The checkbox went with its station: the focus is where you are now.
-    await expect(page.locator("#line-current")).toBeFocused();
-    await expect(page.locator("[data-stop=carnes]")).toHaveAttribute(
-      "data-kind",
-      "passed",
+    await expect(node(page, "carnes")).toHaveAttribute("data-kind", "passed");
+    await expect(node(page, "almacen")).toHaveAttribute("aria-current", "step");
+  });
+
+  test("a node of the rail takes you there, and what was skipped stays behind", async ({
+    page,
+  }) => {
+    await page.goto("/design/linea");
+    await node(page, "bebidas").click();
+    await expect(board(page)).toHaveAttribute("data-stop", "bebidas");
+    await expect(node(page, "almacen")).toHaveAttribute("data-kind", "passed");
+    // Four products of the pantry were left: its branch says so.
+    await expect(
+      node(page, "almacen").locator("[data-slot=line-behind]"),
+    ).toHaveText(t.behindTag(4));
+  });
+
+  test("sliding along the rail shows each stop and lands on the last one", async ({
+    page,
+  }) => {
+    await page.goto("/design/linea");
+    const rail = page.locator("[data-slot=line-rail]");
+    const box = (await rail.boundingBox())!;
+    const target = (await node(page, "lacteos").boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, target.y + target.height / 2, {
+      steps: 5,
+    });
+    await expect(page.locator("[data-slot=line-scrub]")).toHaveText(
+      names.lacteos,
     );
-  });
-
-  test("a check undone in time keeps you at the station", async ({ page }) => {
-    await page.goto("/design/linea");
-    await page.getByRole("checkbox", { name: "Carne picada" }).click();
-    await page.getByRole("checkbox", { name: "Pechugas" }).click();
-    await page.getByRole("checkbox", { name: "Pechugas" }).click();
-    await page.waitForTimeout(REFLOW_IDLE_MS + 500);
-    await expect(stop(page)).toHaveAttribute("data-stop", "carnes");
-  });
-
-  test("a finished station you go back to waits for you", async ({ page }) => {
-    await page.goto("/design/linea");
-    await page
-      .getByRole("button", {
-        name: new RegExp(`^${t.goBack}${names.panaderia}`),
-      })
-      .click();
-    await expect(stop(page)).toHaveAttribute("data-stop", "panaderia");
-    // Everything there is checked, but nothing was checked there yet.
-    await page.waitForTimeout(REFLOW_IDLE_MS + 500);
-    await expect(stop(page)).toHaveAttribute("data-stop", "panaderia");
-    await expect(stop(page).getByText(t.here(1, 7))).toBeVisible();
-  });
-
-  test("the list's own order starts the line elsewhere", async ({ page }) => {
-    await page.goto("/design/linea");
-    await page.getByRole("button", { name: t.controls.useList }).click();
-    // Fruit and meat done; the bakery waits after the dairy.
-    await expect(stop(page)).toHaveAttribute("data-stop", "lacteos");
-    await expect(page.getByText(t.listOrder)).toBeVisible();
-    await expect(page.locator("[data-stop=panaderia]")).toHaveAttribute(
-      "data-kind",
-      "upcoming",
-    );
+    await page.mouse.up();
+    await expect(board(page)).toHaveAttribute("data-stop", "lacteos");
+    await expect(page.locator("[data-slot=line-scrub]")).toHaveCount(0);
   });
 
   test("a product added behind you says so, and you can go back", async ({
@@ -80,47 +81,75 @@ test.describe("la línea del súper", () => {
     await page.goto("/design/linea");
     await page.getByRole("button", { name: t.controls.late }).click();
 
-    const notice = page.getByText(t.late.title(t.sample.late.name));
-    await expect(notice).toBeVisible();
+    const notice = page.locator("[data-slot=line-late]");
+    await expect(notice).toHaveText(
+      new RegExp(
+        t.late.byOther(t.sample.late.name, t.sample.lateBy, names.panaderia),
+      ),
+    );
     await expect(
-      page.getByText(t.late.byOther(t.sample.lateBy, names.panaderia)),
-    ).toBeVisible();
+      node(page, "panaderia").locator("[data-slot=line-behind]"),
+    ).toHaveText(t.behindTag(1));
 
-    await page.getByRole("button", { name: t.late.back, exact: true }).click();
-    await expect(stop(page)).toHaveAttribute("data-stop", "panaderia");
+    await notice.getByRole("button", { name: t.late.back }).click();
+    await expect(board(page)).toHaveAttribute("data-stop", "panaderia");
     await expect(notice).toHaveCount(0);
 
-    // Done there, the line skips what is finished and takes you back.
+    // Done there, the button skips what is finished and takes you back.
     await page.getByRole("checkbox", { name: t.sample.late.name }).click();
-    await expect(stop(page)).toHaveAttribute("data-stop", "carnes");
+    await expect(next(page)).toHaveText(t.next(names.carnes));
+    await next(page).click();
+    await expect(board(page)).toHaveAttribute("data-stop", "carnes");
   });
 
-  test("going ahead leaves what was skipped behind, up to the checkout", async ({
+  test("the checkout prints the trip as a ticket, with what was not found", async ({
     page,
   }) => {
     await page.goto("/design/linea");
-    await page
-      .getByRole("button", { name: new RegExp(`^${t.goTo}${names.bebidas}`) })
-      .click();
-    await expect(stop(page)).toHaveAttribute("data-stop", "bebidas");
-    await expect(page.locator("[data-stop=almacen]")).toHaveAttribute(
-      "data-kind",
-      "passed",
-    );
-
-    await page.getByRole("button", { name: texts.shopping.finish }).click();
-    await expect(stop(page)).toHaveAttribute("data-stop", "caja");
+    await node(page, "caja").click();
+    await expect(board(page)).toHaveAttribute("data-stop", "caja");
+    const ticket = page.locator("[data-slot=line-ticket]");
+    await expect(ticket).toContainText(t.ticket.count(7, 19));
     // Meat 2, pantry 4, dairy 3, drinks 1, cleaning 2.
+    const stub = ticket.locator("[data-slot=line-stub]");
+    await expect(stub.getByRole("listitem")).toHaveCount(5);
+    await expect(stub).toContainText(t.ticket.missingCount(4));
+
+    await page.getByRole("button", { name: t.restart }).click();
+    await expect(board(page)).toHaveAttribute("data-stop", "carnes");
+  });
+
+  test("a list without categories is one station and the rail measures the cart", async ({
+    page,
+  }) => {
+    await page.goto("/design/linea");
+    await page.getByRole("button", { name: t.controls.useSimple }).click();
+    await expect(board(page)).toHaveAttribute("data-stop", "lista");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      t.simple,
+    );
+    // The whole list in one place, and only the checkout ahead.
     await expect(
-      page.getByText(
-        t.leftBehind(12, [
-          names.carnes,
-          names.almacen,
-          names.lacteos,
-          names.bebidas,
-          names.limpieza,
-        ]),
-      ),
-    ).toBeVisible();
+      page.locator("[data-slot=line-rows]").getByRole("checkbox"),
+    ).toHaveCount(19);
+    await expect(page.locator("[data-slot=line-rail] button")).toHaveCount(2);
+    await expect(next(page)).toHaveText(t.toCheckout);
+
+    await next(page).click();
+    await expect(page.locator("[data-slot=line-ticket]")).toContainText(
+      t.ticket.count(7, 19),
+    );
+  });
+
+  test("the list's own order starts the line elsewhere", async ({ page }) => {
+    await page.goto("/design/linea");
+    await page.getByRole("button", { name: t.controls.useList }).click();
+    // Fruit and meat done; the bakery waits after the dairy.
+    await expect(board(page)).toHaveAttribute("data-stop", "lacteos");
+    await expect(page.getByText(t.listOrder)).toBeVisible();
+    await expect(node(page, "panaderia")).toHaveAttribute(
+      "data-kind",
+      "upcoming",
+    );
   });
 });

@@ -838,8 +838,11 @@ no guardan nada, no añaden tokens ni componentes a `ui` y no se usan desde la
 app hasta que el usuario las asigne a una fase. `/design` las lista en
 "Prototipos". Sus textos van en `texts.design.<idea>`.
 
-**La línea del súper** (`src/app/design/linea/`): el modo compra como una
-línea de metro, una estación por categoría con algo en la lista.
+**La línea del súper** (`src/app/design/linea/`): el modo compra como un
+andén. Una estación a la vez en un cartel, y la línea como un riel en el borde
+derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
+(una lista de estaciones plegables con la línea al costado) se leía como un
+"stepper" y se rehízo tras una segunda opinión.
 
 - **Orden aprendido.** `learnRoute` (`learn-route.ts`, con test) ordena las
   categorías por cómo se marcaron las compras anteriores (`checked_at`): en
@@ -847,54 +850,65 @@ línea de metro, una estación por categoría con algo en la lista.
   la media de esas medianas entre compras. Un producto tomado al final no
   arrastra su categoría. Hacen falta dos compras con marcas en al menos dos
   categorías (una marca sin hora legible no cuenta); las categorías que nunca
-  aparecieron van después, en el orden de la lista. La
-  muestra (`sample.ts`) trae tres compras con la panadería primero y los
-  lácteos al fondo.
-- **Estaciones.** La actual abre con sus filas (`ListRow`), un eyebrow
-  "Estás acá · 3 de 7" y un `h2` con su icono; el tramo de la línea que la
-  recorre toma el hilo de su categoría. Las próximas se pliegan a una fila de
-  56px con nombre, lo pendiente en `text-label` y el conteo en mono; las
-  pasadas, a 44px con "2 de 2" en el carro. Una pasada con algo pendiente
-  lleva el nodo y la cuenta en cítrico. Tocar una estación lleva ahí: hacia
-  adelante, lo que se saltó queda atrás; hacia atrás, la actual vuelve a
-  esperar adelante. La caja deja atrás todas las estaciones.
-- **La línea.** Columna de 24px, trazo de 2px en `rule-strong`; lo
-  recorrido se llena en el par de "hecho" (`action-bg`) por `scaleY`. Nodos:
-  disco de 10px (pasada), anillo de 12px en el hilo de la categoría
-  (próxima), anillo de 24px (actual) y una barra al final, "Caja". Un solo
-  punto de 10px, fuera de las estaciones, marca dónde estás: su altura sale
-  de los altos fijos de las cabeceras, sin medir, y viaja con
-  `duration-slow` y `ease-in-out` mientras las estaciones se cierran con
-  `layout="position"`. Con movimiento reducido salta.
-- **Seguir.** Con todo marcado por una marca hecha ahí, la estación espera
-  `REFLOW_IDLE_MS` (la misma pausa de A-5; marcar o desmarcar la reinicia) y
-  dice "Listo · próxima: Almacén"; después se pliega, el punto baja, la cabecera cambia y
-  una región `role="status"` dice "Llegaste a Almacén, estación 4 de 7.". El
-  foco va al `h2` de la estación nueva si se había perdido o quedaba en las
-  filas que se van. Una estación terminada a la que se vuelve (para revisar o
-  desmarcar) no echa a nadie: espera hasta que se marque algo ahí.
-- **La cabecera** es el cartel del andén: "Comprando · 7 de 19" como eyebrow y
-  la estación en `text-title` serif, que entra desde abajo y sale hacia
-  arriba (`--motion-shift`); la regla de abajo se llena con el carro como en
-  el modo compra.
-- **Lo que llega tarde.** Un producto sumado a una estación ya pasada (el pan
-  de Ana, o el "+") enciende esa estación con el pulso remoto y muestra en la
-  actual un `Banner` de atención: "Pan de campo quedó atrás · Ana lo sumó en
-  Panadería, que ya pasaste.", con "Volver" y "Después". Ir a esa estación
-  responde el aviso. En la caja no hay estación donde mostrarlo: lo dice la
-  región de estado. Una categoría nueva en la compra que cae por encima de
+  aparecieron van después, en el orden de la lista. La muestra (`sample.ts`)
+  trae tres compras con la panadería primero y los lácteos al fondo.
+- **El cartel** (`Board`): `surface-inverse` con `rounded-sheet`, tinta en los
+  dos modos. Arriba, el número de estación en mono y lima ("03/07") y lo que
+  falta como eyebrow ("Faltan 2"); el nombre en `text-display` serif, que es
+  el `h1`; debajo, una barra de 4px con el hilo de la categoría (el único
+  color del cartel) y su icono. Al cambiar de estación el nombre gira letra
+  por letra, como un cartel de paletas: `rotateX` de 90° a 0 y fundido, con
+  `--motion-stagger` entre letras (tope de 12) y `duration-base`. El lector
+  recibe un nombre estable (sr-only); las letras van con `aria-hidden`. Con
+  movimiento reducido solo funde.
+- **Las filas** de la estación (`ListRow`) entran escalonadas debajo del
+  cartel. Marcar vibra 8 ms donde hay `navigator.vibrate`, y un punto del par
+  de "hecho" vuela desde la casilla hasta el punto del riel (`duration-base`,
+  `ease-in-out`), que responde creciendo y volviendo. Con movimiento reducido
+  no vuela.
+- **El riel** (`Rail`, `nav` "Recorrido"): fijo en el borde derecho, entre la
+  cabecera y la barra. Trazo de 6px en `rule-strong`; lo recorrido se llena
+  en `action-bg` por `scaleY`. Un botón de 44px por parada: anillo de 14px en
+  el hilo de la categoría (próxima), disco de 12px (pasada), anillo de 24px
+  (actual) y una barra al final, "Caja". Tocar un nodo lleva ahí. Deslizar
+  por el riel (`touch-none`, con captura del puntero) muestra al costado el
+  nombre de la parada bajo el dedo, sobre tinta, con una vibración en cada
+  una, y al soltar va a esa. Un solo punto de 10px marca dónde estás y viaja
+  con `duration-slow` y `ease-in-out`. El contenido deja libre esa columna
+  (`pr-12`).
+- **Seguir.** Nada avanza solo. El botón principal de la barra dice lo que
+  viene ("Siguiente: Almacén", o "Ir a la caja"): `secondary` mientras falta
+  algo (tocarlo deja lo pendiente atrás) y primario con la estación completa.
+  Hacia adelante, lo que se saltó queda atrás; hacia atrás, la estación que
+  se deja vuelve a esperar adelante. Una región `role="status"` dice
+  "Llegaste a Almacén, estación 4 de 7.".
+- **Lo que queda atrás.** Una estación pasada con algo pendiente lleva el
+  nodo en cítrico y un ramal con la cuenta ("+1") junto al riel. Si el
+  producto llega tarde (el pan de Ana, o el "+"), el ramal se enciende con el
+  pulso remoto y bajo el cartel aparece una línea, sin tarjeta, con hilo
+  cítrico: "Ana sumó Pan de campo en Panadería, que ya pasaste." y "Volver".
+  Se va al moverse. Una categoría nueva en la compra que cae por encima de
   donde estás también queda atrás.
-- **Caja.** "Terminé" (o la última estación) lleva al final de la línea; si
-  quedó algo, lo dice por estaciones: "Quedaron 12 productos atrás, en 5
-  estaciones. Tocá una para volver.". Ahí "Terminé" queda con `aria-disabled`
-  (como el "+" sin más muestras y el pan de Ana ya sumado), así el foco no se
-  pierde.
-- **La cabecera para el lector** es un nombre estable ("Estás en Almacén",
-  sr-only); el cartel que rueda va con `aria-hidden`, porque por un momento
-  muestra dos estaciones.
-- **Para probar**, al pie: simular el pan de Ana, empezar con el orden de la
-  lista o el aprendido, reiniciar. Pruebas en `e2e/line-prototype.spec.ts` y
-  en las capturas de `e2e/visual.spec.ts`.
+- **Caja** (`Ticket`): la compra como un ticket, la única tarjeta-objeto de
+  la pantalla (pistacho, `rounded-sheet`). Entra con `duration-cinematic` y
+  sus renglones se imprimen escalonados: una línea por estación con "5 de 5"
+  en mono y el total del carro. Bajo una línea de corte punteada, el talón
+  "No conseguido" con lo que faltó por estación, en cítrico. El ticket se
+  puede arrastrar y vuelve a su lugar. Ahí el botón principal es "Empezar de
+  nuevo" (reinicia la muestra).
+- **Lista simple, sin categorías.** Quien no quiera categorías tiene una sola
+  estación, "Tu lista", con todos los productos; el cartel cuenta el carro
+  ("07/19") y el riel deja de ser un recorrido y pasa a medir el avance: el
+  punto baja con cada producto marcado hasta la caja. Todo lo demás (marcar,
+  el vuelo, el ticket) funciona igual. Es un modo del prototipo; si llega a la
+  app, pide una decisión de producto (hoy cada producto recibe categoría
+  sola).
+- **Sin perder el foco.** El "+" sin más muestras y el pan de Ana ya sumado
+  usan `aria-disabled`; si el foco queda en nada tras moverse, va al `h1` del
+  cartel.
+- **Para probar**, al pie: simular el pan de Ana, cambiar entre orden
+  aprendido, orden de la lista y lista simple, reiniciar. Pruebas en
+  `e2e/line-prototype.spec.ts` y en las capturas de `e2e/visual.spec.ts`.
 
 ## 9. Accesibilidad
 

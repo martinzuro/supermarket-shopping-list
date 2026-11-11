@@ -1123,64 +1123,70 @@ export const texts = {
       note: "Pantallas enteras con datos de muestra, para probar una idea con una mano antes de pasarla al backlog. No son parte de la interfaz.",
       line: {
         title: "La línea del súper",
-        body: "El modo compra como una línea de metro: una estación por categoría, en el orden en que recorrés tu súper, aprendido de tus últimas compras.",
+        body: "El modo compra como un andén: una estación a la vez en un cartel, y la línea como un riel al alcance del pulgar, en el orden en que recorrés tu súper.",
         open: "Abrir el prototipo",
       },
     },
-    /** El prototipo de /design/linea: el modo compra como una línea. */
+    /** El prototipo de /design/linea: el modo compra como un andén con riel. */
     line: {
       title: "La línea del súper",
       exitAria: "Salir del prototipo",
-      route: "Recorrido",
-      /** Eyebrow de la estación actual: "Estás acá · 3 de 7". */
-      here: (n: number, total: number) => `Estás acá · ${n} de ${total}`,
-      hereShort: "Estás acá",
-      hereSpoken: "Estás en ",
-      /** Con todo marcado, mientras espera para seguir. */
-      ready: (next: string) => `Listo · próxima: ${next}`,
+      rail: "Recorrido",
+      /** El número del cartel: "03/07". */
+      number: (n: number, total: number) =>
+        `${String(n).padStart(2, "0")}/${String(total).padStart(2, "0")}`,
       stationSpoken: (n: number, total: number) =>
-        `, estación ${n} de ${total}`,
-      goTo: "Ir a ",
-      goBack: "Volver a ",
-      passedSpoken: ", ya pasaste",
-      pendingSpoken: (n: number) =>
-        n === 1 ? " 1 pendiente" : ` ${n} pendientes`,
-      /** Lo que ya está en el carro de una estación pasada: "2 de 3". */
-      cart: (done: number, total: number) => `${done} de ${total}`,
-      cartSpoken: " en el carro",
+        `Estación ${n} de ${total}. `,
+      cartSpoken: (done: number, total: number) =>
+        `${done} de ${total} en el carro. `,
+      hereSpoken: "Estás en ",
+      /** Lo que falta en la estación, en el cartel. */
+      pending: (n: number) =>
+        n === 0 ? "Todo en el carro" : n === 1 ? "Falta 1" : `Faltan ${n}`,
+      next: (name: string) => `Siguiente: ${name}`,
+      toCheckout: "Ir a la caja",
+      restart: "Empezar de nuevo",
+      goTo: (name: string) => `Ir a ${name}`,
+      nodeSpoken: (done: number, total: number) =>
+        `, ${done} de ${total} en el carro`,
+      /** La etiqueta junto a una estación pasada con algo pendiente. */
+      behindTag: (n: number) => `+${n}`,
+      behindSpoken: (n: number) =>
+        n === 1 ? ", 1 quedó atrás" : `, ${n} quedaron atrás`,
       checkout: "Caja",
-      allIn: "Todo en el carro.",
-      /** En la caja, si quedó algo en estaciones pasadas. */
-      leftBehind: (products: number, stations: readonly string[]) => {
-        const what =
-          products === 1
-            ? "Quedó 1 producto atrás"
-            : `Quedaron ${products} productos atrás`;
-        return stations.length === 1
-          ? `${what}, en ${stations[0]}. Tocá la estación para volver.`
-          : `${what}, en ${stations.length} estaciones. Tocá una para volver.`;
-      },
+      /** La única estación de una lista sin categorías. */
+      simple: "Tu lista",
       arrived: (name: string, n: number, total: number) =>
         `Llegaste a ${name}, estación ${n} de ${total}.`,
+      arrivedSimple: "Volviste a tu lista.",
       arrivedCheckout: "Llegaste a la caja.",
       learned: (trips: number) =>
         `Orden aprendido de tus últimas ${trips} compras`,
       listOrder: "Orden del recorrido de la lista",
+      simpleOrder: "Lista simple, sin categorías",
       late: {
-        title: (name: string) => `${name} quedó atrás`,
-        byOther: (who: string, station: string) =>
-          `${who} lo sumó en ${station}, que ya pasaste.`,
-        bySelf: (station: string) =>
-          `Lo sumaste en ${station}, que ya pasaste.`,
+        byOther: (name: string, who: string, station: string) =>
+          `${who} sumó ${name} en ${station}, que ya pasaste.`,
+        bySelf: (name: string, station: string) =>
+          `Sumaste ${name} en ${station}, que ya pasaste.`,
         back: "Volver",
-        later: "Después",
+      },
+      ticket: {
+        eyebrow: "Tu compra",
+        total: "En el carro",
+        count: (done: number, total: number) => `${done} de ${total}`,
+        missing: "No conseguido",
+        missingCount: (n: number) => (n === 1 ? "falta 1" : `faltan ${n}`),
+        hint: "Tocá una estación del riel para volver a buscarlo.",
+        allIn: "No faltó nada.",
       },
       controls: {
         eyebrow: "Prototipo · datos de muestra",
-        body: "Nada se guarda. El orden sale de tres compras de muestra en las que marcaste primero la panadería y casi al final los lácteos. El + suma productos de muestra.",
+        body: "Nada se guarda. El orden sale de tres compras de muestra en las que marcaste primero la panadería y casi al final los lácteos. El + suma productos de muestra. Deslizá el pulgar por el riel para recorrer las estaciones.",
         late: "Simular que Ana suma pan",
-        useList: "Empezar con el orden de la lista",
-        useLearned: "Empezar con el orden aprendido",
+        useList: "Orden de la lista",
+        useLearned: "Orden aprendido",
+        useSimple: "Lista simple, sin categorías",
         reset: "Reiniciar",
         back: "Volver al sistema de diseño",
       },
