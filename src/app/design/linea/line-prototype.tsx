@@ -237,12 +237,10 @@ function reducer(state: State, action: Action): State {
         passed,
         added: action.by === null ? state.added + 1 : state.added,
         lateAdded: state.lateAdded || action.by !== null,
+        // At the checkout the ticket shows it. Either way the status region,
+        // always mounted, is what says it.
         notice: behind && state.at !== CHECKOUT ? notice : state.notice,
-        // At the checkout the ticket shows it; the status region says it.
-        announcement:
-          behind && state.at === CHECKOUT
-            ? lateText(notice)
-            : state.announcement,
+        announcement: behind ? lateText(notice) : state.announcement,
         pulse: action.by === null ? state.pulse : station,
         moved: true,
       };
@@ -320,21 +318,27 @@ export function LinePrototype() {
     }
   }, [at, state.moved]);
 
+  function focusBoard() {
+    document.getElementById(HEADING_ID)?.focus({ preventScroll: true });
+  }
+
   function check(id: string, checked: boolean, origin: Element) {
     dispatch({ type: "check", id, checked });
     if (!checked) return;
     navigator.vibrate?.(8);
     if (reduced) return;
     // Where it went: the product shrinks to a dot and flies to its node.
-    const node = document.querySelector("[data-slot=line-here]");
-    if (!node) return;
+    // To where the dot will be: without categories this check moves it.
+    const track = document.querySelector("[data-slot=line-track]");
+    if (!track) return;
     const a = origin.getBoundingClientRect();
-    const b = node.getBoundingClientRect();
+    const b = track.getBoundingClientRect();
+    const landing = simple && total > 0 ? (done + 1) / total : progress;
     flyerId.current += 1;
     const flyer: Flyer = {
       id: flyerId.current,
       from: [a.left + a.width / 2, a.top + a.height / 2],
-      to: [b.left + b.width / 2, b.top + b.height / 2],
+      to: [b.left + b.width / 2, b.top + b.height * landing],
     };
     setFlyers((list) => [...list, flyer]);
   }
@@ -394,7 +398,6 @@ export function LinePrototype() {
           <Collapse show={state.notice !== null} className="pt-3">
             {state.notice ? (
               <div
-                role="status"
                 data-slot="line-late"
                 className="border-citrus-text flex items-center gap-3 border-l-2 pl-3"
               >
@@ -412,6 +415,8 @@ export function LinePrototype() {
                   onClick={() => {
                     if (state.notice) {
                       dispatch({ type: "move", to: state.notice.station });
+                      // The button fades out with its notice, focus and all.
+                      focusBoard();
                     }
                   }}
                 >
@@ -489,20 +494,21 @@ export function LinePrototype() {
               >
                 {t.controls.late}
               </Button>
-              {orders
-                .filter((option) => option.order !== order)
-                .map((option) => (
-                  <Button
-                    key={option.order}
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      dispatch({ type: "reset", order: option.order })
+              {orders.map((option) => (
+                <Button
+                  key={option.order}
+                  type="button"
+                  variant={option.order === order ? "secondary" : "outline"}
+                  aria-pressed={option.order === order}
+                  onClick={() => {
+                    if (option.order !== order) {
+                      dispatch({ type: "reset", order: option.order });
                     }
-                  >
-                    {option.label}
-                  </Button>
-                ))}
+                  }}
+                >
+                  {option.label}
+                </Button>
+              ))}
               <Button
                 type="button"
                 variant="ghost"
@@ -653,7 +659,7 @@ function Board({ stop, number, spoken, status, animate }: BoardProps) {
           {name}
           {status ? `. ${status}` : ""}
         </span>
-        <span aria-hidden className="relative block [perspective:600px]">
+        <span aria-hidden className="relative block">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={stop}
@@ -664,7 +670,7 @@ function Board({ stop, number, spoken, status, animate }: BoardProps) {
               {name.split(" ").map((word, w) => (
                 <span key={w}>
                   {w > 0 ? " " : null}
-                  <span className="inline-block whitespace-nowrap">
+                  <span className="inline-block whitespace-nowrap [perspective:600px]">
                     {[...word].map((char) => {
                       const i = letter++;
                       return (
@@ -738,6 +744,9 @@ function Rail({
   onMove,
 }: RailProps) {
   const [scrub, setScrub] = useState<number | null>(null);
+  // A press that slid is a scrub and moves on lifting; one that did not is a
+  // tap, and the node's own click moves. Never both.
+  const slid = useRef(false);
   const last = stops.length - 1;
 
   function stopAt(event: PointerEvent<HTMLElement>) {
@@ -755,13 +764,19 @@ function Rail({
           data-slot="line-rail"
           className="pointer-events-auto relative flex h-full w-11 touch-none flex-col justify-between select-none"
           onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId);
+            if (event.button !== 0) return;
+            slid.current = false;
             setScrub(stopAt(event));
           }}
           onPointerMove={(event) => {
             if (scrub === null) return;
             const index = stopAt(event);
             if (index !== scrub) {
+              if (!slid.current) {
+                slid.current = true;
+                // From here on the finger may leave the rail's width.
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }
               navigator.vibrate?.(8);
               setScrub(index);
             }
@@ -769,13 +784,15 @@ function Rail({
           onPointerUp={(event) => {
             if (scrub === null) return;
             setScrub(null);
-            onMove(stops[stopAt(event)]);
+            if (slid.current) onMove(stops[stopAt(event)]);
           }}
           onPointerCancel={() => setScrub(null)}
+          onLostPointerCapture={() => setScrub(null)}
         >
           {/* The track, between the centers of the first and last nodes. */}
           <span
             aria-hidden
+            data-slot="line-track"
             className="bg-rule-strong absolute top-[22px] bottom-[22px] left-1/2 -ml-[3px] w-1.5 overflow-hidden rounded-full"
           >
             <motion.span
@@ -800,8 +817,12 @@ function Rail({
                 aria-current={current ? "step" : undefined}
                 data-stop={stop}
                 data-kind={current ? "current" : gone ? "passed" : "upcoming"}
-                onClick={() => onMove(stop)}
-                className="relative flex size-11 items-center justify-center rounded-full"
+                onClick={() => {
+                  // The click that ends a scrub is not a tap on this node.
+                  if (!slid.current) onMove(stop);
+                  slid.current = false;
+                }}
+                className="relative flex size-11 shrink-0 items-center justify-center rounded-full"
               >
                 <span className="sr-only">
                   {t.goTo(nameOf(stop))}
@@ -846,7 +867,7 @@ function Rail({
                     aria-hidden
                     data-slot="line-behind"
                     className={cn(
-                      "text-label text-citrus-text rounded-field absolute right-9 px-1 font-mono transition-colors ease-out",
+                      "text-label text-citrus-text rounded-field pointer-events-none absolute right-9 px-1 font-mono transition-colors ease-out",
                       pulse === stop
                         ? "bg-remote-pulse duration-instant"
                         : "bg-paper duration-slow",
@@ -928,10 +949,11 @@ function Ticket({ order, items, stations, animate }: TicketProps) {
   return (
     <motion.div
       data-slot="line-ticket"
-      drag
+      // Sideways only: up and down is the page's scroll.
+      drag="x"
       dragSnapToOrigin
       dragElastic={0.2}
-      className="bg-paper-2 rounded-sheet mt-3 cursor-grab touch-none px-5 py-5 active:cursor-grabbing"
+      className="bg-paper-2 rounded-sheet mt-3 cursor-grab touch-pan-y px-5 py-5 active:cursor-grabbing"
       initial={animate ? { opacity: 0, y: -motionTokens.shift * 3 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={transitions.cinematic}

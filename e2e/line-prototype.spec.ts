@@ -55,6 +55,14 @@ test.describe("la línea del súper", () => {
     ).toHaveText(t.behindTag(4));
   });
 
+  test("a node works from the keyboard", async ({ page }) => {
+    await page.goto("/design/linea");
+    await node(page, "lacteos").focus();
+    await page.keyboard.press("Enter");
+    await expect(board(page)).toHaveAttribute("data-stop", "lacteos");
+    await expect(node(page, "lacteos")).toBeFocused();
+  });
+
   test("sliding along the rail shows each stop and lands on the last one", async ({
     page,
   }) => {
@@ -82,10 +90,15 @@ test.describe("la línea del súper", () => {
     await page.getByRole("button", { name: t.controls.late }).click();
 
     const notice = page.locator("[data-slot=line-late]");
-    await expect(notice).toHaveText(
-      new RegExp(
-        t.late.byOther(t.sample.late.name, t.sample.lateBy, names.panaderia),
-      ),
+    const said = t.late.byOther(
+      t.sample.late.name,
+      t.sample.lateBy,
+      names.panaderia,
+    );
+    await expect(notice).toContainText(said);
+    // The region that is always there says it to the reader.
+    await expect(page.locator("[data-slot=line-announcement]")).toHaveText(
+      said,
     );
     await expect(
       node(page, "panaderia").locator("[data-slot=line-behind]"),
@@ -94,6 +107,8 @@ test.describe("la línea del súper", () => {
     await notice.getByRole("button", { name: t.late.back }).click();
     await expect(board(page)).toHaveAttribute("data-stop", "panaderia");
     await expect(notice).toHaveCount(0);
+    // The button went with its notice: the focus is on the board.
+    await expect(page.locator("#line-current")).toBeFocused();
 
     // Done there, the button skips what is finished and takes you back.
     await page.getByRole("checkbox", { name: t.sample.late.name }).click();
@@ -125,6 +140,13 @@ test.describe("la línea del súper", () => {
     await page.goto("/design/linea");
     await page.getByRole("button", { name: t.controls.useSimple }).click();
     await expect(board(page)).toHaveAttribute("data-stop", "lista");
+    // The option stays where it was, pressed, with the focus on it.
+    await expect(
+      page.getByRole("button", { name: t.controls.useSimple }),
+    ).toBeFocused();
+    await expect(
+      page.getByRole("button", { name: t.controls.useSimple }),
+    ).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       t.simple,
     );

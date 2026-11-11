@@ -873,7 +873,9 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
   (actual) y una barra al final, "Caja". Tocar un nodo lleva ahí. Deslizar
   por el riel (`touch-none`, con captura del puntero) muestra al costado el
   nombre de la parada bajo el dedo, sobre tinta, con una vibración en cada
-  una, y al soltar va a esa. Un solo punto de 10px marca dónde estás y viaja
+  una, y al soltar va a esa. Un gesto, un movimiento: si el dedo se deslizó
+  mueve el riel al soltar, y si no, el clic del nodo (que es también el
+  camino del teclado y del lector). Un solo punto de 10px marca dónde estás y viaja
   con `duration-slow` y `ease-in-out`. El contenido deja libre esa columna
   (`pr-12`).
 - **Seguir.** Nada avanza solo. El botón principal de la barra dice lo que
@@ -887,14 +889,18 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
   producto llega tarde (el pan de Ana, o el "+"), el ramal se enciende con el
   pulso remoto y bajo el cartel aparece una línea, sin tarjeta, con hilo
   cítrico: "Ana sumó Pan de campo en Panadería, que ya pasaste." y "Volver".
-  Se va al moverse. Una categoría nueva en la compra que cae por encima de
+  Se va al moverse; lo anuncia la región de estado, siempre montada, y
+  "Volver" lleva el foco al cartel. El pulso del ramal anima
+  `background-color`, la misma excepción documentada de `ListRow`. Una
+  categoría nueva en la compra que cae por encima de
   donde estás también queda atrás.
 - **Caja** (`Ticket`): la compra como un ticket, la única tarjeta-objeto de
   la pantalla (pistacho, `rounded-sheet`). Entra con `duration-cinematic` y
   sus renglones se imprimen escalonados: una línea por estación con "5 de 5"
   en mono y el total del carro. Bajo una línea de corte punteada, el talón
   "No conseguido" con lo que faltó por estación, en cítrico. El ticket se
-  puede arrastrar y vuelve a su lugar. Ahí el botón principal es "Empezar de
+  puede arrastrar hacia los costados y vuelve a su lugar (`touch-pan-y`: el
+  scroll vertical sigue siendo de la página). Ahí el botón principal es "Empezar de
   nuevo" (reinicia la muestra).
 - **Lista simple, sin categorías.** Quien no quiera categorías tiene una sola
   estación, "Tu lista", con todos los productos; el cartel cuenta el carro
@@ -906,8 +912,9 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
 - **Sin perder el foco.** El "+" sin más muestras y el pan de Ana ya sumado
   usan `aria-disabled`; si el foco queda en nada tras moverse, va al `h1` del
   cartel.
-- **Para probar**, al pie: simular el pan de Ana, cambiar entre orden
-  aprendido, orden de la lista y lista simple, reiniciar. Pruebas en
+- **Para probar**, al pie: simular el pan de Ana, elegir entre orden
+  aprendido, orden de la lista y lista simple (tres botones con
+  `aria-pressed`), reiniciar. Pruebas en
   `e2e/line-prototype.spec.ts` y en las capturas de `e2e/visual.spec.ts`.
 
 ## 9. Accesibilidad
