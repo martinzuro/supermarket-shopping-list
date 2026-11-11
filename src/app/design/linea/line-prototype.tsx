@@ -23,7 +23,7 @@ import { motionTokens } from "@/lib/design/motion";
 import { categoryIds, type CategoryId } from "@/lib/design/tokens";
 import { texts } from "@/lib/texts";
 import { cn } from "@/lib/utils";
-import { learnRoute } from "./learn-route";
+import { learnRoute } from "@/lib/domain";
 import { pastTrips } from "./sample";
 
 const t = texts.design.line;

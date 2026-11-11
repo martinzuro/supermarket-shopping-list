@@ -29,3 +29,4 @@ Estado: Aceptado | Reemplazado por NNNN
 | [0007](0007-spanish-only.md) | Solo español, textos centralizados |
 | [0008](0008-design-direction.md) | Dirección de diseño Fresh Editorial y sus diez decisiones |
 | [0009](0009-motion-for-react.md) | Motion for React para el movimiento |
+| [0010](0010-supermarket-line.md) | La línea del súper reemplaza la pantalla del modo compra |

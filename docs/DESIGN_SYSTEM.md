@@ -851,7 +851,7 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
 (una lista de estaciones plegables con la línea al costado) se leía como un
 "stepper" y se rehízo tras una segunda opinión.
 
-- **Orden aprendido.** `learnRoute` (`learn-route.ts`, con test) ordena las
+- **Orden aprendido.** `learnRoute` (`src/lib/domain/learn-route.ts`, con test) ordena las
   categorías por cómo se marcaron las compras anteriores (`checked_at`): en
   cada compra, la mediana de las posiciones de sus productos entre 0 y 1, y
   la media de esas medianas entre compras. Un producto tomado al final no

@@ -1615,32 +1615,35 @@ cítrico con un ramal ("+1"), y un producto que llega tarde a una estación ya
 pasada lo avisa bajo el cartel con "Volver". La caja muestra la compra como
 un ticket con el talón "No conseguido".
 
-**Orden aprendido.** El orden de las estaciones sale de cómo se marcaron las
-compras anteriores (`items.checked_at` por `trip_id`), con `learnRoute`
-(`src/app/design/linea/learn-route.ts`, que al implementarse pasa a
-`src/lib/domain/`). No pide migración: los datos ya existen.
+**Orden aprendido.** `learnRoute` (`src/lib/domain/learn-route.ts`) ordena
+las categorías por cómo se marcaron las compras anteriores
+(`items.checked_at` por `trip_id`). No pide migración: los datos ya existen.
 
 **Lista simple, sin categorías.** Quien no quiera categorías ve una sola
 estación, "Tu lista", y el riel mide el avance del carro.
 
-**Decisiones abiertas, antes de implementar:**
+**Decisiones cerradas el 2026-11-11** ([ADR 0010](decisions/0010-supermarket-line.md)):
 
-- Qué manda en el orden: el aprendido, el manual de "Ordenar el recorrido", o
-  el aprendido como sugerencia que el manual pisa. Es por lista o por
-  dispositivo, y qué ven los otros miembros.
-- Cómo se elige la lista simple: una preferencia (por lista o por
-  dispositivo) o automática cuando todo cae en una categoría. Hoy cada
-  producto recibe categoría sola (A-1).
-- Dónde vive "dónde estoy" y "qué pasé": como el modo compra, es de este
-  dispositivo (`localStorage`), no de la lista.
-- El ticket de la caja frente al momento "Buena compra" y su resumen (M-3):
-  uno reemplaza al otro o se funden. "No conseguido" se cruza con la idea de
-  un tercer estado ("no había"), que no está en el backlog.
+- **Orden:** manda el orden de la lista (el manual de "Ordenar el
+  recorrido", compartido). El aprendido es una sugerencia que esa hoja
+  ofrece cuando difiere; aceptarla lo guarda para todos.
+- **Lista simple:** preferencia de este dispositivo (`localStorage`), y sola
+  cuando todo lo pendiente cae en una categoría.
+- **Posición:** "dónde estoy" y "qué pasé" son de este dispositivo, como el
+  modo compra (`src/lib/domain/line.ts` tiene las funciones puras).
+- **Caja:** el ticket y "Buena compra" (M-3) se funden. El ticket vive en la
+  última parada con "Terminé"; el momento queda como titular breve. "No
+  conseguido" es lo pendiente, sin tercer estado.
+- **Fondo de tinta para toda la pantalla:** fuera de alcance. Pide tokens
+  nuevos y toca el ADR 0008.
 - Totales por moneda (M-2), el "+" que despliega el campo, el aviso de
-  deshacer (A-4) y deslizar para borrar (M-9) tienen que seguir funcionando
-  dentro de la estación.
-- El fondo de tinta para toda la pantalla pide tokens nuevos (la paleta
-  oscura solo existe bajo `prefers-color-scheme`) y toca ADR 0008.
+  deshacer (A-4) y deslizar para borrar (M-9) siguen funcionando dentro de
+  la estación.
+
+**Plan por PRs:** (1) ADR, `learnRoute` y las funciones de la línea en el
+dominio; (2) el andén: cartel, riel, "Siguiente" y el punto que vuela;
+(3) lo que queda atrás y "Volver"; (4) la caja como ticket; (5) lista simple
+y orden sugerido; (6) documentación, capturas y el destino del prototipo.
 
 **Límites conocidos del prototipo:** el riel con más nodos de los que entran
 en pantallas muy bajas; la vibración no existe en iPhone; el ticket en 3D
@@ -1669,4 +1672,4 @@ Pendiente de decisión del usuario.
 - **Después:** M-4, M-5 (hecha el 2026-10-21), M-7, F-4 (hecha el
   2026-10-21), F-5, F-6 y F-7 (hecha el 2026-11-03).
 - **Asignada (2026-11-11):** F-9, la línea del súper, tras el prototipo de
-  `/design/linea`. Primero se cierran sus decisiones abiertas.
+  `/design/linea`. Decisiones cerradas ese día (ADR 0010); en curso.

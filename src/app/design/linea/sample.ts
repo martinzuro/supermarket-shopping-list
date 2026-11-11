@@ -1,5 +1,5 @@
 import type { CategoryId } from "@/lib/design/tokens";
-import type { CheckedItem } from "./learn-route";
+import type { CheckedItem } from "@/lib/domain";
 
 /**
  * Three past trips of the prototype, as the order of their checks: the

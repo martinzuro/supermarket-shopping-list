@@ -1,6 +1,6 @@
 /**
  * The order of the supermarket, learned from the order in which past trips
- * were checked (the "línea del súper" prototype, /design/linea).
+ * were checked (docs/improvements.md, F-9: "la línea del súper").
  *
  * Each trip ranks its checks by `checkedAt`, from 0 (first) to 1 (last). A
  * category's place in a trip is the median of its ranks, so one product
