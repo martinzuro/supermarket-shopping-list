@@ -369,8 +369,8 @@ después de la auditoría de usabilidad a 375 px (rama
 - El scroll es el gesto de la persona (el dedo que arrastra más de
   `TAP_SLOP_PX`, 10 px, la rueda o las teclas de desplazamiento; Espacio
   no, que marca), no el evento `scroll`: la página también se desplaza sola,
-  por ejemplo cuando la barra crece con el aviso "al carro" y acompaña el
-  final de la página (`use-bar-height.ts`).
+  por ejemplo cuando la barra crece mientras la persona escribe en ella y
+  acompaña el final de la página (`use-bar-height.ts`).
 - Tocar de nuevo una fila que espera la desmarca en su lugar, sin viaje.
   El "Deshacer" del aviso "al carro" también.
 - Solo se difiere el movimiento: la marca sigue siendo optimista y sale al
@@ -403,13 +403,21 @@ después de la auditoría de usabilidad a 375 px (rama
   agrupado, con la escritura que llega con demora) y `e2e/a5-burst.spec.ts`
   (tres toques por posición, en claro y oscuro). Las dos fallan con el
   código anterior.
-- Queda abierto: si la página está al final (una lista corta, o marcando
-  lo último), el primer marcado de la ráfaga hace aparecer el aviso "al
-  carro", la barra crece y `use-bar-height.ts` desplaza la página para que
-  las últimas filas no queden debajo. Todo sube lo que crece la barra (36
-  px en la prueba) y el segundo toque puede caer en la fila siguiente. No
-  es el reflujo: es la barra, y se resuelve aparte (reservar el alto del
-  aviso, o no acompañar el final mientras hay filas retenidas).
+- La barra tampoco mueve la lista (resuelto después, 2026-11-10, en
+  `use-bar-height.ts`). Quedaba abierto que, con la página al final, el
+  aviso "al carro" hacía crecer la barra y la página la acompañaba: todo
+  subía 36 px y el segundo toque de la ráfaga podía caer en la fila
+  siguiente. Y al revés: cuando la barra se achicaba (se va la fila de
+  frecuentes con lo último agregado, se cierra un aviso), el scroll se
+  recortaba y todo bajaba de golpe, a veces entre que el dedo se levanta y
+  el click, que caía 52 px más abajo, en otra fila o en un encabezado (lo
+  que hacía fallar a veces `e2e/f4-history.spec.ts` en CI). Ahora la
+  página acompaña el final solo si el foco está en la barra (escribiendo);
+  si la persona está en la lista, la página se queda quieta y el aviso tapa
+  un momento las últimas filas hasta que hace scroll. Y al achicarse, la
+  reserva de abajo baja solo lo que no mueve la página; el resto se libera
+  a medida que la persona sube. Pruebas en
+  `src/components/list/use-bar-height.test.tsx`.
 
 **Qué pasaba.** Al marcar un pendiente, la fila se quedaba en su lugar 320
 ms (`duration-base`) y después viajaba al carro, y todo lo de abajo subía
