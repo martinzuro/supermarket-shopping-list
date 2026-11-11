@@ -265,6 +265,37 @@ export const texts = {
       aboutSpoken: "cerca de ",
     },
   },
+  /**
+   * La línea del súper (F-9, ADR 0010): el modo compra como un andén, una
+   * estación (categoría) a la vez, con el recorrido en un riel.
+   */
+  line: {
+    /** Nombre del riel para lectores de pantalla. */
+    rail: "Recorrido",
+    /** El número del cartel: "03/07". */
+    number: (n: number, total: number) =>
+      `${String(n).padStart(2, "0")}/${String(total).padStart(2, "0")}`,
+    stationSpoken: (n: number, total: number) => `Estación ${n} de ${total}. `,
+    cartSpoken: (done: number, total: number) =>
+      `${done} de ${total} en el carro. `,
+    hereSpoken: "Estás en ",
+    /** Lo que falta en la estación, en el cartel. */
+    pending: (n: number) =>
+      n === 0 ? "Todo en el carro" : n === 1 ? "Falta 1" : `Faltan ${n}`,
+    /** El botón principal: nunca avanza solo. */
+    next: (name: string) => `Siguiente: ${name}`,
+    toCheckout: "Ir a la caja",
+    /** El botón mientras el recorrido todavía no cargó (deshabilitado). */
+    loading: "Cargando el recorrido",
+    goTo: (name: string) => `Ir a ${name}`,
+    nodeSpoken: (done: number, total: number) =>
+      `, ${done} de ${total} en el carro`,
+    /** La última parada. */
+    checkout: "Caja",
+    arrived: (name: string, n: number, total: number) =>
+      `Llegaste a ${name}, estación ${n} de ${total}.`,
+    arrivedCheckout: "Llegaste a la caja.",
+  },
   sendPending: {
     /** Nombre accesible del botón: abre la hoja de compartir del sistema. */
     share: "Mandar lo que falta",

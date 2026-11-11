@@ -628,8 +628,10 @@ piezas existentes, sin tokens ni componentes nuevos en `ui`.
   recarga no anima nada. Con movimiento reducido la cabecera solo funde y la
   línea salta a su lugar.
 - **La barra de abajo se pliega.** Sin campo ni frecuentes: un botón "+"
-  (`outline`, `icon-touch-lg`, "Agregar un producto") y "Terminé" (el
-  primario, `touch-lg`, con el check de trazo 2.5) ocupando el resto. Encima,
+  (`outline`, `icon-touch-lg`, "Agregar un producto") y, ocupando el resto,
+  el botón de la línea (F-9, abajo): "Siguiente: Almacén" en las estaciones
+  y "Terminé" (el primario, `touch-lg`, con el check de trazo 2.5) en la
+  caja. Encima,
   la línea de totales (M-2, `ShoppingTotals`, `shopping-totals.tsx`): a la
   izquierda "Carro" y lo del carro, a la derecha "Falta" y "~" con lo
   pendiente, cada uno por moneda, eyebrow y mono en `text-label`. Cada lado
@@ -644,8 +646,8 @@ piezas existentes, sin tokens ni componentes nuevos en `ui`.
 - **"Terminé"** vacía el carro con el flujo de siempre (`handleEmptyCart` de
   la lista, que lo registra con `useShoppingFinish`) y sale del modo; el
   momento "Buena compra" se trae a la vista, su acción arriba de la barra. Su
-  "Deshacer" devuelve el carro y también el modo compra, con el foco en
-  "Terminé". Sin nada en el carro solo sale del modo, con el foco en "Empezar
+  "Deshacer" devuelve el carro y también el modo compra, en la caja donde
+  estaba, con el foco en "Terminé". Sin nada en el carro solo sale del modo, con el foco en "Empezar
   a comprar". Mientras se compra, "Vaciar el carro" no está: lo hace
   "Terminé".
 - **El resumen** (M-3, `TripSummary`, `trip-summary.tsx`, en `details` del
@@ -665,6 +667,69 @@ piezas existentes, sin tokens ni componentes nuevos en `ui`.
   `held`), para las pruebas.
 - Muestras en `/design`: la cabecera en modo compra bajo la de siempre, la
   barra plegada en "Estados" y el momento con su resumen en "Superficies".
+
+### La línea del súper (el andén del modo compra)
+
+`docs/improvements.md` F-9 y ADR 0010: en modo compra la lista no se ve en
+sus dos secciones sino como un andén, una estación (categoría con algo en
+esta compra) a la vez. Sale del prototipo de `/design/linea` (abajo, en
+"Prototipos"), con datos reales y sin tokens ni componentes nuevos en `ui`.
+
+- **De dónde sale.** `useLine` (`src/components/list/use-line.ts`) arma las
+  estaciones con `groupByCategory` sobre todo lo vivo de la lista (marcado o
+  no), en el orden del recorrido de la lista (`categories.position`), y
+  deriva la posición con las funciones puras de `src/lib/domain/line.ts`
+  (`startOf`, `moveTo`, `nextStop`, `reconcileLine`). La posición (dónde
+  estoy, qué pasé y las estaciones de ese momento) se guarda con el viaje en
+  `lista:shopping` (`useShoppingLine`): es de este dispositivo, sobrevive a
+  recargar y termina con el viaje. La lista y la barra la leen del mismo
+  hook: son hermanas en la página.
+- **Empezar.** El viaje arranca en la primera estación con algo pendiente;
+  las anteriores, ya en el carro, quedan pasadas. Sin nada pendiente, en la
+  caja.
+- **El cartel** (`Board` en `line-platform.tsx`): igual al del prototipo
+  (`surface-inverse`, `rounded-sheet`, el número en mono y lima, lo que
+  falta como eyebrow, el nombre en `text-display` serif que gira letra por
+  letra, el hilo de la categoría y su icono). Es un `h2`: el `h1` de la
+  página es la cabecera "Comprando". Una recarga no anima ni anuncia nada.
+- **Las filas** son las de la lista (`ListRow` dentro de `SwipeToRemove`):
+  tocar el nombre abre la hoja de edición, deslizar borra lo pendiente
+  (M-9), lo que cambia otro miembro pulsa. Lo marcado queda en su lugar,
+  tachado: en una estación las filas no se mueven, así que la espera de A-5
+  no corre acá. Marcar deja el aviso con "Deshacer" en la barra (A-4), vibra
+  donde se puede y hace volar un punto de la casilla al riel. El guardia de
+  doble toque de A-4 se olvida al cambiar de estación: la primera fila de la
+  siguiente cae donde estaba la última marcada.
+- **El riel** (`Rail`): como en el prototipo, fijo en el borde derecho, un
+  botón de 44px por estación y la caja al final; tocar un nodo o deslizar
+  lleva ahí. Va de la cabecera a la barra plegada con lugar para la línea de
+  totales, y no se achica con los avisos de la barra: los nodos son
+  objetivos del pulgar y no se mueven; un aviso tapa un momento el final del
+  riel. Una estación pasada con todo en el carro es un disco lleno; con algo
+  pendiente conserva su anillo. Con un dedo, capturar el puntero en el riel
+  suelta la captura implícita del nodo: solo la pérdida de la captura del
+  propio riel cancela el deslizamiento.
+- **Seguir.** "Siguiente: X" (o "Ir a la caja") vive en la barra, bajo el
+  pulgar: `secondary` mientras falta algo en la estación, primario con la
+  estación completa (`data-ready`). Nunca avanza solo. Si la estación en la
+  que estás se queda sin productos (el último se borró), pasás a la
+  siguiente que tenías adelante, o a la caja. Una región `role="status"`
+  dice "Llegaste a Almacén, estación 4 de 7.".
+- **La caja** es la última parada: el cartel dice "Caja" con la cuenta del
+  carro, y la barra cambia "Siguiente" por "Terminé". Son dos elementos
+  distintos (el foco no se hereda: va al cartel).
+- **Sin toques de más.** Lo que aparece bajo el pulgar justo después de
+  moverse no es lo que el pulgar buscaba: el botón de la barra ignora un
+  toque dentro de `DOUBLE_TAP_MS` del último movimiento (por el botón o
+  solo, si la estación se quedó sin productos). Así un doble toque en
+  "Siguiente" no deja una estación atrás sin verla, ni uno en "Ir a la caja"
+  termina la compra. El teclado no tiene doble toque.
+- **Mientras carga** (una recarga en plena compra), la lista muestra sus
+  secciones en carga y el botón espera deshabilitado ("Cargando el
+  recorrido"): "Terminé" nunca es lo que hay ahí mientras tanto. Si las
+  categorías no se pudieron leer no hay línea (`useLineFailed`): la lista
+  queda en sus secciones y la barra con "Terminé", como antes de F-9, y la
+  posición guardada no se toca.
 
 ### Miembros, avisos y "traer lo de otra lista"
 
@@ -1107,10 +1172,19 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
   el campo vacío que lo pliegan, la recarga que lo conserva, "Salir" (el lock
   suelto, el carro intacto); "Terminé" con un solo `empty_cart`, el momento a
   la vista con su resumen y lo que oye el lector, y su "Deshacer" que vuelve
-  al modo; "Terminé" con el carro vacío, y el resumen al vaciar con "Vaciar el
+  a la caja; "Terminé" con el carro vacío, y el resumen al vaciar con "Vaciar el
   carro" sin nada pendiente. Con capturas a 375px en claro y oscuro.
+- `e2e/f9-line.spec.ts` (helpers en `e2e/line.ts`): el andén con datos
+  reales. Una estación a la vez en el orden del recorrido; el punto que
+  vuela; "Siguiente" que espera con la estación completa; el lugar tras
+  recargar; la caja, con el foco en el cartel y el doble toque que no
+  termina; el riel por toque, por deslizamiento con toques reales (CDP) y
+  por teclado; la hoja de edición, el "Deshacer" de A-4 y el "+" dentro de
+  la estación; y con movimiento reducido, que nada vuela ni gira. Unitarios
+  de `line.ts`, `useLine`, `useShoppingLine` y la barra.
   `visual.spec.ts` suma la lista en modo compra (invariantes, 44px, la cuenta
-  en serif, "Terminé" en el par de acción) y, con movimiento reducido, que la
+  en serif, el cartel en serif sobre tinta y, en la caja, "Terminé" en el par
+  de acción) y, con movimiento reducido, que la
   cabecera no se traslada y la línea no crece. Unitarios del lock (con la API
   y sin ella), del store y del resumen.
 - `src/lib/utils.test.ts`: `cn` conoce las escalas del sistema (roles

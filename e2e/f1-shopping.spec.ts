@@ -1,6 +1,15 @@
 import { expect, test, type Page, type Request } from "@playwright/test";
 import { SHOPPING_KEY } from "../src/components/list/shopping-mode";
 import { texts } from "../src/lib/texts";
+import {
+  checkOnLine,
+  expectAt,
+  findOnLine,
+  goToCheckout,
+  lineRow,
+  nextButton,
+  tapNext,
+} from "./line";
 import { SCHEMES } from "./sharing";
 import { adminClient } from "./supabase-admin";
 import {
@@ -19,10 +28,11 @@ import {
  * docs/improvements.md, F-1 with M-2 and M-3, end to end against the local
  * Supabase stack at 375px in light and dark: "Empezar a comprar" turns the
  * screen into the supermarket's (the header counts what is in the cart, the
- * add bar folds into "+" and "Terminé" with the totals over them, the screen
- * stays on), the mode survives a reload, "Salir" leaves it, and "Terminé"
- * empties the cart into the "Buena compra" moment with its summary, whose
- * Deshacer goes back to shopping. The Screen Wake Lock API is faked
+ * add bar folds into "+" and what comes next on the line with the totals over
+ * them, the screen stays on), the mode survives a reload, "Salir" leaves it,
+ * and "Terminé", at the checkout, empties the cart into the "Buena compra"
+ * moment with its summary, whose Deshacer goes back to the checkout. The line
+ * itself (F-9) is f9-line.spec.ts's. The Screen Wake Lock API is faked
  * (addInitScript): headless Chromium refuses it, and the fake tells when it
  * was asked for and let go.
  */
@@ -222,15 +232,20 @@ for (const scheme of SCHEMES) {
       await expect(exitButton(page)).toBeFocused();
       await expect(masthead(page)).toHaveAttribute("data-wake-lock", "held");
       expect(await wakeLockLog(page)).toEqual({ requests: 1, releases: 0 });
-      // The bar: no field, "+" and "Terminé", and what is left to pay.
+      // The bar: no field, "+" and what comes next on the line (F-9), and
+      // what is left to pay. "Terminé" waits at the checkout.
       await expect(field(page)).toBeHidden();
       await expect(addButton(page)).toBeVisible();
-      await expect(finishButton(page)).toBeVisible();
+      await expectAt(page, "Frutas y verduras");
+      await expect(nextButton(page)).toHaveText(
+        texts.line.next("Fiambres y lácteos"),
+      );
+      await expect(finishButton(page)).toHaveCount(0);
       await expect(totals(page)).toHaveText(
         `${s.totals.remaining}${s.totals.about}${s.totals.aboutSpoken}$ 334 · US$ 6`,
       );
       // "Vaciar el carro" waits: "Terminé" does it.
-      await checkAndSync(page, "Tomates");
+      await checkOnLine(page, "Tomates");
       await expect(emptyAction(page)).toHaveCount(0);
       await expect(progress(page)).toHaveText(
         `${s.progress(1, 4)}${s.progressTail}`,
@@ -255,10 +270,9 @@ for (const scheme of SCHEMES) {
       // folds it back, with the focus on "+".
       await addButton(page).click();
       await expect(field(page)).toBeFocused();
-      await expect(finishButton(page)).toBeHidden();
+      await expect(nextButton(page)).toBeHidden();
       await captureViewport(page, testInfo, `f1-adding-${scheme}`);
       await addAll(page, ["Yerba"]);
-      await expect(row(pending(page), "Yerba")).toBeVisible();
       await expect(progress(page)).toHaveText(
         `${s.progress(1, 5)}${s.progressTail}`,
       );
@@ -270,7 +284,7 @@ for (const scheme of SCHEMES) {
       await expect(field(page)).toBeFocused();
       await field(page).blur();
       await expect(field(page)).toBeHidden();
-      await expect(finishButton(page)).toBeVisible();
+      await expect(nextButton(page)).toBeVisible();
 
       // A reload finds the trip where it was.
       await page.reload();
@@ -278,7 +292,8 @@ for (const scheme of SCHEMES) {
       await expect(progress(page)).toHaveText(
         `${s.progress(1, 5)}${s.progressTail}`,
       );
-      await expect(finishButton(page)).toBeVisible();
+      await expectAt(page, "Frutas y verduras");
+      await expect(lineRow(page, "Tomates")).toBeVisible();
       await expect(masthead(page)).toHaveAttribute("data-wake-lock", "held");
 
       // "Salir" leaves without emptying: the cart is as it was.
@@ -304,7 +319,7 @@ for (const scheme of SCHEMES) {
       await field(page).blur();
       await startButton(page).click();
       for (const name of ["Tomates", "Leche", "Café"]) {
-        await checkAndSync(page, name);
+        await checkOnLine(page, name);
       }
       await expect(progress(page)).toHaveText(
         `${s.progress(3, 4)}${s.progressTail}`,
@@ -312,6 +327,9 @@ for (const scheme of SCHEMES) {
       const emptyCalls = recordRpc(page, "empty_cart");
       const emptied = rpcAnswered(page, "empty_cart");
 
+      await goToCheckout(page);
+      // Right after a move the bar's button ignores a tap (F-9).
+      await page.waitForTimeout(400);
       await finishButton(page).click();
       // The moment, in view, with the summary of the trip (M-3), and the
       // usual screen back.
@@ -338,23 +356,22 @@ for (const scheme of SCHEMES) {
       );
       await captureViewport(page, testInfo, `f1-moment-${scheme}`);
 
-      // Deshacer: the cart comes back, and so does the trip, with the focus
-      // on "Terminé".
+      // Deshacer: the cart comes back, and so does the trip, at the checkout
+      // where it was, with the focus on "Terminé".
       const restored = rpcAnswered(page, "restore_trip");
       await moment(page)
         .getByRole("button", { name: m.undo, exact: true })
         .click();
       expect((await restored).ok()).toBe(true);
       await expect(moment(page)).toHaveCount(0);
-      for (const name of ["Tomates", "Leche", "Café"]) {
-        await expect(row(cart(page), name)).toBeVisible();
-      }
       await expect(masthead(page)).toBeVisible();
       await expect(progress(page)).toHaveText(
         `${s.progress(3, 4)}${s.progressTail}`,
       );
       await expect(finishButton(page)).toBeFocused();
       await expect(masthead(page)).toHaveAttribute("data-wake-lock", "held");
+      await checkOnLine(page, "Pan");
+      await expect(checkbox(page, "Pan")).toBeVisible();
     });
 
     test("Terminé right after the last check takes it too", async ({
@@ -365,12 +382,17 @@ for (const scheme of SCHEMES) {
       await field(page).blur();
       await startButton(page).click();
       for (const name of ["Tomates", "Leche", "Café"]) {
-        await checkAndSync(page, name);
+        await checkOnLine(page, name);
       }
       const emptied = rpcAnswered(page, "empty_cart");
-      // The last product and "Terminé" in one go, while its row still
-      // waits in Pendientes (A-5).
+      // The last product, the checkout and "Terminé" in one go, before the
+      // server has the check.
+      await findOnLine(page, "Pan");
       await checkbox(page, "Pan").click();
+      await tapNext(page);
+      // "Terminé" takes the place of "Ir a la caja": a second tap right
+      // after it would be taken for a hurried thumb (F-9).
+      await page.waitForTimeout(400);
       await finishButton(page).click();
       await expect(moment(page)).toBeVisible();
       expect((await emptied).ok()).toBe(true);
@@ -394,6 +416,9 @@ for (const scheme of SCHEMES) {
       await field(page).blur();
       const emptyCalls = recordRpc(page, "empty_cart");
       await startButton(page).click();
+      await goToCheckout(page);
+      // Right after a move the bar's button ignores a tap (F-9).
+      await page.waitForTimeout(400);
       await finishButton(page).click();
       await expect(masthead(page)).toHaveCount(0);
       await expect(startButton(page)).toBeFocused();

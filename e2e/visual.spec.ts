@@ -275,8 +275,23 @@ for (const mode of modes) {
       const count = await typography(page, '[data-slot="shopping-count"]');
       expect(count.fontFamily).toContain("Instrument Serif");
       expect(count.fontSize).toBeGreaterThanOrEqual(28);
-      // El botón principal de la barra, lima sobre tinta o tinta sobre lima:
-      // el par de acción del modo.
+      // El andén (F-9): el cartel de la estación en el serif display, sobre
+      // tinta en los dos modos, y el riel con sus nodos de 44px.
+      const board = await typography(page, '[data-slot="line-board"] h2');
+      expect(board.fontFamily).toContain("Instrument Serif");
+      expect(
+        await page
+          .locator('[data-slot="line-board"]')
+          .evaluate((e) => getComputedStyle(e).backgroundColor),
+      ).toBe(rgb(palette[mode]["inverse-bg"]));
+      await capture(page, testInfo, `lista-compra-${mode}`);
+      // En la caja, el botón principal de la barra: lima sobre tinta o tinta
+      // sobre lima, el par de acción del modo.
+      await page
+        .getByRole("navigation", { name: texts.line.rail })
+        .getByRole("button")
+        .last()
+        .click();
       const finish = page.getByRole("button", {
         name: texts.shopping.finish,
         exact: true,
@@ -284,7 +299,9 @@ for (const mode of modes) {
       expect(
         await finish.evaluate((e) => getComputedStyle(e).backgroundColor),
       ).toBe(rgb(palette[mode][mode === "light" ? "ink" : "lime"]));
-      await capture(page, testInfo, `lista-compra-${mode}`);
+      await settle(page);
+      await expectSystemInvariants(page, mode);
+      await capture(page, testInfo, `lista-compra-caja-${mode}`);
     });
   });
 }

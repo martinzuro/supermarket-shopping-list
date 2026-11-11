@@ -6,6 +6,7 @@ import {
   SHOPPING_MAX_MS,
   useFinishShopping,
   useShoppingFinish,
+  useShoppingLine,
   useShoppingMode,
 } from "./shopping-mode";
 
@@ -168,5 +169,77 @@ describe("Terminé", () => {
     act(() => result.current.finish());
     expect(result.current.mode.on).toBe(false);
     expect(kept()).toBeNull();
+  });
+});
+
+describe("useShoppingLine", () => {
+  function renderLine(listId: string | null) {
+    const wrapper = makeWrapper(makeTestQueryClient());
+    return renderHook(
+      () => ({ mode: useShoppingMode(listId), line: useShoppingLine(listId) }),
+      { wrapper },
+    );
+  }
+
+  const line = { at: "b", passed: ["a"], stations: ["a", "b", "c"] };
+
+  it("keeps where the trip is with the trip, and ends with it", () => {
+    vi.useFakeTimers({ now: new Date("2026-11-11T10:00:00Z") });
+    const { result } = renderLine(LIST);
+    // Not shopping: nothing to keep.
+    act(() => result.current.line[1](line));
+    expect(result.current.line[0]).toBeNull();
+    expect(kept()).toBeNull();
+
+    act(() => result.current.mode.start());
+    expect(result.current.line[0]).toBeNull();
+    act(() => result.current.line[1](line));
+    expect(result.current.line[0]).toEqual(line);
+    expect(kept()).toEqual({ listId: LIST, since: Date.now(), line });
+
+    // The same line again is the same object: nothing renders for it.
+    const before = result.current.line[0];
+    act(() => result.current.line[1]({ ...line, passed: ["a"] }));
+    expect(result.current.line[0]).toBe(before);
+
+    act(() => result.current.mode.stop());
+    expect(result.current.line[0]).toBeNull();
+    // A new trip starts without a place.
+    act(() => result.current.mode.start());
+    expect(result.current.line[0]).toBeNull();
+  });
+
+  it("finds the line kept by an earlier page (a reload)", () => {
+    localStorage.setItem(
+      SHOPPING_KEY,
+      JSON.stringify({ listId: LIST, since: Date.now(), line }),
+    );
+    const { result } = renderLine(LIST);
+    expect(result.current.mode.on).toBe(true);
+    expect(result.current.line[0]).toEqual(line);
+  });
+
+  it("takes a trip kept before the line, or a line it cannot read, as no place", () => {
+    keep(LIST, Date.now());
+    expect(renderLine(LIST).result.current.line[0]).toBeNull();
+    localStorage.setItem(
+      SHOPPING_KEY,
+      JSON.stringify({
+        listId: LIST,
+        since: Date.now(),
+        line: { at: "b", passed: "a", stations: [1] },
+      }),
+    );
+    const { result } = renderLine(LIST);
+    expect(result.current.mode.on).toBe(true);
+    expect(result.current.line[0]).toBeNull();
+  });
+
+  it("is not another list's", () => {
+    localStorage.setItem(
+      SHOPPING_KEY,
+      JSON.stringify({ listId: OTHER, since: Date.now(), line }),
+    );
+    expect(renderLine(LIST).result.current.line[0]).toBeNull();
   });
 });
