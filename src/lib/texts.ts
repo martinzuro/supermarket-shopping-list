@@ -811,6 +811,7 @@ export const texts = {
       surfaces: { eyebrow: "Superficies", title: "Papel, pistacho, tinta" },
       motion: { eyebrow: "Motion", title: "Rápido en lo frecuente" },
       states: { eyebrow: "Estados", title: "Acción, campo, fila" },
+      prototypes: { eyebrow: "Prototipos", title: "Ideas en prueba" },
     },
     brand: {
       note: "Instrument Serif, pensado para reemplazarse sin tocar el sistema.",
@@ -1116,6 +1117,109 @@ export const texts = {
           primary: "Traerlas acá",
           secondary: "Descartarlas",
         },
+      },
+    },
+    prototypes: {
+      note: "Pantallas enteras con datos de muestra, para probar una idea con una mano antes de pasarla al backlog. No son parte de la interfaz.",
+      line: {
+        title: "La línea del súper",
+        body: "El modo compra como un andén: una estación a la vez en un cartel, y la línea como un riel al alcance del pulgar, en el orden en que recorrés tu súper.",
+        open: "Abrir el prototipo",
+      },
+    },
+    /** El prototipo de /design/linea: el modo compra como un andén con riel. */
+    line: {
+      title: "La línea del súper",
+      exitAria: "Salir del prototipo",
+      rail: "Recorrido",
+      /** El número del cartel: "03/07". */
+      number: (n: number, total: number) =>
+        `${String(n).padStart(2, "0")}/${String(total).padStart(2, "0")}`,
+      stationSpoken: (n: number, total: number) =>
+        `Estación ${n} de ${total}. `,
+      cartSpoken: (done: number, total: number) =>
+        `${done} de ${total} en el carro. `,
+      hereSpoken: "Estás en ",
+      /** Lo que falta en la estación, en el cartel. */
+      pending: (n: number) =>
+        n === 0 ? "Todo en el carro" : n === 1 ? "Falta 1" : `Faltan ${n}`,
+      next: (name: string) => `Siguiente: ${name}`,
+      toCheckout: "Ir a la caja",
+      restart: "Empezar de nuevo",
+      goTo: (name: string) => `Ir a ${name}`,
+      nodeSpoken: (done: number, total: number) =>
+        `, ${done} de ${total} en el carro`,
+      /** La etiqueta junto a una estación pasada con algo pendiente. */
+      behindTag: (n: number) => `+${n}`,
+      behindSpoken: (n: number) =>
+        n === 1 ? ", 1 quedó atrás" : `, ${n} quedaron atrás`,
+      checkout: "Caja",
+      /** La única estación de una lista sin categorías. */
+      simple: "Tu lista",
+      arrived: (name: string, n: number, total: number) =>
+        `Llegaste a ${name}, estación ${n} de ${total}.`,
+      arrivedSimple: "Volviste a tu lista.",
+      arrivedCheckout: "Llegaste a la caja.",
+      learned: (trips: number) =>
+        `Orden aprendido de tus últimas ${trips} compras`,
+      listOrder: "Orden del recorrido de la lista",
+      simpleOrder: "Lista simple, sin categorías",
+      late: {
+        byOther: (name: string, who: string, station: string) =>
+          `${who} sumó ${name} en ${station}, que ya pasaste.`,
+        bySelf: (name: string, station: string) =>
+          `Sumaste ${name} en ${station}, que ya pasaste.`,
+        back: "Volver",
+      },
+      ticket: {
+        eyebrow: "Tu compra",
+        total: "En el carro",
+        count: (done: number, total: number) => `${done} de ${total}`,
+        missing: "No conseguido",
+        missingCount: (n: number) => (n === 1 ? "falta 1" : `faltan ${n}`),
+        hint: "Tocá una estación del riel para volver a buscarlo.",
+        allIn: "No faltó nada.",
+      },
+      controls: {
+        eyebrow: "Prototipo · datos de muestra",
+        body: "Nada se guarda. El orden sale de tres compras de muestra en las que marcaste primero la panadería y casi al final los lácteos. El + suma productos de muestra. Deslizá el pulgar por el riel para recorrer las estaciones.",
+        late: "Simular que Ana suma pan",
+        useList: "Orden de la lista",
+        useLearned: "Orden aprendido",
+        useSimple: "Lista simple, sin categorías",
+        reset: "Reiniciar",
+        back: "Volver al sistema de diseño",
+      },
+      sample: {
+        items: [
+          { name: "Pan flauta", quantity: "2", category: "panaderia" },
+          { name: "Bizcochos", quantity: "6", category: "panaderia" },
+          { name: "Tomates", quantity: "1 kg", category: "verduras" },
+          { name: "Lechuga", quantity: null, category: "verduras" },
+          { name: "Bananas", quantity: "1 kg", category: "verduras" },
+          { name: "Paltas", quantity: "2", category: "verduras" },
+          { name: "Limones", quantity: null, category: "verduras" },
+          { name: "Carne picada", quantity: "500 g", category: "carnes" },
+          { name: "Pechugas", quantity: "1 kg", category: "carnes" },
+          { name: "Yerba", quantity: "1 kg", category: "almacen" },
+          { name: "Arroz", quantity: null, category: "almacen" },
+          { name: "Aceite de girasol", quantity: "1 L", category: "almacen" },
+          { name: "Fideos moñitas", quantity: "2", category: "almacen" },
+          { name: "Leche", quantity: "2 L", category: "lacteos" },
+          { name: "Yogur natural", quantity: null, category: "lacteos" },
+          { name: "Queso rallado", quantity: null, category: "lacteos" },
+          { name: "Agua con gas", quantity: "2", category: "bebidas" },
+          { name: "Detergente", quantity: null, category: "limpieza" },
+          { name: "Esponjas", quantity: "3", category: "limpieza" },
+        ],
+        /** Lo que suma el +, en este orden. */
+        extras: [
+          { name: "Manteca", quantity: null, category: "lacteos" },
+          { name: "Galletitas", quantity: "2", category: "almacen" },
+          { name: "Hielo", quantity: null, category: "bebidas" },
+        ],
+        late: { name: "Pan de campo", quantity: null, category: "panaderia" },
+        lateBy: "Ana",
       },
     },
   },

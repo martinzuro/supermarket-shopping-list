@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   ArrowDownToLine,
   Check,
@@ -23,7 +24,7 @@ import { InvitationCard } from "@/components/ui/invitation-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Moment } from "@/components/ui/moment";
 import { Banner } from "@/components/ui/banner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { CategoryChip, Chip } from "@/components/ui/chip";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Field } from "@/components/ui/field";
@@ -797,6 +798,32 @@ export default function DesignPage() {
             }
           />
           <InstallSteps />
+        </div>
+      </Section>
+
+      {/* Prototipos */}
+      <Section
+        id="prototipos"
+        eyebrow={t.sections.prototypes.eyebrow}
+        title={t.sections.prototypes.title}
+      >
+        <p className="text-ink-2 max-w-prose text-pretty">
+          {t.prototypes.note}
+        </p>
+        <div className="border-rule mt-6 border-t pt-4">
+          <h3 className="text-row font-medium">{t.prototypes.line.title}</h3>
+          <p className="text-ink-2 mt-1 max-w-prose text-pretty">
+            {t.prototypes.line.body}
+          </p>
+          <Link
+            href="/design/linea"
+            className={buttonVariants({
+              variant: "secondary",
+              className: "mt-4",
+            })}
+          >
+            {t.prototypes.line.open}
+          </Link>
         </div>
       </Section>
     </main>
