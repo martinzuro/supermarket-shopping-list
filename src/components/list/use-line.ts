@@ -50,7 +50,8 @@ const stationId = (group: ItemGroup<Item, Category>) =>
 /**
  * The supermarket line of the list being shopped (F-9, ADR 0010): its
  * stations from the live data, and where this device is on it. Null until
- * the items and the categories are in, or while this device is not shopping.
+ * the items and the categories are in, while this device is not shopping,
+ * and when the categories could not be loaded (useLineFailed).
  *
  * The position is derived on every render from the kept one and the line of
  * now (someone may have added to a category that had nothing, or removed a
@@ -69,7 +70,9 @@ export function useLine(
     shopping &&
     listId !== null &&
     items.data !== undefined &&
-    (categories.data !== undefined || categories.isError);
+    // Without the categories there are no stations to keep a place in: if
+    // their load failed, the list shows its sections as before (lineFailed).
+    categories.data !== undefined;
 
   const line = useMemo(() => {
     if (!ready) return null;
@@ -124,4 +127,14 @@ export function useLine(
       },
     };
   }, [line, keep]);
+}
+
+/**
+ * The categories could not be loaded, so there is no line: the list shows
+ * its sections and the bar its "Terminé", as before F-9, instead of waiting
+ * for a line that is not coming.
+ */
+export function useLineFailed(userId: string | null, listId: string | null) {
+  const categories = useCategories(userId, listId);
+  return categories.data === undefined && categories.isError;
 }

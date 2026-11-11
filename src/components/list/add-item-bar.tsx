@@ -35,7 +35,7 @@ import {
   useShoppingMode,
 } from "@/components/list/shopping-mode";
 import { ShoppingTotals } from "@/components/list/shopping-totals";
-import { useLine } from "@/components/list/use-line";
+import { useLine, useLineFailed } from "@/components/list/use-line";
 import {
   SuggestionList,
   optionId,
@@ -602,8 +602,28 @@ export function AddItemBar() {
   const finishShopping = useFinishShopping();
   // Where the trip is on the line (F-9): the bar's main button moves on.
   const line = useLine(userId, listId, shopping.on);
-  // When "Ir a la caja" was tapped: "Terminé" shows where it was.
-  const arrivedAtCheckout = useRef(0);
+  // Until the line is in (a reload mid-trip) the button waits, disabled:
+  // "Terminé" must not be what a thumb finds there meanwhile.
+  const lineFailed = useLineFailed(userId, listId);
+  const lineLoading = shopping.on && !line && !lineFailed;
+  // When the trip last moved along the line, by this button or on its own
+  // (the station's last product was removed). What shows under the thumb
+  // right after is not what the thumb aimed at: a second tap within
+  // DOUBLE_TAP_MS would skip a station unseen, or end the trip.
+  const movedAt = useRef(0);
+  const stop = line?.position.at;
+  const firstStop = useRef(true);
+  useEffect(() => {
+    if (stop === undefined) return;
+    // Not the stop a load or a reload finds.
+    if (firstStop.current) {
+      firstStop.current = false;
+      return;
+    }
+    movedAt.current = Date.now();
+  }, [stop]);
+  const hurried = (event: { detail: number }) =>
+    event.detail !== 0 && Date.now() - movedAt.current < DOUBLE_TAP_MS;
   const nextStation = line?.stations.find((one) => one.id === line.next);
   const nextName =
     nextStation?.category?.name ?? texts.list.pending.uncategorized;
@@ -1636,7 +1656,19 @@ export function AddItemBar() {
             >
               <Plus aria-hidden strokeWidth={2} />
             </Button>
-            {line && line.position.at !== CHECKOUT ? (
+            {lineLoading ? (
+              <Button
+                key="next"
+                type="button"
+                variant="secondary"
+                size="touch-lg"
+                className="flex-1"
+                disabled
+                aria-label={texts.line.loading}
+              >
+                <ArrowRight aria-hidden strokeWidth={2} />
+              </Button>
+            ) : line && line.position.at !== CHECKOUT ? (
               // What comes next on the line (F-9), under the thumb. It
               // fills when the station is done and waits for the tap:
               // nothing moves on its own.
@@ -1649,9 +1681,11 @@ export function AddItemBar() {
                 size="touch-lg"
                 data-ready={line.here?.pending === 0}
                 className="min-w-0 flex-1"
-                onClick={() => {
-                  if (line.next === CHECKOUT)
-                    arrivedAtCheckout.current = Date.now();
+                onClick={(event) => {
+                  if (hurried(event)) return;
+                  // Now, not when the effect sees it: the next tap may come
+                  // first.
+                  movedAt.current = Date.now();
                   line.move(line.next);
                 }}
               >
@@ -1674,12 +1708,7 @@ export function AddItemBar() {
                   // It took the place of "Ir a la caja" under the thumb: a
                   // second tap right after that one is a hurried thumb, not
                   // the end of the trip. The keyboard has no double tap.
-                  if (
-                    event.detail !== 0 &&
-                    Date.now() - arrivedAtCheckout.current < DOUBLE_TAP_MS
-                  ) {
-                    return;
-                  }
+                  if (hurried(event)) return;
                   finishShopping();
                 }}
               >

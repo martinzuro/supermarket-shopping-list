@@ -451,7 +451,7 @@ export function ListView() {
     // Every row stays where it is shown, this one struck (or not) in place,
     // until the checks stop (A-5). The write goes out now. On the line (F-9)
     // a station's rows never move: there is nothing to hold.
-    if (!shopping.on) hold(placesOf(all, held));
+    if (!line) hold(placesOf(all, held));
     refocus.current = item.id;
     toggle.mutate({ id: item.id, name: item.name, checked: next });
   }
@@ -639,18 +639,18 @@ export function ListView() {
       >
         <span key={announcement.seq}>{announcement.text}</span>
       </div>
-      {shopping.on ? (
-        line ? (
-          <LinePlatform
-            line={line}
-            remote={remote}
-            fresh={fresh.fresh}
-            onCheckedChange={handleCheckedChange}
-            onPress={(item) => setEditingId(item.id)}
-            onRemove={removeItem}
-          />
-        ) : null
+      {line ? (
+        <LinePlatform
+          line={line}
+          remote={remote}
+          fresh={fresh.fresh}
+          onCheckedChange={handleCheckedChange}
+          onPress={(item) => setEditingId(item.id)}
+          onRemove={removeItem}
+        />
       ) : (
+        // Also while shopping, until the line is in: the sections show
+        // their loading state (and stay if the categories never load).
         <>
           <ListSection
             id="pending"

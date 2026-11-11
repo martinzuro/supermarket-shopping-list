@@ -15,6 +15,7 @@ import {
   railNode,
   railNodes,
   slide,
+  tapNext,
 } from "./line";
 import { SCHEMES } from "./sharing";
 import {
@@ -162,7 +163,11 @@ for (const scheme of SCHEMES) {
       await expect(lineRow(page, "Tomates")).toBeVisible();
       await captureViewport(page, testInfo, `f9-station-done-${scheme}`);
 
-      await nextButton(page).click();
+      // A hurried double tap moves one station, not two: the second would
+      // leave a station behind unseen.
+      await nextButton(page).dblclick();
+      await expectAt(page, DAIRY);
+      await page.waitForTimeout(400);
       await expectAt(page, DAIRY);
       await expect(lineAnnouncement(page)).toHaveText(t.arrived(DAIRY, 2, 4));
       await expect(checkbox(page, "Leche")).toBeVisible();
@@ -187,13 +192,14 @@ for (const scheme of SCHEMES) {
 
       // Leaving something behind: Siguiente skips nothing ahead, and the
       // checkout comes after the last station.
-      await nextButton(page).click();
+      await tapNext(page);
       await expectAt(page, BAKERY);
-      await nextButton(page).click();
+      await tapNext(page);
       await expectAt(page, PANTRY);
       await expect(nextButton(page)).toHaveText(t.toCheckout);
       // A hurried double tap: "Terminé" takes the button's place under the
       // thumb, and the second tap does not end the trip.
+      await page.waitForTimeout(400);
       await nextButton(page).dblclick();
       await expect(board(page)).toHaveAttribute("data-stop", "caja");
       await expect(
@@ -325,7 +331,7 @@ test.describe("F-9, the station keeps what the list does", () => {
     // One tap on "Ir a la caja": the button is gone with the stations, and
     // the focus it had goes to the board, not to "Terminé".
     await goToStation(page, "Limpieza");
-    await nextButton(page).click();
+    await tapNext(page);
     await expect(board(page)).toHaveAttribute("data-stop", "caja");
     await expect(boardHeading(page)).toBeFocused();
   });

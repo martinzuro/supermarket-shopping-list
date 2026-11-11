@@ -534,6 +534,26 @@ describe("AddItemBar while shopping (F-1)", () => {
     ).toBeNull();
   });
 
+  it("waits, without Terminé, while the line is not in yet", () => {
+    localStorage.setItem(
+      SHOPPING_KEY,
+      JSON.stringify({ listId: LIST, since: Date.now() }),
+    );
+    // A reload mid-trip: the items are still being read.
+    readItems.mockReturnValue(new Promise(() => {}));
+    const queryClient = makeTestQueryClient();
+    queryClient.setQueryData(queryKeys.lists(USER), [
+      { id: LIST, name: "Mi lista" },
+    ]);
+    render(<AddItemBar />, { wrapper: makeWrapper(queryClient) });
+    expect(
+      screen.getByRole("button", { name: texts.line.loading }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: texts.shopping.finish }),
+    ).toBeNull();
+  });
+
   it("a second tap on Ir a la caja does not end the trip", () => {
     vi.useFakeTimers({ now: new Date("2026-11-11T10:00:00Z") });
     try {

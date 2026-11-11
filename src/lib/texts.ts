@@ -285,6 +285,8 @@ export const texts = {
     /** El botón principal: nunca avanza solo. */
     next: (name: string) => `Siguiente: ${name}`,
     toCheckout: "Ir a la caja",
+    /** El botón mientras el recorrido todavía no cargó (deshabilitado). */
+    loading: "Cargando el recorrido",
     goTo: (name: string) => `Ir a ${name}`,
     nodeSpoken: (done: number, total: number) =>
       `, ${done} de ${total} en el carro`,

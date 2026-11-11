@@ -1,10 +1,10 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CHECKOUT } from "@/lib/domain";
 import { queryKeys } from "@/lib/queries/keys";
 import { makeTestQueryClient, makeWrapper } from "@/lib/queries/test-utils";
 import { SHOPPING_KEY, useShoppingMode } from "./shopping-mode";
-import { useLine } from "./use-line";
+import { useLine, useLineFailed } from "./use-line";
 
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
@@ -209,5 +209,27 @@ describe("useLine", () => {
       at: DAIRY,
       passed: [BAKERY, VEGETABLES],
     });
+  });
+
+  it("is nothing without the categories, and says so when they failed", async () => {
+    localStorage.setItem(
+      SHOPPING_KEY,
+      JSON.stringify({ listId: LIST, since: Date.now() }),
+    );
+    const queryClient = makeTestQueryClient();
+    queryClient.setQueryData(queryKeys.items(USER, LIST), [row("Pan", BAKERY)]);
+    // The categories are read, and the read fails (the client throws).
+    const { result } = renderHook(
+      () => ({
+        line: useLine(USER, LIST, true),
+        failed: useLineFailed(USER, LIST),
+      }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+    expect(result.current.line).toBeNull();
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    expect(result.current.line).toBeNull();
+    // Nothing was kept: the trip has no place until there is a line.
+    expect(kept()).toBeUndefined();
   });
 });

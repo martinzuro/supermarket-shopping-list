@@ -717,8 +717,19 @@ esta compra) a la vez. Sale del prototipo de `/design/linea` (abajo, en
   dice "Llegaste a Almacén, estación 4 de 7.".
 - **La caja** es la última parada: el cartel dice "Caja" con la cuenta del
   carro, y la barra cambia "Siguiente" por "Terminé". Son dos elementos
-  distintos (el foco no se hereda: va al cartel) y un segundo toque dentro
-  de `DOUBLE_TAP_MS` de "Ir a la caja" no termina la compra.
+  distintos (el foco no se hereda: va al cartel).
+- **Sin toques de más.** Lo que aparece bajo el pulgar justo después de
+  moverse no es lo que el pulgar buscaba: el botón de la barra ignora un
+  toque dentro de `DOUBLE_TAP_MS` del último movimiento (por el botón o
+  solo, si la estación se quedó sin productos). Así un doble toque en
+  "Siguiente" no deja una estación atrás sin verla, ni uno en "Ir a la caja"
+  termina la compra. El teclado no tiene doble toque.
+- **Mientras carga** (una recarga en plena compra), la lista muestra sus
+  secciones en carga y el botón espera deshabilitado ("Cargando el
+  recorrido"): "Terminé" nunca es lo que hay ahí mientras tanto. Si las
+  categorías no se pudieron leer no hay línea (`useLineFailed`): la lista
+  queda en sus secciones y la barra con "Terminé", como antes de F-9, y la
+  posición guardada no se toca.
 
 ### Miembros, avisos y "traer lo de otra lista"
 

@@ -45,6 +45,15 @@ export function nextButton(page: Page) {
   return page.locator("#shopping-next");
 }
 
+/**
+ * A tap on the bar's button that is not taken for the second of a hurried
+ * double tap: right after a move, the button ignores one (DOUBLE_TAP_MS).
+ */
+export async function tapNext(page: Page) {
+  await page.waitForTimeout(400);
+  await nextButton(page).click();
+}
+
 export function lineRows(page: Page) {
   return page.locator('[data-slot="line-rows"]');
 }

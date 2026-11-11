@@ -394,6 +394,9 @@ function Rail({ stops, at, progress, passed, bump, onMove }: RailProps) {
   // too). Both on one gesture would go to the same stop.
   const slid = useRef(false);
   const last = stops.length - 1;
+  // The line may get shorter under a resting finger (someone removed a
+  // station's last product).
+  const scrubbed = scrub === null ? null : Math.min(scrub, last);
 
   function stopAt(event: PointerEvent<HTMLElement>) {
     const box = event.currentTarget.getBoundingClientRect();
@@ -506,7 +509,7 @@ function Rail({ stops, at, progress, passed, bump, onMove }: RailProps) {
                         : done
                           ? "bg-action-bg size-3"
                           : "bg-paper size-3.5 border-2",
-                      scrub === index && "scale-150",
+                      scrubbed === index && "scale-150",
                     )}
                     style={
                       done && !current
@@ -541,16 +544,16 @@ function Rail({ stops, at, progress, passed, bump, onMove }: RailProps) {
             />
           </motion.span>
 
-          {scrub !== null ? (
+          {scrubbed !== null ? (
             <span
               aria-hidden
               data-slot="line-scrub"
               className="surface-inverse text-label rounded-field pointer-events-none absolute right-12 -translate-y-1/2 px-3 py-2 whitespace-nowrap"
               style={{
-                top: `calc(${NODE / 2}px + ${last > 0 ? scrub / last : 0} * (100% - ${NODE}px))`,
+                top: `calc(${NODE / 2}px + ${last > 0 ? scrubbed / last : 0} * (100% - ${NODE}px))`,
               }}
             >
-              {stops[scrub].name}
+              {stops[scrubbed].name}
             </span>
           ) : null}
         </nav>
