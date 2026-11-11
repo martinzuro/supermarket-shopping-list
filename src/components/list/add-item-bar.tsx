@@ -9,6 +9,7 @@ import {
 import { Check, Plus, XIcon } from "lucide-react";
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -1092,15 +1093,16 @@ export function AddItemBar() {
     edit.mutate({ id: current.id, name: current.name, changes });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const field = inputRef.current;
-    if (!field) return;
-    // El teclado no se cierra entre un producto y el siguiente.
-    field.focus();
-    const raw = field.value;
+  // The field takes text as soon as the page is interactive, a moment
+  // before the list's items, categories and catalog arrive. An Enter in
+  // that moment is not lost: the text waits in the field and goes in once
+  // the list is ready, unless it was changed meanwhile (that is another
+  // request, with its own Enter).
+  const heldSubmit = useRef<string | null>(null);
+
+  function submit(raw: string) {
     const typed = parseItemInput(raw);
-    if (!typed.name || !ready) return;
+    if (!typed.name) return;
 
     setFieldText("");
     const existing = findPending(typed.name, pendingItems);
@@ -1109,6 +1111,25 @@ export function AddItemBar() {
     } else {
       addNamed(typed.name, typed, raw);
     }
+  }
+
+  const submitHeld = useEffectEvent(() => {
+    const raw = heldSubmit.current;
+    heldSubmit.current = null;
+    if (raw !== null && inputRef.current?.value === raw) submit(raw);
+  });
+  useEffect(() => {
+    if (ready) submitHeld();
+  }, [ready]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const field = inputRef.current;
+    if (!field) return;
+    // El teclado no se cierra entre un producto y el siguiente.
+    field.focus();
+    if (ready) submit(field.value);
+    else heldSubmit.current = field.value;
   }
 
   // El último toque que agregó algo desde la lista o la fila: un segundo
