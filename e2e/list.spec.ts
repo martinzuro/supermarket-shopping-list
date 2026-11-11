@@ -189,7 +189,8 @@ async function openList(page: Page) {
   // servidor la tiene y el campo ya puede agregar.
   await expect(pending(page).getByText(texts.list.pending.empty)).toBeVisible();
   await waitHydrated(page);
-  // Sin el catálogo el campo todavía ignora el Enter (no sabe la categoría).
+  // Sin el catálogo el campo retiene el Enter (no sabe la categoría): con
+  // él, cada alta sale en el momento.
   await catalog;
 }
 
@@ -383,6 +384,37 @@ test.describe("list with the local Supabase stack", () => {
     await expect(
       row(pending(page), "Pan").locator("[data-numeric]"),
     ).toHaveCount(0);
+  });
+
+  test("an Enter before the items arrive is not lost", async ({ page }) => {
+    await withoutServiceWorker(page);
+    await openList(page);
+    // After a reload the items answer late; the catalog, on time.
+    await page.route(ITEMS_API, async (route) => {
+      if (route.request().method() === "GET") {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      await route.continue();
+    });
+    const items = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/rest/v1/items" &&
+        response.request().method() === "GET",
+    );
+    await reloadList(page);
+
+    const input = field(page);
+    await input.fill("2 kg de tomates");
+    await input.press("Enter");
+    // Held in the field, as typed, until the list is ready.
+    await expect(input).toHaveValue("2 kg de tomates");
+    await items;
+    await expect(row(pending(page), "Tomates")).toBeVisible({
+      timeout: ACTION_MS,
+    });
+    await expect(row(pending(page), "Tomates")).toContainText("2 kg");
+    await expect(input).toHaveValue("");
+    await expect(input).toBeFocused();
   });
 
   test("checking moves a row to the cart and unchecking brings it back", async ({

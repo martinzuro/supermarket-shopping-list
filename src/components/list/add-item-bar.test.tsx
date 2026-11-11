@@ -214,6 +214,39 @@ describe("AddItemBar", () => {
     expect(field.value).toBe("Tomates");
   });
 
+  it("adds what was entered before the items, once they arrive", async () => {
+    write.mockReturnValue(new Promise(() => {}));
+    const answer = deferred<{ data: []; error: null }>();
+    readItems.mockReturnValue(answer.promise);
+    const { field } = await renderBar({ itemsLoaded: false });
+    type(field, "2 kg de tomates{Enter}");
+    expect(items.insert).not.toHaveBeenCalled();
+
+    await act(async () => answer.resolve({ data: [], error: null }));
+
+    await waitFor(() =>
+      expect(items.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Tomates", quantity: 2, unit: "kg" }),
+      ),
+    );
+    expect(items.insert).toHaveBeenCalledTimes(1);
+    expect(field.value).toBe("");
+    expect(field).toHaveFocus();
+  });
+
+  it("does not add the held text if it was changed before the items", async () => {
+    const answer = deferred<{ data: []; error: null }>();
+    readItems.mockReturnValue(answer.promise);
+    const { field } = await renderBar({ itemsLoaded: false });
+    type(field, "Tomates{Enter}");
+    type(field, " y cebollas");
+
+    await act(async () => answer.resolve({ data: [], error: null }));
+
+    expect(items.insert).not.toHaveBeenCalled();
+    expect(field.value).toBe("Tomates y cebollas");
+  });
+
   it("shows a rejected check", async () => {
     const { queryClient } = await renderBar();
     const mutation = queryClient.getMutationCache().build(queryClient, {
