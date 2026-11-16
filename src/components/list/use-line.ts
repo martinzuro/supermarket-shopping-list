@@ -21,6 +21,7 @@ import {
   type Category,
   type Item,
 } from "@/lib/queries";
+import { texts } from "@/lib/texts";
 
 /** Station id of the items without category (a list without "Otros"). */
 export const NO_CATEGORY = "none";
@@ -46,6 +47,10 @@ export type Line = {
   behind: ReadonlyMap<string, number>;
   move: (to: string) => void;
 };
+
+/** A station's name: its category's, or the one of what has none. */
+export const stationName = (station: Station) =>
+  station.category?.name ?? texts.list.pending.uncategorized;
 
 const stationId = (group: ItemGroup<Item, Category>) =>
   group.category?.id ?? NO_CATEGORY;

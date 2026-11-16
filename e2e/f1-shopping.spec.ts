@@ -117,6 +117,10 @@ function summary(page: Page) {
   return moment(page).getByRole("definition");
 }
 
+function ticket(page: Page) {
+  return page.locator('[data-slot="line-ticket"]');
+}
+
 function momentAction(page: Page) {
   return moment(page).getByRole("button", { name: m.action, exact: true });
 }
@@ -328,19 +332,33 @@ for (const scheme of SCHEMES) {
       const emptied = rpcAnswered(page, "empty_cart");
 
       await goToCheckout(page);
+      // The checkout tells the trip as a ticket (F-9): a line per station,
+      // the cart, its estimate per currency and, on the stub, what is
+      // still pending.
+      await expect(
+        ticket(page).locator("ul").first().locator("[data-station]"),
+      ).toHaveCount(4);
+      await expect(
+        ticket(page).locator('[data-slot="line-ticket-total"]'),
+      ).toContainText(texts.line.ticket.count(3, 4));
+      await expect(
+        ticket(page).locator(
+          '[data-slot="line-ticket-estimate"] [data-currency]',
+        ),
+      ).toHaveText(["$ 334", "US$ 6"]);
+      await expect(
+        ticket(page).locator('[data-slot="line-stub"]'),
+      ).toContainText(texts.line.ticket.missingCount(1));
+      await captureViewport(page, testInfo, `f9-ticket-${scheme}`);
       // Right after a move the bar's button ignores a tap (F-9).
       await page.waitForTimeout(400);
       await finishButton(page).click();
-      // The moment, in view, with the summary of the trip (M-3), and the
-      // usual screen back.
+      // The moment, in view, and the usual screen back. The ticket told the
+      // trip already: the moment is its headline, without the summary.
       await expect(moment(page)).toBeVisible();
       await expect(momentAction(page)).toBeFocused();
       await expect(moment(page)).toBeInViewport({ ratio: 0.6 });
-      await expect(summary(page)).toHaveText([
-        `3 ${m.summary.products(3)}`,
-        "$ 334 · US$ 6",
-        `1 ${m.summary.products(1)}`,
-      ]);
+      await expect(summary(page)).toHaveCount(0);
       await expect(moment(page)).toContainText(m.body);
       await expect(masthead(page)).toHaveCount(0);
       await expect(field(page)).toBeVisible();
@@ -348,12 +366,10 @@ for (const scheme of SCHEMES) {
       expect((await emptied).ok()).toBe(true);
       expect(emptyCalls).toHaveLength(1);
       expect(await wakeLockLog(page)).toEqual({ requests: 1, releases: 1 });
-      // Said once for whoever hears it: the headline, then the summary.
+      // Said once for whoever hears it: the headline, and no more.
       await expect(
         page.locator('[aria-live="polite"]').filter({ hasText: m.lead }),
-      ).toHaveText(
-        `${m.lead} ${m.em}. ${m.body} ${m.summary.checkout}: 3 ${m.summary.products(3)}. ${m.summary.estimate}: $ 334 · US$ 6. ${m.summary.remaining}: 1 ${m.summary.products(1)}.`,
-      );
+      ).toHaveText(`${m.lead} ${m.em}. ${m.body}`);
       await captureViewport(page, testInfo, `f1-moment-${scheme}`);
 
       // Deshacer: the cart comes back, and so does the trip, at the checkout
@@ -390,17 +406,18 @@ for (const scheme of SCHEMES) {
       await findOnLine(page, "Pan");
       await checkbox(page, "Pan").click();
       await tapNext(page);
+      // The ticket has the last check already: nothing on the stub.
+      await expect(
+        ticket(page).locator('[data-slot="line-stub"]'),
+      ).toContainText(texts.line.ticket.allIn);
       // "Terminé" takes the place of "Ir a la caja": a second tap right
       // after it would be taken for a hurried thumb (F-9).
       await page.waitForTimeout(400);
       await finishButton(page).click();
       await expect(moment(page)).toBeVisible();
       expect((await emptied).ok()).toBe(true);
-      await expect(summary(page)).toContainText([
-        `4 ${m.summary.products(4)}`,
-        "$ 334 · US$ 6",
-        m.summary.nothing,
-      ]);
+      await expect(summary(page)).toHaveCount(0);
+      await expect(moment(page)).toContainText(m.bodyDone);
       // Nothing comes back to the cart, and the moment stays.
       await page.waitForTimeout(800);
       await expect(moment(page)).toBeVisible();

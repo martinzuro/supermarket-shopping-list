@@ -651,7 +651,10 @@ piezas existentes, sin tokens ni componentes nuevos en `ui`.
   a comprar". Mientras se compra, "Vaciar el carro" no está: lo hace
   "Terminé".
 - **El resumen** (M-3, `TripSummary`, `trip-summary.tsx`, en `details` del
-  `Moment`, también al vaciar con "Vaciar el carro"): un ticket sobre la
+  `Moment`, al vaciar con "Vaciar el carro" fuera del modo compra; tras
+  "Terminé" lo contó antes el ticket de la caja, F-9, y el momento queda
+  como titular breve, sin resumen ni en la pantalla ni en lo que oye el
+  lector; lo conserva una compra cuya línea no cargó): un ticket sobre la
   tinta, una línea por cifra entre reglas `inverse-fg-2/40`, el rótulo como
   eyebrow en `inverse-fg-2` y la cifra en mono: "Pasó por caja" (cuántas
   filas), "Estimado" (por moneda, con "N de M con precio" si faltan; sin
@@ -743,7 +746,22 @@ esta compra) a la vez. Sale del prototipo de `/design/linea` (abajo, en
   abajo al aparecer, como en el prototipo.
 - **La caja** es la última parada: el cartel dice "Caja" con la cuenta del
   carro, y la barra cambia "Siguiente" por "Terminé". Son dos elementos
-  distintos (el foco no se hereda: va al cartel).
+  distintos (el foco no se hereda: va al cartel). Bajo el cartel, **el
+  ticket** (`LineTicket`, `line-ticket.tsx`): la compra como un objeto, la
+  única tarjeta de la pantalla (`paper-2`, `rounded-sheet`; una `section`
+  con nombre "Tu compra"). Una línea por estación entre reglas con "2 de 3"
+  en mono; "En el carro" con la cuenta en `text-heading` mono; "Estimado"
+  por moneda (`estimateOf` sobre lo marcado, con "N de M con precio" si
+  faltan; sin precios no está, nunca "$ 0"); y, bajo una línea de corte
+  punteada, el talón "No conseguido": las estaciones con algo pendiente y
+  cuánto ("falta 1", en `citrus-text`) y una línea que manda al riel, o "No
+  faltó nada.". "No conseguido" es lo pendiente, sin tercer estado (ADR
+  0010). Entra con `duration-cinematic` y sus renglones se imprimen
+  escalonados; se puede arrastrar hacia los costados y vuelve
+  (`touch-pan-y`: el scroll vertical sigue siendo de la página). Una
+  recarga en la caja no anima nada; con movimiento reducido solo funde y no
+  se arrastra. Es en vivo: lo que se marca o suma desde otro lado cambia
+  sus cifras.
 - **Sin toques de más.** Lo que aparece bajo el pulgar justo después de
   moverse no es lo que el pulgar buscaba: el botón de la barra ignora un
   toque dentro de `DOUBLE_TAP_MS` del último movimiento (por el botón o
@@ -1196,8 +1214,8 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
   lock pedido una vez), la barra plegada con los totales, marcar (la cuenta,
   los totales y la línea a un cuarto), "+" con el foco en el campo, Escape y
   el campo vacío que lo pliegan, la recarga que lo conserva, "Salir" (el lock
-  suelto, el carro intacto); "Terminé" con un solo `empty_cart`, el momento a
-  la vista con su resumen y lo que oye el lector, y su "Deshacer" que vuelve
+  suelto, el carro intacto); "Terminé" con un solo `empty_cart` tras el ticket de la caja, el momento
+  a la vista como titular breve (sin resumen) y lo que oye el lector, y su "Deshacer" que vuelve
   a la caja; "Terminé" con el carro vacío, y el resumen al vaciar con "Vaciar el
   carro" sin nada pendiente. Con capturas a 375px en claro y oscuro.
 - `e2e/f9-line.spec.ts` (helpers en `e2e/line.ts`): el andén con datos
@@ -1210,9 +1228,11 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
   `e2e/f9-line-members.spec.ts`: lo que queda atrás, con dos miembros en
   claro y oscuro (otro suma a una estación pasada: el ramal que pulsa, el
   aviso, lo que oye el lector y "Volver" con el foco en el cartel) y a
-  solas (una estación dejada con algo, y el "+" en la caja). Unitarios
+  solas (una estación dejada con algo, y el "+" en la caja). El ticket de
+  la caja y el momento breve tras "Terminé" se prueban en
+  `e2e/f1-shopping.spec.ts`. Unitarios
   de `line.ts`, `useLine`, `useShoppingLine`, `LinePlatform` (el ramal y
-  el aviso) y la barra.
+  el aviso), `LineTicket` y la barra.
   `visual.spec.ts` suma la lista en modo compra (invariantes, 44px, la cuenta
   en serif, el cartel en serif sobre tinta y, en la caja, "Terminé" en el par
   de acción) y, con movimiento reducido, que la

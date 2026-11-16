@@ -310,6 +310,21 @@ export const texts = {
         `Sumaste ${name} en ${station}, que ya pasaste.`,
       back: "Volver",
     },
+    /**
+     * La caja: la compra como un ticket. Lo que "Buena compra" contaba
+     * después de "Terminé" (M-3), dicho antes; "No conseguido" es lo que
+     * sigue pendiente.
+     */
+    ticket: {
+      eyebrow: "Tu compra",
+      total: "En el carro",
+      count: (done: number, total: number) => `${done} de ${total}`,
+      estimate: "Estimado",
+      missing: "No conseguido",
+      missingCount: (n: number) => (n === 1 ? "falta 1" : `faltan ${n}`),
+      hint: "Tocá una estación del riel para volver a buscar lo que falta.",
+      allIn: "No faltó nada.",
+    },
   },
   sendPending: {
     /** Nombre accesible del botón: abre la hoja de compartir del sistema. */
