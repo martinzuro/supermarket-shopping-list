@@ -295,6 +295,21 @@ export const texts = {
     arrived: (name: string, n: number, total: number) =>
       `Llegaste a ${name}, estación ${n} de ${total}.`,
     arrivedCheckout: "Llegaste a la caja.",
+    /** El ramal de una estación pasada con algo pendiente: "+2". */
+    behindTag: (n: number) => `+${n}`,
+    behindSpoken: (n: number) =>
+      n === 1 ? ", 1 quedó atrás" : `, ${n} quedaron atrás`,
+    /**
+     * Un producto que llega a una estación que ya pasaste. No hay perfiles:
+     * de otro miembro solo se sabe que no fuiste vos.
+     */
+    late: {
+      byOther: (name: string, station: string) =>
+        `Alguien sumó ${name} en ${station}, que ya pasaste.`,
+      bySelf: (name: string, station: string) =>
+        `Sumaste ${name} en ${station}, que ya pasaste.`,
+      back: "Volver",
+    },
   },
   sendPending: {
     /** Nombre accesible del botón: abre la hoja de compartir del sistema. */

@@ -706,7 +706,7 @@ esta compra) a la vez. Sale del prototipo de `/design/linea` (abajo, en
   totales, y no se achica con los avisos de la barra: los nodos son
   objetivos del pulgar y no se mueven; un aviso tapa un momento el final del
   riel. Una estación pasada con todo en el carro es un disco lleno; con algo
-  pendiente conserva su anillo. Con un dedo, capturar el puntero en el riel
+  pendiente conserva su anillo, en cítrico (abajo, "Lo que queda atrás"). Con un dedo, capturar el puntero en el riel
   suelta la captura implícita del nodo: solo la pérdida de la captura del
   propio riel cancela el deslizamiento.
 - **Seguir.** "Siguiente: X" (o "Ir a la caja") vive en la barra, bajo el
@@ -715,6 +715,32 @@ esta compra) a la vez. Sale del prototipo de `/design/linea` (abajo, en
   que estás se queda sin productos (el último se borró), pasás a la
   siguiente que tenías adelante, o a la caja. Una región `role="status"`
   dice "Llegaste a Almacén, estación 4 de 7.".
+- **Lo que queda atrás.** `useLine` da `behind` (`behindOf`): las estaciones
+  pasadas con algo pendiente y cuánto. En el riel su nodo lleva el anillo en
+  `citrus` y, al lado, un ramal con la cuenta en mono y `citrus-text`
+  ("+1", `data-slot="line-behind"`, fuera del árbol accesible); el nombre
+  del nodo lo dice ("Ir a Panadería, 0 de 1 en el carro, 1 quedó atrás").
+  Si lo pendiente ahí lo acaba de cambiar otro miembro (`useRemoteChanges`),
+  el ramal pulsa como una fila: anima `background-color`, la misma excepción
+  documentada de `ListRow`. Un producto que **llega** a una estación ya
+  pasada (de otro miembro por Realtime, o el propio "+") lo avisa bajo el
+  cartel: una línea sin tarjeta, con hilo cítrico y el icono `CornerLeftUp`,
+  "Alguien sumó Pan de campo en Panadería, que ya pasaste." (o "Sumaste…";
+  no hay perfiles, así que de otro miembro solo se sabe que no fuiste vos,
+  por `created_by`), y "Volver" (`outline`), que lleva ahí y pasa el foco al
+  cartel. Entra y sale con `Collapse`. Vale mientras el producto siga
+  pendiente en una estación que quedó atrás, y se va al moverse; una
+  recarga no avisa nada. La región `role="status"` de la línea dice lo
+  último que pasó, un movimiento o una llegada tardía, y no repite la
+  llegada cuando el aviso se va solo. **En la caja** todas las estaciones
+  quedaron atrás: lo que se agrega ahí con "+" (o agrega otro) sale con el
+  mismo aviso y su "Volver", en vez de alcanzarse solo por el riel. Límites
+  conocidos: un producto que ya existía y vuelve a quedar pendiente en una
+  estación pasada (otro lo desmarcó o lo cambió de categoría) tiene ramal y
+  pulso, sin aviso; si llegan varios juntos, el aviso nombra uno y el ramal
+  los cuenta; lo de otro miembro lo dicen dos regiones (esta, y la de los
+  cambios remotos con su "Agregaron…"); y el aviso corre las filas hacia
+  abajo al aparecer, como en el prototipo.
 - **La caja** es la última parada: el cartel dice "Caja" con la cuenta del
   carro, y la barra cambia "Siguiente" por "Terminé". Son dos elementos
   distintos (el foco no se hereda: va al cartel).
@@ -1180,8 +1206,13 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
   recargar; la caja, con el foco en el cartel y el doble toque que no
   termina; el riel por toque, por deslizamiento con toques reales (CDP) y
   por teclado; la hoja de edición, el "Deshacer" de A-4 y el "+" dentro de
-  la estación; y con movimiento reducido, que nada vuela ni gira. Unitarios
-  de `line.ts`, `useLine`, `useShoppingLine` y la barra.
+  la estación; y con movimiento reducido, que nada vuela ni gira.
+  `e2e/f9-line-members.spec.ts`: lo que queda atrás, con dos miembros en
+  claro y oscuro (otro suma a una estación pasada: el ramal que pulsa, el
+  aviso, lo que oye el lector y "Volver" con el foco en el cartel) y a
+  solas (una estación dejada con algo, y el "+" en la caja). Unitarios
+  de `line.ts`, `useLine`, `useShoppingLine`, `LinePlatform` (el ramal y
+  el aviso) y la barra.
   `visual.spec.ts` suma la lista en modo compra (invariantes, 44px, la cuenta
   en serif, el cartel en serif sobre tinta y, en la caja, "Terminé" en el par
   de acción) y, con movimiento reducido, que la

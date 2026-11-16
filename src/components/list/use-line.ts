@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useShoppingLine } from "@/components/list/shopping-mode";
 import {
   CHECKOUT,
+  behindOf,
   groupByCategory,
   moveTo,
   nextStop,
@@ -41,6 +42,8 @@ export type Line = {
   here: Station | null;
   /** The next stop ahead with something to pick, or CHECKOUT. */
   next: string;
+  /** The stations left behind with something to pick, and how much. */
+  behind: ReadonlyMap<string, number>;
   move: (to: string) => void;
 };
 
@@ -121,6 +124,7 @@ export function useLine(
           ? null
           : (stations.find((station) => station.id === position.at) ?? null),
       next: nextStop(ids, lineItems, position),
+      behind: behindOf(ids, lineItems, position),
       move: (to: string) => {
         const moved = moveTo(ids, position, to);
         keep({ at: moved.at, passed: moved.passed, stations: ids });
