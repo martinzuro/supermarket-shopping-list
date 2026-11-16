@@ -161,11 +161,20 @@ describe("useLine", () => {
     const milk = row("Leche", DAIRY);
     const { result, setItems } = renderLine([tomatoes, milk]);
     act(() => result.current.line!.move(DAIRY));
-    await setItems([tomatoes, milk, row("Pan", BAKERY)]);
+    const bread = row("Pan", BAKERY);
+    await setItems([tomatoes, milk, bread]);
     expect(result.current.line?.position).toEqual({
       at: DAIRY,
       passed: [BAKERY, VEGETABLES],
     });
+    // Both were left with something to pick: the rail counts them.
+    expect([...result.current.line!.behind]).toEqual([
+      [BAKERY, 1],
+      [VEGETABLES, 1],
+    ]);
+    // Picked from elsewhere, a station is no longer behind.
+    await setItems([{ ...tomatoes, checked: true }, milk, bread]);
+    expect([...result.current.line!.behind]).toEqual([[BAKERY, 1]]);
   });
 
   it("stands at the next station when the last item of yours is removed", async () => {

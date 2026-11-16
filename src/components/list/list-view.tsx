@@ -641,7 +641,10 @@ export function ListView() {
       </div>
       {line ? (
         <LinePlatform
+          // Another list is another trip: what it has did not arrive late.
+          key={listId}
           line={line}
+          userId={userId}
           remote={remote}
           fresh={fresh.fresh}
           onCheckedChange={handleCheckedChange}

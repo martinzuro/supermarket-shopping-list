@@ -1,5 +1,6 @@
 "use client";
 
+import { CornerLeftUp } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   useEffect,
@@ -10,7 +11,13 @@ import {
 } from "react";
 import { type Line, type Station } from "@/components/list/use-line";
 import { CategoryIcon } from "@/components/icons/category-icons";
-import { Stagger, StaggerItem, transitions } from "@/components/motion";
+import {
+  Collapse,
+  Stagger,
+  StaggerItem,
+  transitions,
+} from "@/components/motion";
+import { Button } from "@/components/ui/button";
 import { ListRow } from "@/components/ui/list-row";
 import { SwipeToRemove } from "@/components/ui/swipe-to-remove";
 import { motionTokens } from "@/lib/design/motion";
@@ -64,8 +71,17 @@ const threadOf = (stop: Stop) => `var(--cat-${stop.kind ?? "otros"}-thread)`;
 
 type Flyer = { id: number; from: [number, number]; to: [number, number] };
 
+/** A product that arrived at a station already passed. */
+type Late = { id: string; station: string };
+
+function focusBoard() {
+  document.getElementById(LINE_HEADING_ID)?.focus({ preventScroll: true });
+}
+
 type LinePlatformProps = {
   line: Line;
+  /** Who is shopping: what they add themselves is said as theirs. */
+  userId: string | null;
   /** Rows another member just changed: they pulse. */
   remote: ReadonlySet<string>;
   /** Rows added since the list loaded: they fade in. */
@@ -87,9 +103,15 @@ type LinePlatformProps = {
  * the list's route order; tap a node or slide along the rail to go there. A
  * checked product flies to the rail. The button that moves on is in the add
  * bar ("Siguiente: Almacén") and waits for the tap: nothing moves on a timer.
+ *
+ * What was left behind stays in sight: a passed station with something to
+ * pick has a citrus node and a branch with the count, and a product that
+ * arrives at one (another member's, or your own "+") says so under the
+ * board, with "Volver".
  */
 export function LinePlatform({
   line,
+  userId,
   remote,
   fresh,
   onCheckedChange,
@@ -123,20 +145,71 @@ export function LinePlatform({
     setShown(at);
     setMoved(true);
   }
-  const announcement = !moved
-    ? ""
-    : atCheckout
-      ? t.arrivedCheckout
-      : t.arrived(current.name, index + 1, stations.length);
+  // What the status region says: the last thing that happened, a move or a
+  // late arrival. Kept, not derived: a notice that goes away on its own (the
+  // product was picked elsewhere) must not read the arrival again.
+  const [said, setSaid] = useState({ text: "", seq: 0 });
+  const say = (text: string) =>
+    setSaid((last) => ({ text, seq: last.seq + 1 }));
+  // The products seen so far, and the one that came late. Those of a first
+  // render were all there: a reload says nothing.
+  const [known, setKnown] = useState<ReadonlySet<string>>(
+    () => new Set(stations.flatMap((one) => one.items.map((item) => item.id))),
+  );
+  const [notice, setNotice] = useState<Late | null>(null);
+  if (shown !== at) {
+    // The notice goes away on moving, wherever to.
+    setNotice(null);
+    say(
+      atCheckout
+        ? t.arrivedCheckout
+        : t.arrived(current.name, index + 1, stations.length),
+    );
+  }
+  const arrived: string[] = [];
+  let late: { item: Item; station: Station } | null = null;
+  for (const station of stations) {
+    for (const item of station.items) {
+      if (known.has(item.id)) continue;
+      arrived.push(item.id);
+      // At the checkout every station is behind: without this notice a
+      // product added there could only be reached through the rail.
+      if (!item.checked && line.behind.has(station.id))
+        late = { item, station };
+    }
+  }
+  if (arrived.length > 0) {
+    setKnown(new Set([...known, ...arrived]));
+    if (late) {
+      setNotice({ id: late.item.id, station: late.station.id });
+      say(lateText(late.item, late.station, userId));
+    }
+  }
+  // Shown while it holds: the product may be picked, moved or removed, and
+  // its station may stop being behind, without this device moving.
+  const lateStation =
+    notice && line.behind.has(notice.station)
+      ? stations.find((one) => one.id === notice.station)
+      : undefined;
+  const lateItem = lateStation?.items.find(
+    (item) => item.id === notice?.id && !item.checked,
+  );
+  // The branch of a station pulses like a row when what waits there was
+  // just changed by another member.
+  const pulsing = new Set(
+    stations
+      .filter((one) =>
+        one.items.some((item) => !item.checked && remote.has(item.id)),
+      )
+      .map((one) => one.id),
+  );
 
   // Whatever had the focus may be gone with its station (a row, or the
   // bar's button at the checkout): it goes to the board, without scrolling.
   useEffect(() => {
     if (!moved) return;
     const active = document.activeElement;
-    if (!active || active === document.body) {
-      document.getElementById(LINE_HEADING_ID)?.focus({ preventScroll: true });
-    }
+    if (!active || active === document.body) focusBoard();
   }, [at, moved]);
 
   function check(
@@ -182,6 +255,36 @@ export function LinePlatform({
           status={here ? t.pending(here.pending) : null}
           animate={moved}
         />
+
+        {/* No card: a line with a citrus thread, gone on moving. */}
+        <Collapse show={lateItem !== undefined} className="pt-3">
+          {lateStation && lateItem ? (
+            <div
+              data-slot="line-late"
+              className="border-citrus-text flex items-center gap-3 border-l-2 pl-3"
+            >
+              <CornerLeftUp
+                aria-hidden
+                strokeWidth={1.5}
+                className="text-citrus-text size-5 shrink-0"
+              />
+              <p className="min-w-0 flex-1 text-pretty">
+                {lateText(lateItem, lateStation, userId)}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  line.move(lateStation.id);
+                  // The button fades out with its notice, focus and all.
+                  focusBoard();
+                }}
+              >
+                {t.late.back}
+              </Button>
+            </div>
+          ) : null}
+        </Collapse>
 
         {here ? (
           <Stagger
@@ -235,7 +338,8 @@ export function LinePlatform({
         ) : null}
 
         <p role="status" className="sr-only" data-slot="line-announcement">
-          {announcement}
+          {/* Keyed: a sentence said twice is read twice. */}
+          <span key={said.seq}>{said.text}</span>
         </p>
       </div>
 
@@ -244,6 +348,8 @@ export function LinePlatform({
         at={at}
         progress={progress}
         passed={position.passed}
+        behind={line.behind}
+        pulsing={pulsing}
         bump={done}
         onMove={line.move}
       />
@@ -264,6 +370,13 @@ export function LinePlatform({
       ))}
     </>
   );
+}
+
+function lateText(item: Item, station: Station, userId: string | null) {
+  const where = stopOf(station).name;
+  return userId !== null && item.created_by === userId
+    ? t.late.bySelf(item.name, where)
+    : t.late.byOther(item.name, where);
 }
 
 type BoardProps = {
@@ -376,6 +489,10 @@ type RailProps = {
   /** 0 at the first node, 1 at the checkout. */
   progress: number;
   passed: readonly string[];
+  /** The passed stations with something still to pick, and how much. */
+  behind: ReadonlyMap<string, number>;
+  /** The stations where another member just changed what is pending. */
+  pulsing: ReadonlySet<string>;
   /** Changes with every check: the dot answers the product that arrives. */
   bump: number;
   onMove: (to: string) => void;
@@ -386,8 +503,19 @@ type RailProps = {
  * with a 44px target, the stretch traveled filled in the "done" pair. Tap a
  * node to go there, or slide along the rail: the name of the stop under the
  * thumb shows beside it, with a tick on each one, and lifting goes there.
+ * A station left with something to pick is citrus, with a branch off the
+ * line that counts it ("+1").
  */
-function Rail({ stops, at, progress, passed, bump, onMove }: RailProps) {
+function Rail({
+  stops,
+  at,
+  progress,
+  passed,
+  behind,
+  pulsing,
+  bump,
+  onMove,
+}: RailProps) {
   const [scrub, setScrub] = useState<number | null>(null);
   // A press that slid is a scrub and moves on lifting; one that did not is a
   // tap, and the node's own click moves (the keyboard's and the reader's way
@@ -473,8 +601,9 @@ function Rail({ stops, at, progress, passed, bump, onMove }: RailProps) {
             const current = stop.id === at;
             const gone = stop.id !== CHECKOUT && passed.includes(stop.id);
             // A station left with something to pick is not done: it keeps
-            // its ring.
+            // its ring, in citrus.
             const done = gone && stop.done === stop.total;
+            const left = behind.get(stop.id) ?? 0;
             return (
               <button
                 key={stop.id}
@@ -490,6 +619,7 @@ function Rail({ stops, at, progress, passed, bump, onMove }: RailProps) {
                   {stop.id === CHECKOUT
                     ? ""
                     : t.nodeSpoken(stop.done, stop.total)}
+                  {left > 0 ? t.behindSpoken(left) : ""}
                 </span>
                 {stop.id === CHECKOUT ? (
                   <span
@@ -509,15 +639,34 @@ function Rail({ stops, at, progress, passed, bump, onMove }: RailProps) {
                         : done
                           ? "bg-action-bg size-3"
                           : "bg-paper size-3.5 border-2",
+                      left > 0 && "border-citrus",
                       scrubbed === index && "scale-150",
                     )}
                     style={
-                      done && !current
+                      left > 0 || (done && !current)
                         ? undefined
                         : { borderColor: threadOf(stop) }
                     }
                   />
                 )}
+                {left > 0 ? (
+                  // A branch off the line: what was left at this station.
+                  // Its pulse animates background-color, the documented
+                  // exception of ListRow.
+                  <span
+                    aria-hidden
+                    data-slot="line-behind"
+                    data-pulsing={pulsing.has(stop.id) || undefined}
+                    className={cn(
+                      "text-label text-citrus-text rounded-field pointer-events-none absolute right-9 px-1 font-mono transition-colors ease-out",
+                      pulsing.has(stop.id)
+                        ? "bg-remote-pulse duration-instant"
+                        : "bg-paper duration-slow",
+                    )}
+                  >
+                    {t.behindTag(left)}
+                  </span>
+                ) : null}
               </button>
             );
           })}
