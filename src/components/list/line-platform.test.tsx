@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { CHECKOUT } from "@/lib/domain";
+import { CHECKOUT, SIMPLE_STATION } from "@/lib/domain";
 import type { Category, Item } from "@/lib/queries";
 import { texts } from "@/lib/texts";
 import { LINE_HEADING_ID, LinePlatform } from "./line-platform";
@@ -67,6 +67,7 @@ function lineOf(
 ): Line {
   return {
     stations,
+    simple: false,
     position: { at, passed },
     here: stations.find((one) => one.id === at) ?? null,
     next: CHECKOUT,
@@ -279,5 +280,36 @@ describe("LinePlatform, what is left behind", () => {
     );
     // Still behind: the branch stays.
     expect(branch(BAKERY.id)).toHaveTextContent(t.behindTag(1));
+  });
+});
+
+describe("LinePlatform, the simple list", () => {
+  it("has one station, counts the cart on the board and measures it on the rail", () => {
+    const list: Station = {
+      id: SIMPLE_STATION,
+      category: null,
+      items: [item("Pan", { checked: true }), item("Leche"), item("Yerba")],
+      pending: 2,
+    };
+    render(
+      platform({
+        ...lineOf([list], SIMPLE_STATION, []),
+        simple: true,
+      }),
+    );
+    const heading = document.getElementById(LINE_HEADING_ID)!;
+    expect(heading).toHaveTextContent(
+      `${t.cartSpoken(1, 3)}${t.hereSpoken}${t.simple}. ${t.pending(2)}`,
+    );
+    expect(
+      document.querySelector('[data-slot="line-board"] [data-numeric]'),
+    ).toHaveTextContent(t.number(1, 3));
+    expect(node(SIMPLE_STATION)).toHaveTextContent(
+      `${t.goTo(t.simple)}${t.nodeSpoken(1, 3)}`,
+    );
+    expect(node(SIMPLE_STATION)).toHaveAttribute("aria-current", "step");
+    expect(
+      document.querySelectorAll('[data-slot="line-rail"] button'),
+    ).toHaveLength(2);
   });
 });

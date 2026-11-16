@@ -4,6 +4,7 @@ import { useMutationState, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, XIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CategoryIcon } from "@/components/icons/category-icons";
+import { useSimpleLine } from "@/components/list/simple-line";
 import { Collapse, Enter, transitions } from "@/components/motion";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -14,16 +15,26 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { categoryKind, compareRouteOrder, type Direction } from "@/lib/domain";
+import {
+  categoryKind,
+  compareRouteOrder,
+  learnRoute,
+  stepsTo,
+  type Direction,
+} from "@/lib/domain";
 import {
   categoryMutationKeys,
   categoryStep,
   useMoveCategory,
+  useTrips,
   type Category,
   type MoveCategory,
 } from "@/lib/queries";
 import { texts } from "@/lib/texts";
 import { cn } from "@/lib/utils";
+
+/** The learned order this device said "Ahora no" to, with its list. */
+export const ROUTE_DECLINED_KEY = "lista:route-declined";
 
 type RouteSheetProps = {
   open: boolean;
@@ -45,6 +56,10 @@ type RouteSheetProps = {
  * once; the order is the one Pendientes follows. Rows slide to their new
  * place (transform only; nothing slides with reduced motion), and the focus
  * stays on the button that was pressed, which follows its category.
+ *
+ * Above the route, when the order learned from past trips differs from it
+ * (F-9, ADR 0010), a suggestion: using it writes the route, for everyone.
+ * Below it, this device's switch to shop without categories.
  */
 export function RouteSheet({
   open,
@@ -142,6 +157,86 @@ function RouteBody({
   if (failure && failure.at !== lastFailure?.at) setLastFailure(failure);
   const notice = failure ?? lastFailure;
 
+  // The order the past trips were checked in (learnRoute), offered when it
+  // is not the route already. Read with the sheet: trips are not in the
+  // Realtime publication.
+  const trips = useTrips(userId, listId);
+  const routeIds = route.map((category) => category.id);
+  const learned = learnRoute(
+    (trips.data?.trips ?? []).map((trip) =>
+      trip.items.flatMap((item) =>
+        item.category_id && item.checked_at
+          ? [{ categoryId: item.category_id, checkedAt: item.checked_at }]
+          : [],
+      ),
+    ),
+    routeIds,
+  );
+  // The categories the counted trips went through. The rest keep their
+  // place in the route: a category nobody bought from says nothing about
+  // where it is in the store, and must not be sent to the end.
+  const seen = new Set(
+    (trips.data?.trips ?? []).flatMap((trip) => {
+      const ids = trip.items.flatMap((item) =>
+        item.category_id &&
+        item.checked_at &&
+        routeIds.includes(item.category_id)
+          ? [item.category_id]
+          : [],
+      );
+      return new Set(ids).size < 2 ? [] : ids;
+    }),
+  );
+  const learnedSeen = learned.order.filter((id) => seen.has(id));
+  const queue = [...learnedSeen];
+  const target = routeIds.map((id) => (seen.has(id) ? queue.shift()! : id));
+  const steps = learned.learned ? stepsTo(routeIds, target) : [];
+  // "Ahora no" is remembered for this order on this device: someone who
+  // prefers their own route is not asked again on every opening. A new
+  // order learned later is offered.
+  const learnedKey = `${listId}:${learnedSeen.join()}`;
+  const [declined, setDeclined] = useState(() => {
+    try {
+      return window.localStorage.getItem(ROUTE_DECLINED_KEY);
+    } catch {
+      return null;
+    }
+  });
+  function decline() {
+    setDeclined(learnedKey);
+    try {
+      window.localStorage.setItem(ROUTE_DECLINED_KEY, learnedKey);
+    } catch {
+      // Without storage it holds for this opening.
+    }
+  }
+  // Having used it also closes it for this opening (a rejected move says
+  // so itself, and the arrows are right there).
+  const [used, setUsed] = useState(false);
+  const suggested = steps.length > 0 && !used && declined !== learnedKey;
+  // Kept while it leaves, so it fades with its text.
+  const [lastOrder, setLastOrder] = useState(learnedSeen);
+  if (suggested && learnedSeen.join() !== lastOrder.join()) {
+    setLastOrder(learnedSeen);
+  }
+  const nameOf = (id: string) =>
+    route.find((category) => category.id === id)?.name ?? "";
+  const heading = useRef<HTMLUListElement>(null);
+
+  function applySuggestion() {
+    setMoved(null);
+    setUsed(true);
+    // One move per category out of place, each over the route the one
+    // before it leaves: the same writes the arrows make.
+    for (const step of steps) {
+      move.mutate({ ...step, name: nameOf(step.id), direction: "up" });
+    }
+    // The button leaves with the suggestion: the focus goes to the route.
+    heading.current?.focus({ preventScroll: true });
+  }
+
+  const [simple, setSimple] = useSimpleLine();
+
   const [moved, setMoved] = useState<Moved | null>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
   // The arrow the user last had the focus on (or tapped: some browsers do
@@ -203,7 +298,10 @@ function RouteBody({
       setMoved({ ...moved, said: "" });
     }
   }
-  const said = moved?.said ?? "";
+  // Not while a rejection shows: the alert says what did not move.
+  const said =
+    moved?.said ??
+    (used && failure === null ? texts.route.suggestion.used : "");
 
   return (
     <div className="pb-safe flex flex-col">
@@ -239,7 +337,36 @@ function RouteBody({
           />
         ) : null}
       </Collapse>
+      <Collapse show={suggested} className="px-6 pb-4">
+        <Banner
+          tone="info"
+          title={texts.route.suggestion.title}
+          body={texts.route.suggestion.body(
+            learned.trips,
+            lastOrder.map(nameOf),
+          )}
+          footer={
+            <>
+              <Button type="button" onClick={applySuggestion}>
+                {texts.route.suggestion.use}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  decline();
+                  heading.current?.focus({ preventScroll: true });
+                }}
+              >
+                {texts.route.suggestion.later}
+              </Button>
+            </>
+          }
+        />
+      </Collapse>
       <ul
+        ref={heading}
+        tabIndex={-1}
         aria-label={texts.route.listLabel}
         data-slot="route-list"
         className="border-rule mx-6 border-t"
@@ -321,6 +448,34 @@ function RouteBody({
           );
         })}
       </ul>
+      {/* This device's way to shop: not the list's, nobody else sees it. */}
+      <div
+        className="mx-6 flex items-center gap-4 py-4"
+        data-slot="simple-line"
+      >
+        <div className="min-w-0 flex-1">
+          <p id="simple-line-title" className="text-row">
+            {texts.route.simple.title}
+          </p>
+          <p
+            id="simple-line-description"
+            className="text-label text-ink-2 text-pretty"
+          >
+            {texts.route.simple.description}
+          </p>
+        </div>
+        <Button
+          type="button"
+          role="switch"
+          aria-checked={simple}
+          aria-labelledby="simple-line-title"
+          aria-describedby="simple-line-description"
+          variant={simple ? "default" : "outline"}
+          onClick={() => setSimple(!simple)}
+        >
+          {simple ? texts.route.simple.on : texts.route.simple.off}
+        </Button>
+      </div>
     </div>
   );
 }

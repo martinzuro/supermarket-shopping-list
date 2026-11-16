@@ -354,6 +354,7 @@ export function ListView() {
             at: line.position.at,
             passed: line.position.passed,
             stations: line.stations.map((station) => station.id),
+            simple: line.simple,
           }
         : null;
     setEmptied(emptying);

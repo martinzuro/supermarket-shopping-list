@@ -1,9 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CHECKOUT } from "@/lib/domain";
+import { CHECKOUT, SIMPLE_STATION } from "@/lib/domain";
 import { queryKeys } from "@/lib/queries/keys";
 import { makeTestQueryClient, makeWrapper } from "@/lib/queries/test-utils";
 import { SHOPPING_KEY, useShoppingMode } from "./shopping-mode";
+import { SIMPLE_LINE_KEY } from "./simple-line";
 import { useLine, useLineFailed } from "./use-line";
 
 const USER = "00000000-0000-7000-8000-000000000001";
@@ -240,5 +241,69 @@ describe("useLine", () => {
     expect(result.current.line).toBeNull();
     // Nothing was kept: the trip has no place until there is a line.
     expect(kept()).toBeUndefined();
+  });
+
+  describe("the simple list", () => {
+    it("is one station with everything, in route order, when this device prefers it", () => {
+      localStorage.setItem(SIMPLE_LINE_KEY, "1");
+      const { result } = renderLine([
+        row("Leche", DAIRY),
+        row("Pan", BAKERY, true),
+        row("Tomates", VEGETABLES),
+      ]);
+      const line = result.current.line!;
+      expect(line.simple).toBe(true);
+      expect(line.stations.map((one) => [one.id, one.pending])).toEqual([
+        [SIMPLE_STATION, 2],
+      ]);
+      expect(line.here?.items.map((item) => item.name)).toEqual([
+        "Pan",
+        "Tomates",
+        "Leche",
+      ]);
+      expect(line.position).toEqual({ at: SIMPLE_STATION, passed: [] });
+      expect(line.next).toBe(CHECKOUT);
+      expect(kept()).toEqual({
+        at: SIMPLE_STATION,
+        passed: [],
+        stations: [SIMPLE_STATION],
+        simple: true,
+      });
+    });
+
+    it("is used on its own when everything to pick falls in one category, and holds for the trip", async () => {
+      const bread = row("Pan", BAKERY, true);
+      const tomatoes = row("Tomates", VEGETABLES);
+      const lettuce = row("Lechuga", VEGETABLES);
+      const { result, setItems } = renderLine([bread, tomatoes, lettuce]);
+      expect(result.current.line?.simple).toBe(true);
+      expect(result.current.line?.here?.items).toHaveLength(3);
+      // Someone adds to another category: the line keeps its shape.
+      await setItems([bread, tomatoes, lettuce, row("Leche", DAIRY)]);
+      expect(result.current.line?.simple).toBe(true);
+      expect(result.current.line?.stations.map((one) => one.id)).toEqual([
+        SIMPLE_STATION,
+      ]);
+      expect(result.current.line?.here?.pending).toBe(3);
+      // To the checkout and back: the list was left, not finished.
+      act(() => result.current.line!.move(CHECKOUT));
+      expect([...result.current.line!.behind]).toEqual([[SIMPLE_STATION, 3]]);
+      act(() => result.current.line!.move(SIMPLE_STATION));
+      expect(result.current.line?.position).toEqual({
+        at: SIMPLE_STATION,
+        passed: [],
+      });
+    });
+
+    it("is not used with things to pick in two categories, nor by a trip that started with stations", async () => {
+      const tomatoes = row("Tomates", VEGETABLES);
+      const milk = row("Leche", DAIRY);
+      const { result, setItems } = renderLine([tomatoes, milk]);
+      expect(result.current.line?.simple).toBe(false);
+      // One category left to pick, mid-trip: still stations.
+      await setItems([{ ...tomatoes, checked: true }, milk]);
+      expect(result.current.line?.simple).toBe(false);
+      expect(result.current.line?.stations).toHaveLength(2);
+    });
   });
 });

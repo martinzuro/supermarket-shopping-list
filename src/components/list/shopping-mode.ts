@@ -39,6 +39,11 @@ export type StoredLine = {
   at: string;
   passed: readonly string[];
   stations: readonly string[];
+  /**
+   * The trip is shopped as a simple list, one station with everything. It
+   * is decided when the trip starts and holds until it ends.
+   */
+  simple?: boolean;
 };
 
 type Stored = { listId: string; since: number; line?: StoredLine };
@@ -125,7 +130,12 @@ function lineOf(value: unknown): StoredLine | null {
   return typeof line?.at === "string" &&
     strings(line.passed) &&
     strings(line.stations)
-    ? { at: line.at, passed: line.passed, stations: line.stations }
+    ? {
+        at: line.at,
+        passed: line.passed,
+        stations: line.stations,
+        ...(line.simple === true ? { simple: true } : {}),
+      }
     : null;
 }
 
@@ -134,7 +144,10 @@ function sameLine(a: StoredLine | null, b: StoredLine | null) {
   const same = (x: readonly string[], y: readonly string[]) =>
     x.length === y.length && x.every((id, index) => id === y[index]);
   return (
-    a.at === b.at && same(a.passed, b.passed) && same(a.stations, b.stations)
+    a.at === b.at &&
+    (a.simple === true) === (b.simple === true) &&
+    same(a.passed, b.passed) &&
+    same(a.stations, b.stations)
   );
 }
 

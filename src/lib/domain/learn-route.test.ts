@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { categoryIds } from "@/lib/design/tokens";
-import { learnRoute, type CheckedItem } from "./learn-route";
+import { learnRoute, type CheckedItem, stepsTo } from "./learn-route";
 import { pastTrips } from "@/app/design/linea/sample";
 
 const listOrder = ["verduras", "carnes", "lacteos", "panaderia", "almacen"];
@@ -156,6 +156,50 @@ describe("learnRoute", () => {
       "congelados",
       "higiene",
       "otros",
+    ]);
+  });
+});
+
+describe("stepsTo", () => {
+  /** Applies the steps as public.move_category does: up, to right before. */
+  const apply = (route: string[], steps: { id: string; past: string }[]) => {
+    const order = [...route];
+    for (const { id, past } of steps) {
+      order.splice(order.indexOf(id), 1);
+      order.splice(order.indexOf(past), 0, id);
+    }
+    return order;
+  };
+
+  it("needs nothing for the same route", () => {
+    expect(stepsTo(["a", "b", "c"], ["a", "b", "c"])).toEqual([]);
+  });
+
+  it("moves each category out of place once, up to right before another", () => {
+    const steps = stepsTo(["a", "b", "c", "d"], ["d", "a", "c", "b"]);
+    expect(steps).toEqual([
+      { id: "d", past: "a" },
+      { id: "c", past: "b" },
+    ]);
+    expect(apply(["a", "b", "c", "d"], steps)).toEqual(["d", "a", "c", "b"]);
+  });
+
+  it("reaches any order", () => {
+    const route = ["a", "b", "c", "d", "e"];
+    for (const target of [
+      ["e", "d", "c", "b", "a"],
+      ["b", "a", "d", "c", "e"],
+      ["c", "e", "a", "b", "d"],
+    ]) {
+      const steps = stepsTo(route, target);
+      expect(steps.length).toBeLessThan(route.length);
+      expect(apply(route, steps)).toEqual(target);
+    }
+  });
+
+  it("skips what the route does not have", () => {
+    expect(stepsTo(["a", "b"], ["x", "b", "a"])).toEqual([
+      { id: "b", past: "a" },
     ]);
   });
 });

@@ -1,6 +1,7 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -17,7 +18,8 @@ import { moveCategory } from "@/lib/domain";
 import { queryKeys } from "@/lib/queries/keys";
 import type { Category } from "@/lib/queries";
 import { texts } from "@/lib/texts";
-import { RouteSheet } from "./route-sheet";
+import { ROUTE_DECLINED_KEY, RouteSheet } from "./route-sheet";
+import { SIMPLE_LINE_KEY } from "./simple-line";
 
 const USER = "00000000-0000-7000-8000-000000000001";
 const LIST = "00000000-0000-7000-8000-000000000002";
@@ -99,6 +101,7 @@ const announcement = () =>
   document.querySelector('[data-slot="route-announcement"]')!;
 
 beforeEach(() => {
+  localStorage.clear();
   callRpc.mockReset();
   // A server that applies each move to the route it holds, and answers with
   // the whole route, as public.move_category does.
@@ -367,5 +370,146 @@ describe("RouteSheet", () => {
     view.rerender(<Harness open={false} />);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(failed()).toBe(0);
+  });
+
+  describe("the order learned from past trips (F-9)", () => {
+    /** A trip that checked one product per category, in this order. */
+    const trip = (id: string, order: string[]) => ({
+      id,
+      emptied_at: "2026-11-01T10:00:00Z",
+      items: order.map((categoryId, minute) => ({
+        category_id: categoryId,
+        checked_at: `2026-11-01T09:${String(10 + minute)}:00Z`,
+      })),
+    });
+    const LEARNED = ["dairy", "drinks", "veg", "others"];
+
+    function renderWithTrips(trips: unknown[]) {
+      const queryClient = makeTestQueryClient();
+      queryClient.setQueryData(key, ROUTE);
+      queryClient.setQueryData(queryKeys.trips(USER, LIST), {
+        trips,
+        more: false,
+      });
+      render(<Harness />, { wrapper: makeWrapper(queryClient) });
+    }
+    const suggestion = () => screen.queryByText(t.suggestion.title);
+
+    it("is not offered without enough trips", () => {
+      renderWithTrips([trip("one", LEARNED)]);
+      expect(suggestion()).toBeNull();
+    });
+
+    it("is not offered when the trips follow the route", () => {
+      const route = ["veg", "dairy", "drinks", "others"];
+      renderWithTrips([trip("one", route), trip("two", route)]);
+      expect(suggestion()).toBeNull();
+    });
+
+    it("is offered when it differs, and using it writes the route", async () => {
+      renderWithTrips([trip("one", LEARNED), trip("two", LEARNED)]);
+      expect(suggestion()).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          t.suggestion.body(2, [
+            "Fiambres y lácteos",
+            "Bebidas",
+            "Frutas y verduras",
+            "Otros",
+          ]),
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(button(t.suggestion.use));
+      // At once, before any answer.
+      await waitFor(() =>
+        expect(names()).toEqual([
+          "Fiambres y lácteos",
+          "Bebidas",
+          "Frutas y verduras",
+          "Otros",
+        ]),
+      );
+      expect(announcement()).toHaveTextContent(t.suggestion.used);
+      await waitFor(() => expect(suggestion()).toBeNull());
+      // One move per category out of place, each up to right before another.
+      await waitFor(() => expect(callRpc).toHaveBeenCalledTimes(2));
+      expect(callRpc.mock.calls.map(([, args]) => args)).toEqual([
+        {
+          target_category_id: "dairy",
+          direction: "up",
+          past_category_id: "veg",
+        },
+        {
+          target_category_id: "drinks",
+          direction: "up",
+          past_category_id: "veg",
+        },
+      ]);
+      // The answers leave the route as it was put.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
+      expect(names()).toEqual([
+        "Fiambres y lácteos",
+        "Bebidas",
+        "Frutas y verduras",
+        "Otros",
+      ]);
+    });
+
+    it("is not offered when only categories no trip saw are out of its order", () => {
+      // The trips skip "Fiambres y lácteos", second in the route: it keeps
+      // its place, and the rest already follow the trips.
+      const seen = ["veg", "drinks", "others"];
+      renderWithTrips([trip("one", seen), trip("two", seen)]);
+      expect(suggestion()).toBeNull();
+    });
+
+    it("leaves in its place a category no trip saw", async () => {
+      const seen = ["drinks", "veg", "others"];
+      renderWithTrips([trip("one", seen), trip("two", seen)]);
+      fireEvent.click(button(t.suggestion.use));
+      await waitFor(() =>
+        expect(names()).toEqual([
+          "Bebidas",
+          "Fiambres y lácteos",
+          "Frutas y verduras",
+          "Otros",
+        ]),
+      );
+      // One move, and its answer in before the next test.
+      await waitFor(() => expect(callRpc).toHaveBeenCalledTimes(1));
+      await act(() => new Promise((resolve) => setTimeout(resolve, 150)));
+    });
+
+    it("goes away with Ahora no, and the route stays", async () => {
+      renderWithTrips([trip("one", LEARNED), trip("two", LEARNED)]);
+      fireEvent.click(button(t.suggestion.later));
+      await waitFor(() => expect(suggestion()).toBeNull());
+      expect(callRpc).not.toHaveBeenCalled();
+      expect(names()[0]).toBe("Frutas y verduras");
+      // Remembered on this device for this order: not asked again.
+      expect(localStorage.getItem(ROUTE_DECLINED_KEY)).toBe(
+        `${LIST}:${LEARNED.join()}`,
+      );
+      cleanup();
+      renderWithTrips([trip("one", LEARNED), trip("two", LEARNED)]);
+      expect(suggestion()).toBeNull();
+    });
+  });
+
+  describe("shopping without categories (F-9)", () => {
+    it("is a switch of this device, off until turned on", () => {
+      localStorage.clear();
+      renderRoute();
+      const toggle = screen.getByRole("switch", { name: t.simple.title });
+      expect(toggle).toHaveAttribute("aria-checked", "false");
+      expect(toggle).toHaveAccessibleDescription(t.simple.description);
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-checked", "true");
+      expect(localStorage.getItem(SIMPLE_LINE_KEY)).toBe("1");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-checked", "false");
+      expect(localStorage.getItem(SIMPLE_LINE_KEY)).toBeNull();
+    });
   });
 });

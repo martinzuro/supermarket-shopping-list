@@ -179,6 +179,12 @@ export type TripSeed = {
     category?: string;
     quantity?: number;
     unit?: string;
+    /**
+     * How long before the emptying it was checked: the order of the checks
+     * is what the learned route reads (F-9). Checked at the emptying if not
+     * given.
+     */
+    minutesBefore?: number;
   }[];
 };
 
@@ -222,7 +228,11 @@ export async function seedTrips(
             ? (categories.get(product.category) ?? null)
             : null,
           checked: true,
-          checked_at: emptiedAt,
+          checked_at: product.minutesBefore
+            ? new Date(
+                Date.parse(emptiedAt) - product.minutesBefore * 60_000,
+              ).toISOString()
+            : emptiedAt,
           created_by: userId,
           created_at: emptiedAt,
         })),

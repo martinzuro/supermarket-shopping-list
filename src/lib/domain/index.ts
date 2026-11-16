@@ -84,7 +84,7 @@ export {
   tripAgain,
   tripEstimate,
 } from "./trips";
-export { LEARN_MIN_TRIPS, learnRoute } from "./learn-route";
+export { LEARN_MIN_TRIPS, learnRoute, stepsTo } from "./learn-route";
 export type { CheckedItem, LearnedRoute } from "./learn-route";
 export {
   CHECKOUT,
