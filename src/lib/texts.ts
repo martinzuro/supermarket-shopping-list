@@ -229,6 +229,27 @@ export const texts = {
       title: (name: string) => `No se movió “${name}”`,
       body: "Volvió a donde estaba. Probá de nuevo.",
     },
+    /**
+     * El orden aprendido de las compras anteriores (F-9, ADR 0010): una
+     * sugerencia cuando difiere del recorrido. Usarla lo guarda para todos.
+     */
+    suggestion: {
+      title: "Un orden según tus compras",
+      body: (trips: number, names: readonly string[]) =>
+        `En tus últimas ${trips} compras marcaste en este orden: ${names.join(", ")}.`,
+      use: "Usar este orden",
+      later: "Ahora no",
+      /** Lo que lee la región cortés al usarla. */
+      used: "El recorrido quedó en el orden de tus compras.",
+    },
+    /** La lista simple: una preferencia de este dispositivo (F-9). */
+    simple: {
+      title: "Comprar sin categorías",
+      description:
+        "En este teléfono, el modo compra muestra una sola lista en vez de una estación por categoría.",
+      on: "Sí",
+      off: "No",
+    },
   },
   /**
    * Mandar lo que falta como texto (docs/improvements.md, F-3): el botón de
@@ -292,9 +313,12 @@ export const texts = {
       `, ${done} de ${total} en el carro`,
     /** La última parada. */
     checkout: "Caja",
+    /** La única estación de la lista simple, sin categorías. */
+    simple: "Tu lista",
     arrived: (name: string, n: number, total: number) =>
       `Llegaste a ${name}, estación ${n} de ${total}.`,
     arrivedCheckout: "Llegaste a la caja.",
+    arrivedSimple: "Volviste a tu lista.",
     /** El ramal de una estación pasada con algo pendiente: "+2". */
     behindTag: (n: number) => `+${n}`,
     behindSpoken: (n: number) =>

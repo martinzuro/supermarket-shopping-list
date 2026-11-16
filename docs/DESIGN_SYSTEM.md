@@ -383,6 +383,24 @@ reducido de `visual.spec.ts` lo desactivan.
   solo si hay; el lector oye "2 pendientes") y dos botones `ghost` de 44px,
   "Subir “Nombre”" y "Bajar “Nombre”". Sin arrastrar. Cada toque mueve la
   categoría un lugar, optimista.
+- **Orden sugerido** (F-9, ADR 0010). Al abrirse, la hoja lee las compras
+  anteriores (`useTrips`) y `learnRoute` las ordena por cómo se marcaron
+  (`items.checked_at` por `trip_id`, sin migración). Si ese orden difiere del
+  recorrido, arriba de la lista sale un `Banner` `info` con `footer`: "Un
+  orden según tus compras", una línea que nombra las categorías por las que
+  pasaron esas compras, "Usar este orden" (primario) y "Ahora no" (`outline`; se recuerda en este dispositivo para ese orden, `lista:route-declined`, y un orden aprendido distinto vuelve a ofrecerse). Usarlo escribe el recorrido para todos con las
+  mismas escrituras de las flechas: `stepsTo` da un movimiento por categoría
+  fuera de lugar ("esta, arriba hasta antes de aquella", lo que toma
+  `move_category`), todos optimistas y en fila. Las categorías que ninguna compra vio conservan su lugar en el recorrido (nadie compró ahí: no se sabe dónde quedan), y si solo ellas difieren no hay sugerencia. La región de estado
+  dice "El recorrido quedó en el orden de tus compras." y el foco pasa a la
+  lista. Entra y sale con `Collapse`; sin dos compras con marcas en dos
+  categorías o más no hay nada que sugerir.
+- **Comprar sin categorías** (F-9). Al pie de la hoja, una fila con el
+  título en `text-row`, una línea en `text-label` tinta 2 y un `Button` con
+  `role="switch"` ("Sí" en el par de acción, "No" en `outline`), nombrado
+  por el título y descrito por la línea. Es de este dispositivo
+  (`useSimpleLine`, `lista:simple-line` en `localStorage`, aparte del viaje
+  porque `lista:shopping` termina con cada compra): nadie más lo ve.
 - **Movimiento.** Las filas se deslizan a su lugar con `layout="position"` y
   `transitions.base`, solo por `transform` y sin entrada propia
   (`initial={false}`); con movimiento reducido cambian de lugar sin deslizar.
@@ -762,6 +780,19 @@ esta compra) a la vez. Sale del prototipo de `/design/linea` (abajo, en
   recarga en la caja no anima nada; con movimiento reducido solo funde y no
   se arrastra. Es en vivo: lo que se marca o suma desde otro lado cambia
   sus cifras.
+- **Lista simple, sin categorías** (ADR 0010, punto 3). Una sola estación,
+  "Tu lista" (`SIMPLE_STATION`), con todo en el orden del recorrido y sin
+  sus títulos. El cartel cuenta el carro ("02/04", sin hilo de categoría ni
+  icono) y el riel deja de ser un recorrido y lo mide: dos nodos, la lista
+  (un disco) y la caja, y el punto baja con cada producto marcado. El botón
+  dice "Ir a la caja"; en la caja el ticket tiene una línea, y volver por el
+  riel dice "Volviste a tu lista.". Se usa si este dispositivo lo eligió
+  (el interruptor de la hoja "Recorrido") y sola cuando todo lo pendiente
+  al empezar cae en una categoría. Se decide al empezar el viaje y se guarda
+  con él (`simple` en la línea de `lista:shopping`): la línea no cambia de
+  forma a mitad de la compra aunque alguien sume a otra categoría, ni se
+  vuelve simple cuando queda una sola por recorrer. El resto (marcar, el
+  vuelo, deshacer, deslizar, el aviso de la caja) funciona igual.
 - **Sin toques de más.** Lo que aparece bajo el pulgar justo después de
   moverse no es lo que el pulgar buscaba: el botón de la barra ignora un
   toque dentro de `DOUBLE_TAP_MS` del último movimiento (por el botón o
@@ -1225,6 +1256,12 @@ derecho, al alcance del pulgar. Es la segunda forma del prototipo: la primera
   termina; el riel por toque, por deslizamiento con toques reales (CDP) y
   por teclado; la hoja de edición, el "Deshacer" de A-4 y el "+" dentro de
   la estación; y con movimiento reducido, que nada vuela ni gira.
+  `e2e/f9-line-simple.spec.ts`: la lista simple elegida en la hoja
+  "Recorrido" (en claro y oscuro: una estación, el punto que baja con el
+  carro, la recarga, el ticket de una línea) y sola con una categoría
+  pendiente; y el orden sugerido con compras sembradas (`seedTrips` con
+  `minutesBefore`): la sugerencia, "Usar este orden" con sus
+  `move_category` y el recorrido tras recargar.
   `e2e/f9-line-members.spec.ts`: lo que queda atrás, con dos miembros en
   claro y oscuro (otro suma a una estación pasada: el ramal que pulsa, el
   aviso, lo que oye el lector y "Volver" con el foco en el cartel) y a

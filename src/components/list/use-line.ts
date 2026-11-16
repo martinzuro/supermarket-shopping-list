@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo } from "react";
 import { useShoppingLine } from "@/components/list/shopping-mode";
+import { useSimpleLine } from "@/components/list/simple-line";
 import {
   CHECKOUT,
+  SIMPLE_STATION,
   behindOf,
   groupByCategory,
   moveTo,
@@ -38,6 +40,12 @@ export type Station = {
 export type Line = {
   /** The stations of this trip, in route order. */
   stations: readonly Station[];
+  /**
+   * The simple list: one station, SIMPLE_STATION, with everything, and the
+   * rail measures the cart. Chosen on this device, or on its own when
+   * everything to pick falls in one category; decided as the trip starts.
+   */
+  simple: boolean;
   position: LinePosition;
   /** The station you are at; null at the checkout. */
   here: Station | null;
@@ -48,9 +56,14 @@ export type Line = {
   move: (to: string) => void;
 };
 
-/** A station's name: its category's, or the one of what has none. */
+/**
+ * A station's name: its category's, the one of what has none, or the simple
+ * list's.
+ */
 export const stationName = (station: Station) =>
-  station.category?.name ?? texts.list.pending.uncategorized;
+  station.id === SIMPLE_STATION
+    ? texts.line.simple
+    : (station.category?.name ?? texts.list.pending.uncategorized);
 
 const stationId = (group: ItemGroup<Item, Category>) =>
   group.category?.id ?? NO_CATEGORY;
@@ -74,6 +87,7 @@ export function useLine(
   const items = useItems(userId, listId);
   const categories = useCategories(userId, listId);
   const [kept, keep] = useShoppingLine(shopping ? listId : null);
+  const [prefersSimple] = useSimpleLine();
   const ready =
     shopping &&
     listId !== null &&
@@ -86,18 +100,39 @@ export function useLine(
     if (!ready) return null;
     const live = (items.data ?? []).filter((item) => item.deleted_at == null);
     const groups = groupByCategory(live, categories.data ?? []);
+    // Decided as the trip starts and kept with it: the line does not
+    // change shape under a thumb when someone adds to another category.
+    const simple = kept
+      ? kept.simple === true
+      : prefersSimple ||
+        groups.filter((group) => group.items.some((item) => !item.checked))
+          .length === 1;
+    // The simple list keeps the route's order, without its stations.
+    const idOf = (group: ItemGroup<Item, Category>) =>
+      simple ? SIMPLE_STATION : stationId(group);
     const lineItems: LineItem[] = groups.flatMap((group) =>
       group.items.map((item) => ({
-        station: stationId(group),
+        station: idOf(group),
         checked: item.checked,
       })),
     );
-    const stations: Station[] = groups.map((group) => ({
-      id: stationId(group),
-      category: group.category,
-      items: group.items,
-      pending: pendingIn(lineItems, stationId(group)),
-    }));
+    const stations: Station[] = simple
+      ? live.length === 0
+        ? []
+        : [
+            {
+              id: SIMPLE_STATION,
+              category: null,
+              items: groups.flatMap((group) => group.items),
+              pending: pendingIn(lineItems, SIMPLE_STATION),
+            },
+          ]
+      : groups.map((group) => ({
+          id: stationId(group),
+          category: group.category,
+          items: group.items,
+          pending: pendingIn(lineItems, stationId(group)),
+        }));
     const ids = stations.map((station) => station.id);
     const position: LinePosition = kept
       ? reconcileLine(kept.stations, ids, {
@@ -105,8 +140,8 @@ export function useLine(
           passed: kept.passed,
         })
       : startOf(ids, lineItems);
-    return { stations, ids, lineItems, position };
-  }, [ready, items.data, categories.data, kept]);
+    return { stations, ids, lineItems, position, simple };
+  }, [ready, items.data, categories.data, kept, prefersSimple]);
 
   // Kept with the trip (shopping-mode.ts); the same line is not written twice.
   useEffect(() => {
@@ -115,14 +150,16 @@ export function useLine(
       at: line.position.at,
       passed: line.position.passed,
       stations: line.ids,
+      ...(line.simple ? { simple: true } : {}),
     });
   }, [line, keep]);
 
   return useMemo(() => {
     if (line === null) return null;
-    const { stations, ids, lineItems, position } = line;
+    const { stations, ids, lineItems, position, simple } = line;
     return {
       stations,
+      simple,
       position,
       here:
         position.at === CHECKOUT
@@ -132,7 +169,12 @@ export function useLine(
       behind: behindOf(ids, lineItems, position),
       move: (to: string) => {
         const moved = moveTo(ids, position, to);
-        keep({ at: moved.at, passed: moved.passed, stations: ids });
+        keep({
+          at: moved.at,
+          passed: moved.passed,
+          stations: ids,
+          ...(simple ? { simple: true } : {}),
+        });
       },
     };
   }, [line, keep]);

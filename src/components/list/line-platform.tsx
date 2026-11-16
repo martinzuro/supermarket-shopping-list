@@ -29,6 +29,7 @@ import { motionTokens } from "@/lib/design/motion";
 import {
   CHECKOUT,
   DEFAULT_CURRENCY,
+  SIMPLE_STATION,
   categoryKind,
   formatMoney,
   formatQuantity,
@@ -66,7 +67,12 @@ function stopOf(station: Station): Stop {
   return {
     id: station.id,
     name: stationName(station),
-    kind: station.category ? categoryKind(station.category) : "otros",
+    kind:
+      station.id === SIMPLE_STATION
+        ? null
+        : station.category
+          ? categoryKind(station.category)
+          : "otros",
     done: station.items.length - station.pending,
     total: station.items.length,
   };
@@ -138,7 +144,18 @@ export function LinePlatform({
   ];
   const index = stops.findIndex((stop) => stop.id === at);
   const current = stops[index] ?? stops[stops.length - 1];
-  const progress = stops.length > 1 ? index / (stops.length - 1) : 1;
+  // The simple list has no stations to walk: the rail measures the cart,
+  // and the dot goes down with every product picked.
+  const counted = line.simple || atCheckout;
+  const progress = atCheckout
+    ? 1
+    : line.simple
+      ? total > 0
+        ? done / total
+        : 0
+      : stops.length > 1
+        ? index / (stops.length - 1)
+        : 1;
 
   // False until the stop changes on this screen: a first render (a reload
   // mid-trip) animates nothing and says nothing. Adjusted during render, so
@@ -168,7 +185,9 @@ export function LinePlatform({
     say(
       atCheckout
         ? t.arrivedCheckout
-        : t.arrived(current.name, index + 1, stations.length),
+        : line.simple
+          ? t.arrivedSimple
+          : t.arrived(current.name, index + 1, stations.length),
     );
   }
   const arrived: string[] = [];
@@ -236,7 +255,15 @@ export function LinePlatform({
     const flyer: Flyer = {
       id: flyerId.current,
       from: [a.left + a.width / 2, a.top + a.height / 2],
-      to: [b.left + b.width / 2, b.top + b.height * progress],
+      // The simple list's dot is where the cart is: one further, with this.
+      to: [
+        b.left + b.width / 2,
+        b.top +
+          b.height *
+            (line.simple && !atCheckout && total > 0
+              ? Math.min(1, (done + 1) / total)
+              : progress),
+      ],
     };
     setFlyers((list) => [...list, flyer]);
   }
@@ -248,12 +275,12 @@ export function LinePlatform({
         <Board
           stop={current}
           number={
-            atCheckout
+            counted
               ? t.number(done, total)
               : t.number(index + 1, stations.length)
           }
           spoken={
-            atCheckout
+            counted
               ? t.cartSpoken(done, total)
               : t.stationSpoken(index + 1, stations.length)
           }
@@ -642,16 +669,21 @@ function Rail({
                     aria-hidden
                     className={cn(
                       "duration-base block rounded-full transition-transform ease-out",
-                      current
-                        ? "bg-paper size-6 border-2"
-                        : done
-                          ? "bg-action-bg size-3"
-                          : "bg-paper size-3.5 border-2",
+                      stop.id === SIMPLE_STATION
+                        ? // No station to stand at: the cart moves the dot.
+                          "bg-action-bg size-3"
+                        : current
+                          ? "bg-paper size-6 border-2"
+                          : done
+                            ? "bg-action-bg size-3"
+                            : "bg-paper size-3.5 border-2",
                       left > 0 && "border-citrus",
                       scrubbed === index && "scale-150",
                     )}
                     style={
-                      left > 0 || (done && !current)
+                      left > 0 ||
+                      (done && !current) ||
+                      stop.id === SIMPLE_STATION
                         ? undefined
                         : { borderColor: threadOf(stop) }
                     }

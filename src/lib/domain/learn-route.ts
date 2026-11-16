@@ -87,3 +87,28 @@ export function learnRoute<C extends string>(
   });
   return { order, trips: counted, learned: true };
 }
+
+/**
+ * The moves that turn one route into another, each "this category, up to
+ * right before that one" (what public.move_category takes): at most one per
+ * category out of place. Ids the route does not have are skipped.
+ */
+export function stepsTo<C extends string>(
+  current: readonly C[],
+  target: readonly C[],
+): { id: C; past: C }[] {
+  const order = [...current];
+  const steps: { id: C; past: C }[] = [];
+  let place = 0;
+  for (const id of target) {
+    const at = order.indexOf(id);
+    if (at === -1) continue;
+    if (at !== place) {
+      steps.push({ id, past: order[place] });
+      order.splice(at, 1);
+      order.splice(place, 0, id);
+    }
+    place += 1;
+  }
+  return steps;
+}
