@@ -2,9 +2,11 @@ import { expect, test } from "@playwright/test";
 import { anonymousUser, noSessionClient } from "./supabase-admin";
 
 /**
- * The keep-alive query (migration `keep_alive`): the keep-staging-awake
- * workflow calls it with the publishable key and no session, as `anon`, so
- * that role can run it; signed-in users (anonymous ones included) cannot.
+ * The keep-alive query (migrations `keep_alive` and
+ * `keep_alive_reads_a_table`): the keep-staging-awake workflow calls it with
+ * the publishable key and no session, as `anon`, so that role can run it and
+ * read the heartbeat row it reads, and change nothing; signed-in users
+ * (anonymous ones included) cannot call it.
  */
 
 test.skip(
@@ -19,6 +21,19 @@ test("without a session keep_alive answers true", async () => {
   });
   expect(error).toBeNull();
   expect(data).toBe(true);
+});
+
+test("without a session the heartbeat is read-only", async () => {
+  const anon = noSessionClient();
+  const { data, error } = await anon.from("heartbeat").select("id");
+  expect(error).toBeNull();
+  expect(data).toEqual([{ id: true }]);
+
+  const { error: deleteError } = await anon
+    .from("heartbeat")
+    .delete()
+    .eq("id", true);
+  expect(deleteError?.code).toBe("42501");
 });
 
 test("a signed-in user cannot call keep_alive", async () => {

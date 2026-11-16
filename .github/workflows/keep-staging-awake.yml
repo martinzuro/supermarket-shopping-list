@@ -1,19 +1,20 @@
 name: Keep staging awake
 
-# Supabase Free pausa un proyecto tras una semana sin actividad (staging se
-# pausó el 2026-11-02). Este workflow llama a public.keep_alive()
-# (supabase/migrations/20261103023044_keep_alive.sql) con la clave publicable,
-# que es una consulta real en Postgres. Si una corrida falla, GitHub avisa por
-# mail: staging está pausado o cambió la clave. Como el repo es público,
-# GitHub desactiva los workflows programados tras 60 días sin commits; se
-# reactiva desde la pestaña Actions.
+# Supabase Free pausa un proyecto con poca actividad en una semana. Staging se
+# pausó el 2026-11-02 y otra vez el 2026-11-16, cuando este workflow llamaba
+# tres veces por semana a una función que no leía ninguna tabla. Supabase no
+# publica qué cuenta como actividad. Ahora el workflow llama cada 4 horas a
+# public.keep_alive(), que lee la fila de public.heartbeat
+# (supabase/migrations/20261116031119_keep_alive_reads_a_table.sql), con la
+# clave publicable. Si una corrida falla, GitHub avisa por mail: staging está
+# pausado o cambió la clave. Como el repo es público, GitHub desactiva los
+# workflows programados tras 60 días sin commits; se reactiva desde la
+# pestaña Actions.
 on:
   schedule:
-    # Lunes, miércoles y viernes a las 12:17 UTC: nunca pasan más de tres
-    # días entre llamadas, así que perder una corrida no alcanza para la pausa.
-    # El minuto suelto esquiva la hora en punto, cuando GitHub más demora o
-    # descarta las corridas programadas.
-    - cron: "17 12 * * 1,3,5"
+    # Cada 4 horas, en el minuto 17: el minuto suelto esquiva la hora en
+    # punto, cuando GitHub más demora o descarta las corridas programadas.
+    - cron: "17 */4 * * *"
   workflow_dispatch:
 
 permissions: {}
@@ -28,9 +29,14 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
-        run: >
-          curl --fail-with-body --silent --show-error
-          --connect-timeout 10 --max-time 30
-          --retry 3 --retry-delay 30 --retry-all-errors
-          --header "apikey: $SUPABASE_PUBLISHABLE_KEY"
-          "${SUPABASE_URL%/}/rest/v1/rpc/keep_alive"
+        run: |
+          answer="$(curl --fail-with-body --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --retry 3 --retry-delay 30 --retry-all-errors \
+            --header "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            "${SUPABASE_URL%/}/rest/v1/rpc/keep_alive")" || {
+            echo "$answer"
+            exit 1
+          }
+          echo "$answer"
+          test "$answer" = true
