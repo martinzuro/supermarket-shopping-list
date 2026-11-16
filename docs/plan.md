@@ -472,13 +472,18 @@ Cuentas, hecho el 2026-10-17:
       Las migraciones se aplican a staging con `npx supabase db push`; al
       2026-11-03 tiene todas las de `supabase/migrations/` (verificado con
       `npx supabase migration list --linked`). El plan Free lo pausó el
-      2026-11-02 tras una semana sin uso. Para que no se repita, el workflow
-      `keep-staging-awake` llama a `public.keep_alive()` lunes, miércoles y
-      viernes con la clave publicable, que lee de los secrets del repo
-      `STAGING_SUPABASE_URL` y `STAGING_SUPABASE_PUBLISHABLE_KEY`. Si una
-      corrida falla, GitHub avisa por mail: hay que restaurar staging desde el
-      dashboard o revisar la clave. GitHub desactiva el workflow tras 60 días
-      sin commits en el repo; se reactiva desde la pestaña Actions.
+      2026-11-02 tras una semana sin uso, y otra vez el 2026-11-16 aunque el
+      workflow `keep-staging-awake` ya lo llamaba tres veces por semana con
+      una función que no leía ninguna tabla. Supabase no publica qué cuenta
+      como actividad; probablemente tres consultas triviales por semana no
+      le alcanzan. Desde entonces el workflow llama cada 4 horas a
+      `public.keep_alive()`, que lee la fila de `public.heartbeat`, con la
+      clave publicable, que lee de los secrets del repo
+      `STAGING_SUPABASE_URL` y `STAGING_SUPABASE_PUBLISHABLE_KEY`. Si vuelve a
+      pausarse, el paso siguiente es Pro. Si una corrida falla, GitHub avisa
+      por mail: hay que restaurar staging desde el dashboard o revisar la
+      clave. GitHub desactiva el workflow tras 60 días sin commits en el
+      repo; se reactiva desde la pestaña Actions.
 - [ ] **Sentry**: pospuesto por decisión del 2026-10-17 para ahorrar
       tiempo. Se retoma en la Fase 4 junto con la observabilidad.
 - [ ] **Resend**: cuenta creada el 2026-10-27. Sin dominio propio solo

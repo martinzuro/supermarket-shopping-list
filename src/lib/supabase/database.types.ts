@@ -51,6 +51,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"heartbeat": {
+                  Row: {
+                    "id": boolean
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "id"?: boolean
+                  }
+                  Update: {
+                    "id"?: boolean
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"items": {
                   Row: {
                     "category_id": string | null,"checked": boolean,"checked_at": string | null,"created_at": string,"created_by": string | null,"currency": string | null,"deleted_at": string | null,"estimated_price": number | null,"id": string,"list_id": string,"name": string,"name_normalized": string,"note": string | null,"position": number,"quantity": number | null,"trip_id": string | null,"unit": string | null,"updated_at": string
