@@ -605,6 +605,14 @@ export function ListView() {
   const t = texts.moments.cartEmptied;
   const momentBody =
     summary !== null && summary.remaining === 0 ? t.bodyDone : t.body;
+  // After "Terminé" at the line's checkout the ticket already told the
+  // trip (F-9, ADR 0010): the moment is a brief headline, without the
+  // summary. "Vaciar el carro" keeps it (M-3), and so does a trip that had
+  // no line to show a ticket on.
+  const ledger =
+    summary !== null && !(summary.shopping && summary.line !== null)
+      ? summary
+      : null;
   return (
     <>
       {/* What happened to the list that was here, and what the user may
@@ -621,7 +629,7 @@ export function ListView() {
           ? [
               `${t.lead} ${t.em}.`,
               momentBody,
-              summary ? tripSummarySpoken(summary) : "",
+              ledger ? tripSummarySpoken(ledger) : "",
             ].join(" ")
           : ""}
       </div>
@@ -719,11 +727,11 @@ export function ListView() {
                 em={texts.moments.cartEmptied.em}
                 body={momentBody}
                 details={
-                  summary ? (
+                  ledger ? (
                     <TripSummary
-                      count={summary.count}
-                      estimate={summary.estimate}
-                      remaining={summary.remaining}
+                      count={ledger.count}
+                      estimate={ledger.estimate}
+                      remaining={ledger.remaining}
                     />
                   ) : undefined
                 }

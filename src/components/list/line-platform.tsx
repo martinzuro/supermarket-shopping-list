@@ -9,7 +9,12 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import { type Line, type Station } from "@/components/list/use-line";
+import { LineTicket } from "@/components/list/line-ticket";
+import {
+  stationName,
+  type Line,
+  type Station,
+} from "@/components/list/use-line";
 import { CategoryIcon } from "@/components/icons/category-icons";
 import {
   Collapse,
@@ -60,7 +65,7 @@ type Stop = {
 function stopOf(station: Station): Stop {
   return {
     id: station.id,
-    name: station.category?.name ?? texts.list.pending.uncategorized,
+    name: stationName(station),
     kind: station.category ? categoryKind(station.category) : "otros",
     done: station.items.length - station.pending,
     total: station.items.length,
@@ -285,6 +290,9 @@ export function LinePlatform({
             </div>
           ) : null}
         </Collapse>
+
+        {/* The last stop: the trip as a ticket, where "Terminé" is. */}
+        {atCheckout ? <LineTicket stations={stations} animate={moved} /> : null}
 
         {here ? (
           <Stagger
